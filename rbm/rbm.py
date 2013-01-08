@@ -28,10 +28,24 @@ class RestrictedBoltzmannMachine(object):
 
     def free_energy(self, vis):
         "The free energy (without the normalization constant)"
+        #s = self.bias_hid + gp.dot(vis, self.weights)
+        #assert s.all_real()
+        #d = gp.exp(s)
+        #if not d.all_real():
+        #    rows, cols = gp.where(1 - d.isreal())
+        #    print rows, cols
+        #    print "Found unreal number at [%d,%d]: " % (rows[0], cols[0])
+        #    print "s: ", s[rows[0], cols[0]]
+        #    print "d: ", d[rows[0], cols[0]]
+        #    assert False
+
         return (- gp.dot(vis, self.bias_vis) 
-                - gp.sum(gp.log(1 + 
-                                gp.exp(self.bias_hid + gp.dot(vis, self.weights))), 
+                - gp.sum(gp.log_1_plus_exp(self.bias_hid + gp.dot(vis, self.weights)),
                          axis=1))
+        #return (- gp.dot(vis, self.bias_vis) 
+        #        - gp.sum(gp.log(1 + 
+        #                        gp.exp(self.bias_hid + gp.dot(vis, self.weights))), 
+        #                 axis=1))
 
     def p_hid(self, vis):
         """Returns a vector whose ith component is the probability that the ith

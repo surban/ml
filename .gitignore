@@ -3,6 +3,7 @@
 apps/mnist.pkl.gz
 apps/*/*.png
 apps/*/*.npz
+apps/mnist-rbm-pcd
 
 
 

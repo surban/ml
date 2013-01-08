@@ -26,8 +26,7 @@ epochs = 15
 use_pcd = True
 #use_pcd = False
 n_plot_samples = 10
-#n_gibbs_steps_between_samples = 1000
-n_gibbs_steps_between_samples = 20
+n_gibbs_steps_between_samples = 1000
 
 # make data
 f = gzip.open('mnist.pkl.gz', 'rb')
