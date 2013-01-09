@@ -26,6 +26,14 @@ class RestrictedBoltzmannMachine(object):
         self.persistent_vis = \
             gp.as_garray(np.random.normal(0, sigma, size=(batch_size, n_vis)))
 
+    @property
+    def n_vis(self):
+        return self.bias_vis.shape[0]
+
+    @property
+    def n_hid(self):
+        return self.bias_hid.shape[0]
+
     def free_energy(self, vis):
         "The free energy (without the normalization constant)"
         #s = self.bias_hid + gp.dot(vis, self.weights)
@@ -77,6 +85,22 @@ class RestrictedBoltzmannMachine(object):
             vis = self.sample_vis(hid)
         p_vis = self.p_vis(hid)
         return (vis, p_vis)
+
+    def sample_free_vis(self, n_chains, n_steps, gibbs_steps_between_samples,
+                        sample_probabilities=False):
+        """Obtains unbiased samples for the visible units.
+        Runs n_chains Gibbs chains in parallel for n_steps.
+        Grabs samples every steps_between_samples Gibbs steps."""
+        samples = gp.zeros((n_chains * n_steps, self.n_vis))
+        vis = gp.rand((n_chains, self.n_vis)) < 0.5
+        for step in range(n_steps):
+            vis, p_vis = self.gibbs_sample(vis, gibbs_steps_between_samples)
+            if sample_probabilities:
+                sample = p_vis
+            else:
+                sample = vis
+            samples[step*n_chains : (step+1)*n_chains, :] = sample
+        return samples
 
     def _cd_update_terms(self, vis, model_vis, model_p_vis):
         """Returns (weights update, visible bias update, hidden bias update) given
