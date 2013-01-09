@@ -23,8 +23,8 @@ step_rate = 1E-1
 momentum = 0
 n_gibbs_steps = 15
 epochs = 15
-use_pcd = True
-#use_pcd = False
+#use_pcd = True
+use_pcd = False
 n_plot_samples = 10
 n_gibbs_steps_between_samples = 1000
 
@@ -108,7 +108,8 @@ for epoch in range(epochs):
 
     # sample from RBM and plot
     pv = TX[0:batch_size,:]
-    v = pv > 0.5
+    #v = pv > 0.5
+    v = pv
     img = np.zeros((29 * n_plot_samples + 1, 29 * batch_size - 1),
                    dtype='uint8')
     for i in range(n_plot_samples):

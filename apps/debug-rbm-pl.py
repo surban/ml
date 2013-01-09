@@ -15,7 +15,7 @@ from rbm.rbm import RestrictedBoltzmannMachine
 
 #gp.acceptable_number_types = 'no nans or infs'
 epoch = 14
-do_sampling = False
+do_sampling = True
 
 # Hyperparameters
 use_pcd = True
@@ -44,6 +44,8 @@ rbm = RestrictedBoltzmannMachine(batch_size, n_vis, n_hid, n_gibbs_steps)
 
 # load RBM state
 filename = "weights-%02i.npz" % epoch
+#filename = "../../../DeepLearningTutorials/code/rbm_plots/GPU-PCD/weights.npz"
+#epoch = 99
 print "Loading state %s" % filename
 state = np.load(filename)
 rbm.weights = gp.as_garray(state['weights'])
@@ -80,7 +82,8 @@ pilimage.save('filters-%02i.png' % epoch)
 # sample from RBM and plot
 if do_sampling:
     pv = TX[0:batch_size,:]
-    v = pv > 0.5
+    #v = pv > 0.5
+    v = pv
     img = np.zeros((29 * n_plot_samples + 1, 29 * batch_size - 1),
                     dtype='uint8')
     for i in range(n_plot_samples):

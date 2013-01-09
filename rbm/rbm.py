@@ -87,9 +87,18 @@ class RestrictedBoltzmannMachine(object):
         #print "p_hid(vis).shape:         ", self.p_hid(vis).shape
         #print "model_p_vis.shape:        ", model_p_vis.shape
         #print "p_hid(model_p_vis).shape: ", self.p_hid(model_p_vis).shape
+        
+        # my update rule:
+        #dweights = (gp.dot(vis.T, self.p_hid(vis)) - 
+        #            gp.dot(model_p_vis.T, self.p_hid(model_vis)))
+        #dbias_vis = gp.sum(vis, axis=0) - gp.sum(model_p_vis, axis=0)
+        #dbias_hid = (gp.sum(self.p_hid(vis), axis=0) - 
+        #             gp.sum(self.p_hid(model_vis), axis=0))
+
+        # deep learning update rule:
         dweights = (gp.dot(vis.T, self.p_hid(vis)) - 
-                    gp.dot(model_p_vis.T, self.p_hid(model_vis)))
-        dbias_vis = gp.sum(vis, axis=0) - gp.sum(model_p_vis, axis=0)
+                    gp.dot(model_vis.T, self.p_hid(model_vis)))
+        dbias_vis = gp.sum(vis, axis=0) - gp.sum(model_vis, axis=0)
         dbias_hid = (gp.sum(self.p_hid(vis), axis=0) - 
                      gp.sum(self.p_hid(model_vis), axis=0))
 
