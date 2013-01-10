@@ -47,12 +47,12 @@ ais = AnnealedImportanceSampler(rbm, ais_base_samples, ais_base_chains,
                                 ais_base_gibbs_steps_between_samples)
 #print "Base RBM visible biases:"
 #print ais.base_bias_vis
-print "Base RBM log partition function:   %f" % ais.base_log_partition_function()
+print "Base RBM log partition function:  %f" % ais.base_log_partition_function()
 
 # perform estimation of partition function
 print "Estimating partition function using %d AIS runs with %d intermediate "\
     "RBMs and %d Gibbs steps..." % (ais_runs, len(ais_betas), ais_gibbs_steps)
-pf = ais.partition_function(ais_betas, ais_runs, ais_gibbs_steps)
-print "RBM partiiton function:        %f" % pf
+lpf = ais.log_partition_function(ais_betas, ais_runs, ais_gibbs_steps)
+print "RBM log partition function:       %f" % lpf
 
 

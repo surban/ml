@@ -4,7 +4,7 @@ import gnumpy as gp
 import numpy as np
 import math
 
-#import .rbm
+import rbm
 
 class AnnealedImportanceSampler(object):
     
@@ -51,7 +51,7 @@ class AnnealedImportanceSampler(object):
         vis_mean = gp.mean(vis, axis=0)
         self.base_bias_vis = gp.log(vis_mean / (1 - vis_mean + epsilon))
 
-    def partition_function(self, betas, ais_runs, sampling_gibbs_steps=1):     
+    def log_partition_function(self, betas, ais_runs, sampling_gibbs_steps=1):     
         "Computes the partition function of the RBM"
         assert betas[0] == 0 and betas[-1] == 1
 
@@ -59,29 +59,35 @@ class AnnealedImportanceSampler(object):
                                               self.rbm.n_vis,
                                               self.rbm.n_hid,
                                               0)
-        iw = gp.ones(ais_runs)
+        iw = gp.zeros(ais_runs)
 
-        for beta in betas:
+        for i, beta in enumerate(betas):
+            print "%d / %d                       \r" % (i, len(betas)),
+            beta = float(beta)
+
+            # calculate log p_(i-1)(v)
+            if beta != 0:
+                lp_prev_vis = irbm.free_energy(vis)
+
             # build intermediate RBM
             irbm.weights = beta * self.rbm.weights
             irbm.bias_hid = beta * self.rbm.bias_hid
-            irbm.bias_vis = ((1-beta) * self.base_bias_vis + beta * 
-                                beta * self.rbm.bias_vis)
+            irbm.bias_vis = ((1.0-beta) * self.base_bias_vis + 
+                             beta * self.rbm.bias_vis)
 
-            # sample
-            if beta == 0:
-                vis = self.base_sample_vis(ais_runs)
-            else:
-                vis = irbm.gibbs_sample(vis, sampling_gibbs_steps)
-
-            # calculate unnormalized probability of visible units
-            p = gp.exp(irbm.free_energy(vis))
+            # calculate log p_i(v_i)
+            if beta != 0:
+                lp_vis = irbm.free_energy(vis)
 
             # update importance weight
             if beta != 0:
-                iw = iw * p / last_p
+                iw += lp_vis - lp_prev_vis
 
-            last_p = p
+            # sample v_(i+1)
+            if beta == 0:
+                vis = self.base_sample_vis(ais_runs)
+            else:
+                vis, _ = irbm.gibbs_sample(vis, sampling_gibbs_steps)
 
-        return gp.mean(iw) * self.base_partition_function()
+        return gp.mean(iw) + self.base_log_partition_function()
 

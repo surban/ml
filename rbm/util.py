@@ -22,7 +22,7 @@ def enter_rbm_plot_directory(dataset, n_hid, use_pcd, n_gibbs_steps,
     else:
         pcd_str = ""
     outdir = "mnist-rbm-%03d-%scd%02d" % (n_hid, pcd_str, n_gibbs_steps)
-    util.enter_plot_directory(outdir)
+    util.enter_plot_directory(outdir, clean=clean)
 
 def plot_samples(rbm, epoch, init_samples, 
                  n_plot_samples, n_gibbs_steps_between_samples):
