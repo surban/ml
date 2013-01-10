@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>eec4408a-b3ab-4b7d-861a-2e07578bb29d</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>mnist-rbm.py</StartupFile>
+    <StartupFile>mnist-ais.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -23,7 +23,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="debug-rbm-pl.py" />
+    <Compile Include="mnist-ais.py" />
+    <Compile Include="mnist_rbm_config.py" />
     <Compile Include="mnist-rbm.py" />
+    <Compile Include="__init__.py" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
 </Project>

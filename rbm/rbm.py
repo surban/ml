@@ -11,7 +11,8 @@ class RestrictedBoltzmannMachine(object):
 
     def __init__(self, batch_size, n_vis, n_hid, cd_steps, seed=0):
         """A Restricted Boltzmann Machine (RBM) with binary units.
-        batch_size is the size of a batch used for training.
+        batch_size is the size of a batch used for training. It may be 0 if
+        the RBM will not be trained.
         n_vis and n_hid are the number of visible and hidden units.
         cd_steps is the number of alternating Gibbs sampling iterations to
         perform when computing the paramter updates using constrastive divergence."""
@@ -23,8 +24,9 @@ class RestrictedBoltzmannMachine(object):
                                                       size=(n_hid,)))
         self.weights = gp.as_garray(np.random.normal(0, sigma, 
                                                      size=(n_vis, n_hid)))
-        self.persistent_vis = \
-            gp.as_garray(np.random.normal(0, sigma, size=(batch_size, n_vis)))
+        if batch_size > 0:
+            self.persistent_vis = \
+                gp.as_garray(np.random.normal(0, sigma, size=(batch_size, n_vis)))
 
     @property
     def n_vis(self):
