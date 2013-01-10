@@ -49,7 +49,7 @@ class AnnealedImportanceSampler(object):
         vis = self.rbm.sample_free_vis(n_chains, n_steps, 
                                        gibbs_steps_between_samples)
         vis_mean = gp.mean(vis, axis=0)
-        self.base_bias_vis = gp.log(vis_mean / (1 - vis_mean + epsilon))
+        self.base_bias_vis = gp.log((vis_mean + epsilon) / (1 - vis_mean + epsilon))
 
     def log_partition_function(self, betas, ais_runs, sampling_gibbs_steps=1):     
         "Computes the partition function of the RBM"
@@ -63,6 +63,7 @@ class AnnealedImportanceSampler(object):
 
         for i, beta in enumerate(betas):
             print "%d / %d                       \r" % (i, len(betas)),
+
             beta = float(beta)
 
             # calculate log p_(i-1)(v)
