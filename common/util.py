@@ -3,7 +3,23 @@
 import os
 import glob
 import numpy as np
+import gnumpy as gp
 
+
+def pack_in_batches(gen, batch_size):
+    """Packs batch_size samples from gen into a batch"""
+    pos = 0
+    for sample in gen:
+        if pos == 0:
+            batch = np.zeros((batch_size, len(sample)))
+        batch[pos,:] = sample
+        pos += 1        
+        if pos == batch_size:
+            yield gp.as_garray(batch)
+            pos = 0
+
+    if pos > 0:
+        yield gp.as_garray(batch[0:pos,:])
 
 def draw_slices(X, batch_size, kind='sequential', samples_are='rows', 
                 stop=False):

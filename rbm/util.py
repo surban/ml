@@ -15,6 +15,13 @@ def sample_binomial(p):
     r = gp.rand(p.shape)
     return r < p
 
+def all_states(size):
+    c = 0L
+    while not c & (1 << size):
+        bits = [int((c >> bit) & 1) for bit in range(size)]
+        yield bits
+        c += 1
+
 def enter_rbm_plot_directory(dataset, n_hid, use_pcd, n_gibbs_steps,
                              clean=True):
     if use_pcd:

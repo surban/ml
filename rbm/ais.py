@@ -46,7 +46,7 @@ class AnnealedImportanceSampler(object):
     def base_init(self, n_chains, n_steps, gibbs_steps_between_samples):
         "Calculates the biases of the base rate RBM using maximum likelihood"
         epsilon = 1e-2
-        vis = self.rbm.sample_free_vis(n_chains, n_steps, 
+        vis = self.rbm.sample_vis(n_chains, n_steps, 
                                        gibbs_steps_between_samples)
         vis_mean = gp.mean(vis, axis=0)
         self.base_bias_vis = gp.log((vis_mean + epsilon) / (1 - vis_mean + epsilon))

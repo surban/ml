@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
+import time
 import Image as pil
 import numpy as np
 import gnumpy as gp
@@ -17,8 +19,14 @@ from rbm.ais import AnnealedImportanceSampler
 #np.seterr(all='raise')
 #gp.acceptable_number_types = 'no nans or infs'
 
+gp.seed_rand(int(time.time()))
+
+# Parameters for exact estimation of partition function
+exact_pf_batch_size = 10000
+exact_pf_prec = 300
+
 # AIS parameters
-epoch = 14
+epoch = cfg.epochs - 1
 ais_runs = 100
 ais_gibbs_steps = 1
 ais_betas = np.concatenate((np.linspace(0.0, 0.5,   500, endpoint=False),
@@ -39,6 +47,15 @@ rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd, cfg.n_gibbs_st
 # Build RBM
 rbm = RestrictedBoltzmannMachine(0, cfg.n_vis, cfg.n_hid, 0) 
 rbmutil.load_parameters(rbm, "weights-%02i.npz" % epoch)
+
+# calculate exact partition function
+print "Calculating exact partiton function for RBM with %d hidden units..." \
+    % (rbm.n_hid)
+exact_pf = rbm.partition_function(exact_pf_batch_size, exact_pf_prec)
+exact_lpf = exact_pf.ln()
+print "RBM exact log partition function: %f" % exact_lpf
+
+sys.exit(0)
 
 # init AIS estimator
 print "Calculating base RBM biases using %d samples with %d Gibbs steps " \

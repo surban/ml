@@ -4,6 +4,7 @@
 n_vis = 784
 #n_hid = 512
 n_hid = 25
+#n_hid = 8
 
 # RBM training parameters
 batch_size = 20
@@ -13,6 +14,7 @@ momentum = 0
 n_gibbs_steps = 3
 #n_gibbs_steps = 15
 epochs = 15
+#epochs = 3
 #use_pcd = True
 use_pcd = False
 

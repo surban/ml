@@ -2,8 +2,10 @@
 
 import gnumpy as gp
 import numpy as np
+import common.util
+import decimal
 
-from .util import sample_binomial
+from .util import sample_binomial, all_states
 
 
 class RestrictedBoltzmannMachine(object):
@@ -37,7 +39,8 @@ class RestrictedBoltzmannMachine(object):
         return self.bias_hid.shape[0]
 
     def free_energy(self, vis):
-        "The free energy (without the normalization constant)"
+        """The negative log probability of the visible units being in state vis 
+        (without the normalization constant)"""
         #s = self.bias_hid + gp.dot(vis, self.weights)
         #assert s.all_real()
         #d = gp.exp(s)
@@ -52,29 +55,53 @@ class RestrictedBoltzmannMachine(object):
         return (- gp.dot(vis, self.bias_vis) 
                 - gp.sum(gp.log_1_plus_exp(self.bias_hid + gp.dot(vis, self.weights)),
                          axis=1))
-        #return (- gp.dot(vis, self.bias_vis) 
-        #        - gp.sum(gp.log(1 + 
-        #                        gp.exp(self.bias_hid + gp.dot(vis, self.weights))), 
-        #                 axis=1))
 
-    def p_hid(self, vis):
+    def free_hidden_energy(self, hid):
+        """The negative log probability of the hidden units being in state hid
+        (without the normalization constant)"""
+        return (- gp.dot(hid, self.bias_hid)
+                - gp.sum(gp.log_1_plus_exp(self.bias_vis + gp.dot(hid, self.weights.T)),
+                         axis=1))
+
+    def partition_function(self, batch_size, prec):
+        """The exact value of Z calculated with precision prec. 
+        Only feasible for small number of hidden units."""
+        decimal.getcontext().prec = prec
+        batches = common.util.pack_in_batches(all_states(self.n_hid), 
+                                              batch_size)
+        s = decimal.Decimal(0)
+        seen_samples = 0L
+        total_samples = 2L**self.n_hid
+        for hid in batches:
+            print "%i / %i           \r" % (seen_samples, total_samples),
+            fhes = self.free_hidden_energy(hid)
+            for fhe in gp.as_numpy_array(fhes):
+                #print "fhe: ", fhe
+                p = decimal.Decimal(fhe).exp()
+                #print "p: ", p
+                s += p
+                #print "s: " ,s
+            seen_samples += hid.shape[0]
+        return s
+
+    def p_hid_given_vis(self, vis):
         """Returns a vector whose ith component is the probability that the ith
         hidden unit is active given the states of the visible units"""
         return gp.logistic(gp.dot(vis, self.weights) + self.bias_hid)
 
-    def sample_hid(self, vis):
+    def sample_hid_given_vis(self, vis):
         """Samples the hidden units given the visible units"""
-        p = self.p_hid(vis)
+        p = self.p_hid_given_vis(vis)
         return sample_binomial(p)
 
-    def p_vis(self, hid):
+    def p_vis_given_hid(self, hid):
         """Returns a vector whose ith component is the probability that the ith
         visible unit is active given the states of the hidden units"""
         return gp.logistic(gp.dot(hid, self.weights.T) + self.bias_vis)
 
-    def sample_vis(self, hid):
+    def sample_vis_given_hid(self, hid):
         """Samples the visible units given the hidden units"""
-        p = self.p_vis(hid)
+        p = self.p_vis_given_hid(hid)
         return sample_binomial(p)
 
     def gibbs_sample(self, vis, k):
@@ -83,13 +110,13 @@ class RestrictedBoltzmannMachine(object):
         that they are active given the state of the hiddens in the previous
         to last step."""
         for i in range(k):
-            hid = self.sample_hid(vis)
-            vis = self.sample_vis(hid)
-        p_vis = self.p_vis(hid)
+            hid = self.sample_hid_given_vis(vis)
+            vis = self.sample_vis_given_hid(hid)
+        p_vis = self.p_vis_given_hid(hid)
         return (vis, p_vis)
 
-    def sample_free_vis(self, n_chains, n_steps, gibbs_steps_between_samples,
-                        sample_probabilities=False):
+    def sample_vis(self, n_chains, n_steps, gibbs_steps_between_samples,
+                   sample_probabilities=False):
         """Obtains unbiased samples for the visible units.
         Runs n_chains Gibbs chains in parallel for n_steps.
         Grabs samples every steps_between_samples Gibbs steps."""
@@ -122,11 +149,11 @@ class RestrictedBoltzmannMachine(object):
         #             gp.sum(self.p_hid(model_vis), axis=0))
 
         # deep learning update rule:
-        dweights = (gp.dot(vis.T, self.p_hid(vis)) - 
-                    gp.dot(model_vis.T, self.p_hid(model_vis)))
+        dweights = (gp.dot(vis.T, self.p_hid_given_vis(vis)) - 
+                    gp.dot(model_vis.T, self.p_hid_given_vis(model_vis)))
         dbias_vis = gp.sum(vis, axis=0) - gp.sum(model_vis, axis=0)
-        dbias_hid = (gp.sum(self.p_hid(vis), axis=0) - 
-                     gp.sum(self.p_hid(model_vis), axis=0))
+        dbias_hid = (gp.sum(self.p_hid_given_vis(vis), axis=0) - 
+                     gp.sum(self.p_hid_given_vis(model_vis), axis=0))
 
         n_samples = vis.shape[0]
         return (dweights / n_samples, 
