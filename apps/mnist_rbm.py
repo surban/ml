@@ -75,8 +75,9 @@ for epoch in range(cfg.epochs):
 
     # plot weights, samples from RBM and current state of PCD chains
     rbmutil.plot_weights(rbm, epoch)
-    rbmutil.plot_samples(rbm, epoch, TX[0:batch_size,:], cfg.n_plot_samples)
-    if use_pcd:
+    rbmutil.plot_samples(rbm, epoch, TX[0:cfg.batch_size,:], 
+                         cfg.n_plot_samples, cfg.n_gibbs_steps_between_samples)
+    if cfg.use_pcd:
         rbmutil.plot_pcd_chains(rbm, epoch)
 
     # calculate pseudo likelihood and reconstruction cost
