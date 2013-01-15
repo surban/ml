@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>eec4408a-b3ab-4b7d-861a-2e07578bb29d</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>mnist_ais.py</StartupFile>
+    <StartupFile>mnist_base_rbm.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,6 +22,8 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="mnist_base_rbm.py" />
+    <Compile Include="mnist_rbm_pf.py" />
     <Compile Include="mnist_rbm_pl.py" />
     <Compile Include="mnist_ais.py" />
     <Compile Include="mnist_rbm_config.py" />

@@ -3,19 +3,25 @@
 import gnumpy as gp
 import numpy as np
 import math
+import decimal
+from sys import stderr
 
 import rbm
 
 class AnnealedImportanceSampler(object):
     
     def __init__(self, rbm,
-                 init_n_samples, 
-                 init_n_gibbs_chains, 
-                 init_gibbs_steps_between_samples):
+                 init_n_samples=0, 
+                 init_n_gibbs_chains=0, 
+                 init_gibbs_steps_between_samples=0,
+                 base_bias_vis=None):
         self.rbm = rbm
-        self.base_init(init_n_gibbs_chains, 
-                       int(math.ceil(init_n_samples / init_n_gibbs_chains)),
-                       init_gibbs_steps_between_samples)    
+        if base_bias_vis is None:
+            self.base_init(init_n_gibbs_chains, 
+                           int(math.ceil(init_n_samples / float(init_n_gibbs_chains))),
+                           init_gibbs_steps_between_samples)    
+        else:
+            self.base_bias_vis = base_bias_vis
 
     def base_p_vis(self, vis):
         "Probability of visible units in base rate RBM"
@@ -25,7 +31,8 @@ class AnnealedImportanceSampler(object):
 
     def base_sample_vis(self, n_samples):
         "Samples the visible units from the base rate RBM"
-        p = gp.logistic(self.base_bias_vis)
+        #p = gp.logistic(self.base_bias_vis)
+        p = 0.5 * gp.ones(self.base_bias_vis.shape)
         r = gp.rand((n_samples, self.base_bias_vis.shape[0]))
         return r < p
 
@@ -33,8 +40,6 @@ class AnnealedImportanceSampler(object):
         "Computes the partition function of the base rate RBM"
         part_vis = gp.prod(1 + gp.exp(self.base_bias_vis))
         part_hid = 2**self.rbm.n_hid
-        print part_vis
-        print part_hid
         return part_vis * part_hid
 
     def base_log_partition_function(self):
@@ -47,11 +52,12 @@ class AnnealedImportanceSampler(object):
         "Calculates the biases of the base rate RBM using maximum likelihood"
         epsilon = 1e-2
         vis = self.rbm.sample_vis(n_chains, n_steps, 
-                                       gibbs_steps_between_samples)
+                                  gibbs_steps_between_samples)
         vis_mean = gp.mean(vis, axis=0)
         self.base_bias_vis = gp.log((vis_mean + epsilon) / (1 - vis_mean + epsilon))
 
-    def log_partition_function(self, betas, ais_runs, sampling_gibbs_steps=1):     
+    def log_partition_function(self, betas, ais_runs, sampling_gibbs_steps=1,
+                               mean_precision=500):     
         "Computes the partition function of the RBM"
         assert betas[0] == 0 and betas[-1] == 1
 
@@ -62,13 +68,13 @@ class AnnealedImportanceSampler(object):
         iw = gp.zeros(ais_runs)
 
         for i, beta in enumerate(betas):
-            print "%d / %d                       \r" % (i, len(betas)),
+            print >>stderr, "%d / %d                       \r" % (i, len(betas)),
 
             beta = float(beta)
 
             # calculate log p_(i-1)(v)
             if beta != 0:
-                lp_prev_vis = irbm.free_energy(vis)
+                lp_prev_vis = -irbm.free_energy(vis)
 
             # build intermediate RBM
             irbm.weights = beta * self.rbm.weights
@@ -78,7 +84,7 @@ class AnnealedImportanceSampler(object):
 
             # calculate log p_i(v_i)
             if beta != 0:
-                lp_vis = irbm.free_energy(vis)
+                lp_vis = -irbm.free_energy(vis)
 
             # update importance weight
             if beta != 0:
@@ -89,6 +95,38 @@ class AnnealedImportanceSampler(object):
                 vis = self.base_sample_vis(ais_runs)
             else:
                 vis, _ = irbm.gibbs_sample(vis, sampling_gibbs_steps)
+                
+        # calculate mean and standard deviation
+        with decimal.localcontext() as ctx:
+            ctx.prec = mean_precision
+            blpf = self.base_log_partition_function()
 
-        return gp.mean(iw) + self.base_log_partition_function()
+            ewsum = decimal.Decimal(0)
+            ewsqsum = decimal.Decimal(0)
+            for w in gp.as_numpy_array(iw):
+                ew = decimal.Decimal(w + blpf).exp()
+                ewsum += ew
+                ewsqsum += ew ** 2
+            ewmean = ewsum / iw.shape[0]
+            ewsqmean = ewsqsum / iw.shape[0]
+            ewstd = (ewsqmean - ewmean**2).sqrt()
+
+            print "ewmean: ", ewmean
+            print "ewstd:  ", ewstd
+
+            wmean = float(ewmean.ln())
+            wmean_plus_1_std = float((ewmean + ewstd).ln())
+            if ewmean - ewstd > 0:
+                wmean_minus_1_std = float((ewmean - ewstd).ln())
+            else:
+                wmean_minus_1_std = float('-inf')
+            wmean_plus_3_std = float((ewmean + 3*ewstd).ln())
+            if ewmean - 3*ewstd > 0:
+                wmean_minus_3_std = float((ewmean - 3*ewstd).ln())
+            else:
+                wmean_minus_3_std = float('-inf')
+
+        return (wmean, (wmean_plus_1_std, wmean_minus_1_std,
+                        wmean_plus_3_std, wmean_minus_3_std))
+
 

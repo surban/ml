@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import Image as pil
 import numpy as np
 import gnumpy as gp
@@ -13,10 +14,11 @@ import mnist_rbm_config as cfg
 from rbm.rbm import RestrictedBoltzmannMachine 
 
 # load dataset
-X, VX, TX = rbmutil.load_mnist()
+X, TX = rbmutil.load_mnist(False)
 
 # create output directory
-rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd, cfg.n_gibbs_steps)
+rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd, 
+                                 cfg.n_gibbs_steps, "training.txt")
 
 # Build RBM
 rbm = RestrictedBoltzmannMachine(cfg.batch_size, cfg.n_vis, cfg.n_hid, cfg.n_gibbs_steps) 
@@ -35,8 +37,9 @@ for epoch in range(cfg.epochs):
 
     for x in util.draw_slices(X, cfg.batch_size, kind='sequential', 
                               samples_are='rows', stop=True):
-        print "%d / %d (epoch: %d / %d)\r" % (seen_epoch_samples, X.shape[0], 
-                                              epoch, cfg.epochs),
+        print >>sys.stderr, "%d / %d (epoch: %d / %d)\r" % (seen_epoch_samples, 
+                                                            X.shape[0], 
+                                                            epoch, cfg.epochs),
 
         # perform weight update
         if cfg.use_pcd:
@@ -44,9 +47,14 @@ for epoch in range(cfg.epochs):
         else:
             weights_step, bias_vis_step, bias_hid_step = rbm.cd_update(x)
 
-        weights_update = cfg.momentum * weights_m1 + cfg.step_rate * weights_step
-        bias_vis_update = cfg.momentum * bias_vis_m1 + cfg.step_rate * bias_vis_step
-        bias_hid_update = cfg.momentum * bias_hid_m1 + cfg.step_rate * bias_hid_step
+        if epoch >= cfg.use_final_momentum_from_epoch:
+            momentum = cfg.final_momentum
+        else:
+            momentum = cfg.initial_momentum
+
+        weights_update = momentum * weights_m1 + cfg.step_rate * weights_step
+        bias_vis_update = momentum * bias_vis_m1 + cfg.step_rate * bias_vis_step
+        bias_hid_update = momentum * bias_hid_m1 + cfg.step_rate * bias_hid_step
     
         rbm.weights += weights_update
         rbm.bias_vis += bias_vis_update

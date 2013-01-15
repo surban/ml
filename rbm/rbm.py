@@ -4,6 +4,7 @@ import gnumpy as gp
 import numpy as np
 import common.util
 import decimal
+from sys import stderr
 
 from .util import sample_binomial, all_states
 
@@ -66,23 +67,21 @@ class RestrictedBoltzmannMachine(object):
     def partition_function(self, batch_size, prec):
         """The exact value of Z calculated with precision prec. 
         Only feasible for small number of hidden units."""
-        decimal.getcontext().prec = prec
-        batches = common.util.pack_in_batches(all_states(self.n_hid), 
-                                              batch_size)
-        s = decimal.Decimal(0)
-        seen_samples = 0L
-        total_samples = 2L**self.n_hid
-        for hid in batches:
-            print "%i / %i           \r" % (seen_samples, total_samples),
-            fhes = self.free_hidden_energy(hid)
-            for fhe in gp.as_numpy_array(fhes):
-                #print "fhe: ", fhe
-                p = decimal.Decimal(fhe).exp()
-                #print "p: ", p
-                s += p
-                #print "s: " ,s
-            seen_samples += hid.shape[0]
-        return s
+        with decimal.localcontext() as ctx:
+            ctx.prec = prec
+            batches = common.util.pack_in_batches(all_states(self.n_hid), 
+                                                  batch_size)
+            s = decimal.Decimal(0)
+            seen_samples = 0L
+            total_samples = 2L**self.n_hid
+            for hid in batches:
+                print >>stderr, "%i / %i           \r" % (seen_samples, total_samples),
+                fhes = self.free_hidden_energy(hid)
+                for fhe in gp.as_numpy_array(fhes):
+                    p = decimal.Decimal(-fhe).exp()
+                    s += p
+                seen_samples += hid.shape[0]
+            return s
 
     def p_hid_given_vis(self, vis):
         """Returns a vector whose ith component is the probability that the ith
@@ -123,6 +122,7 @@ class RestrictedBoltzmannMachine(object):
         samples = gp.zeros((n_chains * n_steps, self.n_vis))
         vis = gp.rand((n_chains, self.n_vis)) < 0.5
         for step in range(n_steps):
+            print >>stderr, "%d / %d                 \r" % (step, n_steps),
             vis, p_vis = self.gibbs_sample(vis, gibbs_steps_between_samples)
             if sample_probabilities:
                 sample = p_vis

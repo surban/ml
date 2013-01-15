@@ -23,13 +23,14 @@ def all_states(size):
         c += 1
 
 def enter_rbm_plot_directory(dataset, n_hid, use_pcd, n_gibbs_steps,
-                             clean=True):
+                             logfilename, clean=True):
     if use_pcd:
         pcd_str = "p"
     else:
         pcd_str = ""
     outdir = "mnist-rbm-%03d-%scd%02d" % (n_hid, pcd_str, n_gibbs_steps)
     util.enter_plot_directory(outdir, clean=clean)
+    util.tee_output_to_log(logfilename)
 
 def plot_samples(rbm, epoch, init_samples, 
                  n_plot_samples, n_gibbs_steps_between_samples):
@@ -78,12 +79,16 @@ def load_parameters(rbm, filename):
     rbm.bias_vis = gp.as_garray(state['bias_vis'])
     rbm.bias_hid = gp.as_garray(state['bias_hid'])
 
-def load_mnist():
-    f = gzip.open('mnist.pkl.gz', 'rb')
-    (X, Z), (VX, VZ), (TX, TZ) = cPickle.load(f)
-    X = gp.as_garray(X)
-    VX = gp.as_garray(VX)
+def load_mnist(with_verification_set):
+    with gzip.open('mnist.pkl.gz', 'rb') as f:
+        (X, Z), (VX, VZ), (TX, TZ) = cPickle.load(f)
+
     TX = gp.as_garray(TX)
-    f.close()
-    return X, VX, TX
+    if with_verification_set:
+        X = gp.as_garray(X)
+        VX = gp.as_garray(VX)
+        return X, VX, TX
+    else:
+        X = gp.as_garray(np.concatenate((X,VX), axis=0))
+        return X, TX
 
