@@ -3,7 +3,8 @@
 # RBM model parameters
 n_vis = 784
 #n_hid = 512
-n_hid = 25
+#n_hid = 25
+n_hid = 20
 #n_hid = 16
 #n_hid = 8
 

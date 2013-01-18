@@ -7,6 +7,7 @@ import decimal
 from sys import stderr
 
 from .util import sample_binomial, all_states
+from common.util import logsum
 
 
 class RestrictedBoltzmannMachine(object):
@@ -68,20 +69,31 @@ class RestrictedBoltzmannMachine(object):
         """The exact value of Z calculated with precision prec. 
         Only feasible for small number of hidden units."""
         with decimal.localcontext() as ctx:
-            ctx.prec = prec
+            if prec != 0:
+                ctx.prec = prec
             batches = common.util.pack_in_batches(all_states(self.n_hid), 
                                                   batch_size)
-            s = decimal.Decimal(0)
+            if prec != 0:
+                s = decimal.Decimal(0)
+            else:
+                allfhes = np.array([])
             seen_samples = 0L
             total_samples = 2L**self.n_hid
             for hid in batches:
                 print >>stderr, "%i / %i           \r" % (seen_samples, total_samples),
                 fhes = self.free_hidden_energy(hid)
-                for fhe in gp.as_numpy_array(fhes):
-                    p = decimal.Decimal(-fhe).exp()
-                    s += p
+                if prec != 0:
+                    for fhe in gp.as_numpy_array(fhes):
+                        p = decimal.Decimal(-fhe).exp()
+                        s += p
+                else:
+                    allfhes = np.concatenate((allfhes, 
+                                              -gp.as_numpy_array(fhes)))
                 seen_samples += hid.shape[0]
-            return s
+            if prec != 0:
+                return s
+            else:
+                return logsum(allfhes)
 
     def p_hid_given_vis(self, vis):
         """Returns a vector whose ith component is the probability that the ith

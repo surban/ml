@@ -8,6 +8,8 @@ from sys import stderr
 
 import rbm
 
+from common.util import logsum, logplus, logminus
+
 class AnnealedImportanceSampler(object):
     
     def __init__(self, rbm,
@@ -57,7 +59,7 @@ class AnnealedImportanceSampler(object):
         self.base_bias_vis = gp.log((vis_mean + epsilon) / (1 - vis_mean + epsilon))
 
     def log_partition_function(self, betas, ais_runs, sampling_gibbs_steps=1,
-                               mean_precision=500):     
+                               mean_precision=0):     
         "Computes the partition function of the RBM"
         assert betas[0] == 0 and betas[-1] == 1
 
@@ -95,36 +97,48 @@ class AnnealedImportanceSampler(object):
                 vis = self.base_sample_vis(ais_runs)
             else:
                 vis, _ = irbm.gibbs_sample(vis, sampling_gibbs_steps)
-                
-        # calculate mean and standard deviation
-        with decimal.localcontext() as ctx:
-            ctx.prec = mean_precision
-            blpf = self.base_log_partition_function()
 
-            ewsum = decimal.Decimal(0)
-            ewsqsum = decimal.Decimal(0)
-            for w in gp.as_numpy_array(iw):
-                ew = decimal.Decimal(w + blpf).exp()
-                ewsum += ew
-                ewsqsum += ew ** 2
-            ewmean = ewsum / iw.shape[0]
-            ewsqmean = ewsqsum / iw.shape[0]
-            ewstd = (ewsqmean - ewmean**2).sqrt()
+        # calculate mean and standard deviation       
+        if mean_precision == 0:
+            npiw = gp.as_numpy_array(iw) 
+            w = npiw + self.base_log_partition_function()
+            wmean = logsum(w) - np.log(w.shape[0])
+            wsqmean = logsum(2 * w) - np.log(w.shape[0])
+            wstd = logminus(wsqmean, wmean) / 2.0
+            
+            wmean_plus_1_std = logplus(wmean, wstd)
+            wmean_minus_1_std = logminus(wmean, wstd, raise_when_negative=False)
+            wmean_plus_3_std = logplus(wmean, wstd + math.log(3.0))
+            wmean_minus_3_std = logminus(wmean, wstd + math.log(3.0), raise_when_negative=False)
+        else:
+            with decimal.localcontext() as ctx:
+                ctx.prec = mean_precision
+                blpf = self.base_log_partition_function()
 
-            print "ewmean: ", ewmean
-            print "ewstd:  ", ewstd
+                ewsum = decimal.Decimal(0)
+                ewsqsum = decimal.Decimal(0)
+                for w in gp.as_numpy_array(iw):
+                    ew = decimal.Decimal(w + blpf).exp()
+                    ewsum += ew
+                    ewsqsum += ew ** 2
+                ewmean = ewsum / iw.shape[0]
+                ewsqmean = ewsqsum / iw.shape[0]
+                ewstd = (ewsqmean - ewmean**2).sqrt()
 
-            wmean = float(ewmean.ln())
-            wmean_plus_1_std = float((ewmean + ewstd).ln())
-            if ewmean - ewstd > 0:
-                wmean_minus_1_std = float((ewmean - ewstd).ln())
-            else:
-                wmean_minus_1_std = float('-inf')
-            wmean_plus_3_std = float((ewmean + 3*ewstd).ln())
-            if ewmean - 3*ewstd > 0:
-                wmean_minus_3_std = float((ewmean - 3*ewstd).ln())
-            else:
-                wmean_minus_3_std = float('-inf')
+                print "ewmean: ", ewmean
+                print "ewstd:  ", ewstd
+
+                wmean = float(ewmean.ln())
+                wmean_plus_1_std = float((ewmean + ewstd).ln())
+                if ewmean - ewstd > 0:
+                    wmean_minus_1_std = float((ewmean - ewstd).ln())
+                else:
+                    wmean_minus_1_std = float('-inf')
+                wmean_plus_3_std = float((ewmean + 3*ewstd).ln())
+                if ewmean - 3*ewstd > 0:
+                    wmean_minus_3_std = float((ewmean - 3*ewstd).ln())
+                else:
+                    wmean_minus_3_std = float('-inf')
 
         return (wmean, (wmean_plus_1_std, wmean_minus_1_std,
                         wmean_plus_3_std, wmean_minus_3_std))

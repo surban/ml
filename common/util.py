@@ -120,4 +120,43 @@ def mean_over_dataset(f, dataset, batch_size, sample_axis):
 
     return acc / n_batches
 
+def logsum(x, shift_method='mean'):
+    """Calculates log(sum(exp(x))) in such a way that precision is hopefully
+    preserved."""
+    if shift_method == 'mean':
+        s = np.mean(x)
+    elif shift_method == 'roweis':
+        M = np.finfo(x.dtype).max
+        s = np.max(x) - np.log(M) / 2.0
+    else:
+        assert False
+
+    return np.log(np.sum(np.exp(x - s))) + s
+
+def logplus(x, y, shift_method='mean'):
+    """Calculates log(exp(x) + exp(y)) in such a way that precision is hopefully
+    preserved."""
+    return logsum(np.array([x, y]), shift_method)
+
+def logminus(x, y, shift_method='mean', raise_when_negative=True):
+    """Calculates log(exp(x) - exp(y)) in such a way that precision is hopefully
+    preserved."""
+    if shift_method == 'mean':
+        s = (x + y) / 2.0
+    elif shift_method == 'roweis':
+        M = sys.float_info.max
+        s = max(x, y) - np.log(M) / 2.0
+    else:
+        assert False
+
+    if raise_when_negative:
+        return np.log(np.exp(x - s) - np.exp(y - s)) + s
+    else:
+        eres = np.exp(x - s) - np.exp(y - s)
+        if eres > 0:
+            return np.log(eres) + s
+        else:
+            return float('-inf')
+
+
 

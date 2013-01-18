@@ -23,7 +23,8 @@ from rbm.ais import AnnealedImportanceSampler
 gp.seed_rand(int(time.time()))
 
 # AIS parameters
-use_ruslan = False
+use_ruslan = True
+use_ruslans_base_bias = True
 check_base_rbm_partition_function = False
 load_base_bias = False
 #load_base_bias = True
@@ -39,6 +40,7 @@ ais_base_samples = 50000
 ais_base_chains = 1000
 ais_base_gibbs_steps_between_samples = 1000
 ais_iterations = 10
+#ais_iterations = 1
 
 # enter output directory
 rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd, cfg.n_gibbs_steps,
@@ -46,31 +48,44 @@ rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd, cfg.n_gibbs_st
 
 # Build RBM
 rbm = RestrictedBoltzmannMachine(0, cfg.n_vis, cfg.n_hid, 0) 
-rbmutil.load_parameters(rbm, "weights-%02i.npz" % epoch)
+
 
 # load Ruslan's RBM
 if use_ruslan:
+    print "Loading Ruslan's RBM..."
     epoch = 99
     mdata = scipy.io.loadmat("mnistvh.mat")
     rbm.bias_vis = gp.as_garray(mdata['visbiases'][0,:])
     rbm.bias_hid = gp.as_garray(mdata['hidbiases'][0,:])
     rbm.weights = gp.as_garray(mdata['vishid'])
+else:
+    rbmutil.load_parameters(rbm, "weights-%02i.npz" % epoch)
 
 # init AIS estimator
-filename = "ais-base-biases-%02d.npz" % epoch
-if load_base_bias:
-    print "Loading base RBM biases from %s..." % filename
-    data = np.load(filename)
-    ais = AnnealedImportanceSampler(rbm, 
-                                    base_bias_vis=gp.as_garray(data['base_bias_vis']))
-else:
-    print "Calculating base RBM biases using %d samples with %d Gibbs steps " \
-        "inbetween..." % (ais_base_samples, ais_base_gibbs_steps_between_samples)
-    ais = AnnealedImportanceSampler(rbm, ais_base_samples, ais_base_chains,
-                                    ais_base_gibbs_steps_between_samples)
-    print "Saving base RBM biases to %s..." % filename
-    np.savez_compressed(filename, 
-                        base_bias_vis=gp.as_numpy_array(ais.base_bias_vis))
+if not use_ruslans_base_bias:
+    filename = "ais-base-biases-%02d.npz" % epoch
+    if load_base_bias:
+        print "Loading base RBM biases from %s..." % filename
+        data = np.load(filename)
+        ais = AnnealedImportanceSampler(rbm, 
+                                        base_bias_vis=gp.as_garray(data['base_bias_vis']))
+    else:
+        print "Calculating base RBM biases using %d samples with %d Gibbs steps " \
+            "inbetween..." % (ais_base_samples, ais_base_gibbs_steps_between_samples)
+        ais = AnnealedImportanceSampler(rbm, ais_base_samples, ais_base_chains,
+                                        ais_base_gibbs_steps_between_samples)
+        print "Saving base RBM biases to %s..." % filename
+        np.savez_compressed(filename, 
+                            base_bias_vis=gp.as_numpy_array(ais.base_bias_vis))
+
+# load Ruslan's base RBM biases
+if use_ruslans_base_bias:
+    print "Loading Ruslan's base biases..."
+    mdata = scipy.io.loadmat("basebiases.mat")
+    base_bias = gp.as_garray(mdata['visbiases_base'][0, :])
+    ais = AnnealedImportanceSampler(rbm,
+                                    base_bias_vis=base_bias)
+
 
 #print "Base RBM visible biases:"
 #print ais.base_bias_vis
