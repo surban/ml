@@ -28,6 +28,7 @@
     <Compile Include="mnist_ais.py" />
     <Compile Include="mnist_rbm_config.py" />
     <Compile Include="mnist_rbm.py" />
+    <Compile Include="mnist_sample.py" />
     <Compile Include="__init__.py" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />

@@ -1,0 +1,1 @@
+set GNUMPY_USE_GPU=yes

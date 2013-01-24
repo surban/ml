@@ -22,7 +22,8 @@ from rbm.rbm import RestrictedBoltzmannMachine
 gp.seed_rand(int(time.time()))
 
 # Parameters for exact estimation of partition function
-use_ruslan = True
+#use_ruslan = True
+use_ruslan = False
 epoch = cfg.epochs - 1
 exact_pf_batch_size = 10000
 #exact_pf_prec = 20

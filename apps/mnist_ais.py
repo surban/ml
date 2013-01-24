@@ -23,8 +23,9 @@ from rbm.ais import AnnealedImportanceSampler
 gp.seed_rand(int(time.time()))
 
 # AIS parameters
-use_ruslan = True
-use_ruslans_base_bias = True
+use_ruslan = False
+#use_ruslans_base_bias = True
+use_ruslans_base_bias = False
 check_base_rbm_partition_function = False
 load_base_bias = False
 #load_base_bias = True
@@ -107,13 +108,11 @@ outfile = open("ais_iterations.csv", 'w')
 outfile.write("iterations\tlog Z\n")
 lpfs = []
 for i in range(ais_iterations):
-    lpf, (lpf_p_s, lpf_m_s, 
-         lpf_p_3s, lpf_m_3s) = ais.log_partition_function(ais_betas, ais_runs, 
-                                                          ais_gibbs_steps)
+    lpf, lpf_m_3s, lpf_p_3s = ais.log_partition_function(ais_betas, ais_runs, 
+                                                         ais_gibbs_steps)
     lpfs.append(lpf)
-    print "%3d: ln Z = %3.6f; ln(Z+s) = %3.6f; ln(Z-s) = %3.6f; " \
-        "ln(Z+3s) = %3.6f; ln(Z-3s) = %3.6f" % (i, lpf, lpf_p_s, lpf_m_s,
-                                                lpf_p_3s, lpf_m_3s)
+    print "%3d: ln Z = %3.6f; ln(Z-3s) = %3.6f; ln(Z+3s) = %3.6f" \
+        % (i, lpf, lpf_m_3s, lpf_p_3s)
     outfile.write("%d\t%f\n" % (i, lpf))
 outfile.close()
 

@@ -5,6 +5,7 @@ import sys
 import Image as pil
 import numpy as np
 import gnumpy as gp
+import scipy.io
 
 import common.util as util
 import common.dlutil as dlutil
@@ -15,6 +16,10 @@ from rbm.rbm import RestrictedBoltzmannMachine
 
 # load dataset
 X, TX = rbmutil.load_mnist(False)
+
+# load ruslan's training set
+mdata = scipy.io.loadmat("mnist.mat")
+X = gp.as_garray(mdata['fbatchdata'])
 
 # create output directory
 rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd, 

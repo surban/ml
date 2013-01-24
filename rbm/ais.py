@@ -33,8 +33,7 @@ class AnnealedImportanceSampler(object):
 
     def base_sample_vis(self, n_samples):
         "Samples the visible units from the base rate RBM"
-        #p = gp.logistic(self.base_bias_vis)
-        p = 0.5 * gp.ones(self.base_bias_vis.shape)
+        p = gp.logistic(self.base_bias_vis)
         r = gp.rand((n_samples, self.base_bias_vis.shape[0]))
         return r < p
 
@@ -105,11 +104,11 @@ class AnnealedImportanceSampler(object):
             wmean = logsum(w) - np.log(w.shape[0])
             wsqmean = logsum(2 * w) - np.log(w.shape[0])
             wstd = logminus(wsqmean, wmean) / 2.0
+            wmeanstd = wstd - 0.5 * math.log(w.shape[0])
             
-            wmean_plus_1_std = logplus(wmean, wstd)
-            wmean_minus_1_std = logminus(wmean, wstd, raise_when_negative=False)
-            wmean_plus_3_std = logplus(wmean, wstd + math.log(3.0))
-            wmean_minus_3_std = logminus(wmean, wstd + math.log(3.0), raise_when_negative=False)
+            wmean_plus_3_std = logplus(wmean, wmeanstd + math.log(3.0))
+            wmean_minus_3_std = logminus(wmean, wmeanstd + math.log(3.0), 
+                                         raise_when_negative=False)
         else:
             with decimal.localcontext() as ctx:
                 ctx.prec = mean_precision
@@ -124,23 +123,15 @@ class AnnealedImportanceSampler(object):
                 ewmean = ewsum / iw.shape[0]
                 ewsqmean = ewsqsum / iw.shape[0]
                 ewstd = (ewsqmean - ewmean**2).sqrt()
-
-                print "ewmean: ", ewmean
-                print "ewstd:  ", ewstd
+                ewstdmean = ewstd / math.sqrt(iw.shape[0])
 
                 wmean = float(ewmean.ln())
-                wmean_plus_1_std = float((ewmean + ewstd).ln())
-                if ewmean - ewstd > 0:
-                    wmean_minus_1_std = float((ewmean - ewstd).ln())
-                else:
-                    wmean_minus_1_std = float('-inf')
-                wmean_plus_3_std = float((ewmean + 3*ewstd).ln())
+                wmean_plus_3_std = float((ewmean + 3*ewstdmean).ln())
                 if ewmean - 3*ewstd > 0:
-                    wmean_minus_3_std = float((ewmean - 3*ewstd).ln())
+                    wmean_minus_3_std = float((ewmean - 3*ewstdmean).ln())
                 else:
                     wmean_minus_3_std = float('-inf')
 
-        return (wmean, (wmean_plus_1_std, wmean_minus_1_std,
-                        wmean_plus_3_std, wmean_minus_3_std))
+        return wmean, wmean_minus_3_std, wmean_plus_3_std
 
 
