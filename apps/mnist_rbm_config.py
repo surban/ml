@@ -11,9 +11,11 @@ n_hid = 25
 # RBM training parameters
 batch_size = 100
 step_rate = 0.05
+weight_cost = 0.0002
 initial_momentum = 0.5
 final_momentum = 0.9
 use_final_momentum_from_epoch = 5
+binarize_data = True
 
 #n_gibbs_steps = 1
 n_gibbs_steps = 3

@@ -13,24 +13,29 @@ from common.util import logsum
 class RestrictedBoltzmannMachine(object):
     "A Restricted Boltzmann Machine (RBM) with binary units"
 
-    def __init__(self, batch_size, n_vis, n_hid, cd_steps, seed=0):
+    def __init__(self, batch_size, n_vis, n_hid, cd_steps, 
+                 init_weight_sigma=0.01, init_bias_sigma=0):
         """A Restricted Boltzmann Machine (RBM) with binary units.
         batch_size is the size of a batch used for training. It may be 0 if
         the RBM will not be trained.
         n_vis and n_hid are the number of visible and hidden units.
         cd_steps is the number of alternating Gibbs sampling iterations to
         perform when computing the paramter updates using constrastive divergence."""
-        sigma = 1e-2
         self.cd_steps = cd_steps
-        self.bias_vis = gp.as_garray(np.random.normal(0, sigma, 
-                                                      size=(n_vis,)))
-        self.bias_hid = gp.as_garray(np.random.normal(0, sigma, 
-                                                      size=(n_hid,)))
-        self.weights = gp.as_garray(np.random.normal(0, sigma, 
+        self.weights = gp.as_garray(np.random.normal(0, init_weight_sigma, 
                                                      size=(n_vis, n_hid)))
+        if init_bias_sigma > 0:
+            self.bias_vis = gp.as_garray(np.random.normal(0, init_bias_sigma, 
+                                                          size=(n_vis,)))
+            self.bias_hid = gp.as_garray(np.random.normal(0, init_bias_sigma, 
+                                                          size=(n_hid,)))
+        else:
+            self.bias_vis = gp.zeros((n_vis,))
+            self.bias_hid = gp.zeros((n_hid,))
         if batch_size > 0:
             self.persistent_vis = \
-                gp.as_garray(np.random.normal(0, sigma, size=(batch_size, n_vis)))
+                gp.as_garray(np.random.normal(0, 1, size=(batch_size, n_vis)))
+        self.log_pf = None
 
     @property
     def n_vis(self):
@@ -40,20 +45,14 @@ class RestrictedBoltzmannMachine(object):
     def n_hid(self):
         return self.bias_hid.shape[0]
 
+    def normalized_log_p_vis(self, vis):
+        """Calculates the log probability of the visible units being in state vis
+        (with the normalization constant)"""
+        return - self.free_energy(vis) - self.log_pf
+
     def free_energy(self, vis):
         """The negative log probability of the visible units being in state vis 
         (without the normalization constant)"""
-        #s = self.bias_hid + gp.dot(vis, self.weights)
-        #assert s.all_real()
-        #d = gp.exp(s)
-        #if not d.all_real():
-        #    rows, cols = gp.where(1 - d.isreal())
-        #    print rows, cols
-        #    print "Found unreal number at [%d,%d]: " % (rows[0], cols[0])
-        #    print "s: ", s[rows[0], cols[0]]
-        #    print "d: ", d[rows[0], cols[0]]
-        #    assert False
-
         return (- gp.dot(vis, self.bias_vis) 
                 - gp.sum(gp.log_1_plus_exp(self.bias_hid + gp.dot(vis, self.weights)),
                          axis=1))
@@ -130,7 +129,7 @@ class RestrictedBoltzmannMachine(object):
                    sample_probabilities=False):
         """Obtains unbiased samples for the visible units.
         Runs n_chains Gibbs chains in parallel for n_steps.
-        Grabs samples every steps_between_samples Gibbs steps."""
+        Grabs samples every gibbs_steps_between_samples Gibbs steps."""
         samples = gp.zeros((n_chains * n_steps, self.n_vis))
         vis = gp.rand((n_chains, self.n_vis)) < 0.5
         for step in range(n_steps):

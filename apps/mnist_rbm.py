@@ -13,6 +13,11 @@ import rbm.util as rbmutil
 import mnist_rbm_config as cfg
 
 from rbm.rbm import RestrictedBoltzmannMachine 
+from rbm.util import sample_binomial
+from common.util import myrand as mr
+
+# parameters
+plot_samples = False
 
 # load dataset
 X, TX = rbmutil.load_mnist(False)
@@ -26,12 +31,19 @@ rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd,
                                  cfg.n_gibbs_steps, "training.txt")
 
 # Build RBM
-rbm = RestrictedBoltzmannMachine(cfg.batch_size, cfg.n_vis, cfg.n_hid, cfg.n_gibbs_steps) 
+rbm = RestrictedBoltzmannMachine(cfg.batch_size, cfg.n_vis, cfg.n_hid, 
+                                 cfg.n_gibbs_steps) 
+mr.seed(30)
+rbm.weights = 0.01 * (0.5 - mr.rand(rbm.weights.shape))
 
 # initialize momentums
 weights_m1 = 0
 bias_vis_m1 = 0
 bias_hid_m1 = 0
+
+print "weights:"
+print rbm.weights[0:5,0:5]
+cfg.epochs = 1
 
 # train
 for epoch in range(cfg.epochs):
@@ -46,6 +58,10 @@ for epoch in range(cfg.epochs):
                                                             X.shape[0], 
                                                             epoch, cfg.epochs),
 
+        # binaraize x
+        if cfg.binarize_data:
+            x = sample_binomial(x)
+
         # perform weight update
         if cfg.use_pcd:
             weights_step, bias_vis_step, bias_hid_step = rbm.pcd_update(x)
@@ -57,7 +73,8 @@ for epoch in range(cfg.epochs):
         else:
             momentum = cfg.initial_momentum
 
-        weights_update = momentum * weights_m1 + cfg.step_rate * weights_step
+        weights_update = momentum * weights_m1 + \
+            cfg.step_rate * (weights_step - cfg.weight_cost * rbm.weights)
         bias_vis_update = momentum * bias_vis_m1 + cfg.step_rate * bias_vis_step
         bias_hid_update = momentum * bias_hid_m1 + cfg.step_rate * bias_hid_step
     
@@ -72,11 +89,11 @@ for epoch in range(cfg.epochs):
         seen_epoch_samples += cfg.batch_size
 
         # calculate part of pseudo-likelihood
-        pl_sum += gp.sum(rbm.pseudo_likelihood_for_bit(x > 0.5, pl_bit))
-        pl_bit = (pl_bit + 1) % X.shape[1]
+        #pl_sum += gp.sum(rbm.pseudo_likelihood_for_bit(x > 0.5, pl_bit))
+        #pl_bit = (pl_bit + 1) % X.shape[1]
 
         # calculate part of reconstruction cost
-        rc_sum += gp.sum(rbm.reconstruction_cross_entropy(x > 0.5))
+        #rc_sum += gp.sum(rbm.reconstruction_cross_entropy(x > 0.5))
 
         #break 
 
@@ -88,8 +105,9 @@ for epoch in range(cfg.epochs):
 
     # plot weights, samples from RBM and current state of PCD chains
     rbmutil.plot_weights(rbm, epoch)
-    rbmutil.plot_samples(rbm, epoch, TX[0:cfg.batch_size,:], 
-                         cfg.n_plot_samples, cfg.n_gibbs_steps_between_samples)
+    if plot_samples:
+        rbmutil.plot_samples(rbm, epoch, TX[0:cfg.batch_size,:], 
+                             cfg.n_plot_samples, cfg.n_gibbs_steps_between_samples)
     if cfg.use_pcd:
         rbmutil.plot_pcd_chains(rbm, epoch)
 
@@ -99,4 +117,12 @@ for epoch in range(cfg.epochs):
 
     print "Epoch %02d: reconstruction cost=%f, pseudo likelihood=%f" % \
         (epoch, rc, pl)
+
+print "after weights:"
+print rbm.weights[0:5,0:5]
+
+print "random state:"
+print mr.get_uint32()
+
+
 

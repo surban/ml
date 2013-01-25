@@ -23,6 +23,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="mnist_base_rbm.py" />
+    <Compile Include="mnist_prob.py" />
     <Compile Include="mnist_rbm_pf.py" />
     <Compile Include="mnist_rbm_pl.py" />
     <Compile Include="mnist_ais.py" />

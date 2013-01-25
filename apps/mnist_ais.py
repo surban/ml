@@ -40,8 +40,8 @@ ais_betas = np.concatenate((np.linspace(0.0, 0.5,   500, endpoint=False),
 ais_base_samples = 50000
 ais_base_chains = 1000
 ais_base_gibbs_steps_between_samples = 1000
-ais_iterations = 10
-#ais_iterations = 1
+#ais_iterations = 10
+ais_iterations = 1
 
 # enter output directory
 rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd, cfg.n_gibbs_steps,
@@ -120,5 +120,8 @@ lpf_mean = np.mean(lpfs)
 lpf_std = np.std(lpfs)
 print
 print "mean: ln Z = %f +/- %f" % (lpf_mean, lpf_std)
+
+np.savez_compressed("lpf-%2d.npz" % epoch, lpf=lpf_mean, lpf_std=lpf_std)
+
 
 

@@ -8,11 +8,13 @@ import gzip
 
 from common import util
 from common import dlutil
+from common.util import myrand as mr
 
 def sample_binomial(p):
     """Samples elementwise from the binomial distribution with 
     probability p"""
-    r = gp.rand(p.shape)
+    #r = gp.rand(p.shape)
+    r = mr.rand(p.shape)
     return r < p
 
 def all_states(size):
