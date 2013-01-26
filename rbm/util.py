@@ -10,11 +10,15 @@ from common import util
 from common import dlutil
 from common.util import myrand as mr
 
+use_debug_rng = False
+
 def sample_binomial(p):
     """Samples elementwise from the binomial distribution with 
     probability p"""
-    #r = gp.rand(p.shape)
-    r = mr.rand(p.shape)
+    if use_debug_rng:
+        r = mr.rand(p.shape)
+    else:
+        r = gp.rand(p.shape)
     return r < p
 
 def all_states(size):

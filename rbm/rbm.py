@@ -99,6 +99,18 @@ class RestrictedBoltzmannMachine(object):
         hidden unit is active given the states of the visible units"""
         return gp.logistic(gp.dot(vis, self.weights) + self.bias_hid)
 
+        #try:
+        #    return gp.logistic(gp.dot(vis, self.weights) + self.bias_hid)
+        #except Exception, e:
+        #    np.set_printoptions(threshold=np.nan)
+        #    print e
+        #    print "vis: ", vis
+        #    #print "weights: ", self.weights
+        #    print "bias_hid: ", self.bias_hid
+        #    print "prod: ", gp.dot(vis, self.weights) + self.bias_hid
+        #    raise
+
+
     def sample_hid_given_vis(self, vis):
         """Samples the hidden units given the visible units"""
         p = self.p_hid_given_vis(vis)
