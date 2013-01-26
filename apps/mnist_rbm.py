@@ -44,7 +44,7 @@ bias_hid_m1 = 0
 
 print "weights:"
 print rbm.weights[0:5,0:5]
-cfg.epochs = 2
+#cfg.epochs = 2
 
 # train
 for epoch in range(cfg.epochs):
