@@ -72,8 +72,12 @@ def plot_pcd_chains(rbm, epoch):
     pilimage = pil.fromarray(A).convert('RGB')
     pilimage.save('pcd-vis-%02i.png' % epoch)
 
-def save_parameters(rbm, epoch):
-    np.savez_compressed("weights-%02i.npz" % epoch, 
+def save_parameters(rbm, epoch_or_filename):
+    if type(epoch_or_filename) == str:
+        filename = epoch_or_filename
+    else:
+        filename = "weights-%02i.npz" % epoch_or_filename
+    np.savez_compressed(filename, 
                         weights=gp.as_numpy_array(rbm.weights),
                         bias_vis=gp.as_numpy_array(rbm.bias_vis),
                         bias_hid=gp.as_numpy_array(rbm.bias_hid))

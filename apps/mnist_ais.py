@@ -23,14 +23,14 @@ from rbm.ais import AnnealedImportanceSampler
 gp.seed_rand(int(time.time()))
 
 # AIS parameters
-use_ruslan = False
+use_ruslan = True
 #use_ruslans_base_bias = True
 use_ruslans_base_bias = False
 check_base_rbm_partition_function = False
 load_base_bias = False
 #load_base_bias = True
-#epoch = cfg.epochs - 1
-epoch = 9
+epoch = cfg.epochs - 1
+#epoch = 9
 ais_runs = 100
 ais_gibbs_steps = 1
 #ais_betas = np.linspace(0.0, 1.0,  1000)
@@ -54,8 +54,7 @@ rbm = RestrictedBoltzmannMachine(0, cfg.n_vis, cfg.n_hid, 0)
 # load Ruslan's RBM
 if use_ruslan:
     print "Loading Ruslan's RBM..."
-    epoch = 99
-    mdata = scipy.io.loadmat("mnistvh.mat")
+    mdata = scipy.io.loadmat("matlab_epoch%d.mat" % (epoch + 1))
     rbm.bias_vis = gp.as_garray(mdata['visbiases'][0,:])
     rbm.bias_hid = gp.as_garray(mdata['hidbiases'][0,:])
     rbm.weights = gp.as_garray(mdata['vishid'])
@@ -121,7 +120,11 @@ lpf_std = np.std(lpfs)
 print
 print "mean: ln Z = %f +/- %f" % (lpf_mean, lpf_std)
 
-np.savez_compressed("lpf-%2d.npz" % epoch, lpf=lpf_mean, lpf_std=lpf_std)
+if use_ruslan:
+    filename = "matlab-lpf-%02d.npz" % (epoch+1)
+else:
+    filename = "lpf-%02d.npz" % epoch
+np.savez_compressed(filename, lpf=lpf_mean, lpf_std=lpf_std)
 
 
 

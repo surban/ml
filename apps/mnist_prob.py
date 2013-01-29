@@ -21,9 +21,9 @@ from rbm.ais import AnnealedImportanceSampler
 #gp.acceptable_number_types = 'no nans or infs'
 
 # parameters
-#epoch = cfg.epochs - 1
-epoch = 9
-use_ruslan = False
+epoch = cfg.epochs - 1
+#epoch = 9
+use_ruslan = True
 
 # load dataset
 X, TX = rbmutil.load_mnist(False)
@@ -42,8 +42,7 @@ rbm = RestrictedBoltzmannMachine(0, cfg.n_vis, cfg.n_hid, 0)
 # load Ruslan's RBM
 if use_ruslan:
     print "Loading Ruslan's RBM..."
-    epoch = 99
-    mdata = scipy.io.loadmat("mnistvh.mat")
+    mdata = scipy.io.loadmat("matlab_epoch%d.mat" % (epoch + 1))
     rbm.bias_vis = gp.as_garray(mdata['visbiases'][0,:])
     rbm.bias_hid = gp.as_garray(mdata['hidbiases'][0,:])
     rbm.weights = gp.as_garray(mdata['vishid'])
@@ -51,7 +50,12 @@ else:
     rbmutil.load_parameters(rbm, "weights-%02i.npz" % epoch)
 
 # load pratition function
-lpf = np.load("lpf-%2d.npz" % epoch)
+if use_ruslan:
+    filename = "matlab-lpf-%02d.npz" % (epoch+1)
+else:
+    filename = "lpf-%02d.npz" % epoch
+print "Loading partition function %s" % filename
+lpf = np.load(filename)
 rbm.log_pf = lpf['lpf']
 
 # calculate log probability of training set
