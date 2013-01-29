@@ -23,7 +23,7 @@ from rbm.ais import AnnealedImportanceSampler
 # parameters
 epoch = cfg.epochs - 1
 #epoch = 9
-use_ruslan = True
+use_ruslan = False
 
 # load dataset
 X, TX = rbmutil.load_mnist(False)
