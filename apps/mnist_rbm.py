@@ -42,6 +42,7 @@ weights_m1 = 0
 bias_vis_m1 = 0
 bias_hid_m1 = 0
 
+np.set_printoptions(precision=15)
 print "weights:"
 print rbm.weights[0:5,0:5]
 #cfg.epochs = 2
@@ -53,8 +54,13 @@ for epoch in range(cfg.epochs):
     pl_sum = 0
     rc_sum = 0
 
+    matlab_batch = 0
     for x in util.draw_slices(X, cfg.batch_size, kind='sequential', 
                               samples_are='rows', stop=True):
+        matlab_batch += 1
+        #if matlab_batch > 599:
+        #    break
+
         print >>sys.stderr, "%d / %d (epoch: %d / %d)\r" % (seen_epoch_samples, 
                                                             X.shape[0], 
                                                             epoch, cfg.epochs),
@@ -73,6 +79,15 @@ for epoch in range(cfg.epochs):
             momentum = cfg.final_momentum
         else:
             momentum = cfg.initial_momentum
+        
+        if False:
+            print "weights_step:"
+            print weights_step[0:5,0:5]
+            print "bias_vis_step:"
+            print bias_vis_step[0:5]
+            print "bias_hid_step:"
+            print bias_hid_step[0:5]
+            sys.exit(0)         
 
         weights_update = momentum * weights_m1 + \
             cfg.step_rate * (weights_step - cfg.weight_cost * rbm.weights)
@@ -121,6 +136,13 @@ for epoch in range(cfg.epochs):
 
 print "after weights:"
 print rbm.weights[0:5,0:5]
+
+print "after bias_vis:"
+print rbm.bias_vis[0:5]
+
+print "after bias_hid:"
+print rbm.bias_hid[0:5]
+
 
 print "random state:"
 print mr.get_uint32()

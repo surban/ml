@@ -22,6 +22,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="matlab_compare.py" />
     <Compile Include="mnist_base_rbm.py" />
     <Compile Include="mnist_prob.py" />
     <Compile Include="mnist_rbm_pf.py" />
