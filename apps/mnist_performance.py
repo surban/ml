@@ -21,7 +21,7 @@ from common.util import myrand as mr
 
 
 # parameters
-n_iterations = 10
+n_iterations = 100
 rbmutil.use_debug_rng = True
 #rbmutil.use_debug_rng = False
 ais_runs = 100
@@ -43,7 +43,7 @@ for i in range(n_iterations):
     print "iteration %d / %d with seed %d" % (i, n_iterations, seed)
 
     # create output directory
-    rbmutil.enter_rbm_plot_directory("mnist-%010d" % seed, cfg.n_hid, cfg.use_pcd, 
+    rbmutil.enter_rbm_plot_directory("mnist-%015d" % seed, cfg.n_hid, cfg.use_pcd, 
                                      cfg.n_gibbs_steps, "performance.txt")
 
     # train rbm
@@ -70,17 +70,21 @@ for i in range(n_iterations):
     tst_lps.append(tst_lp)
 
     rbmutil.leave_rbm_plot_directory()
+    np.savez_compressed("performance.npz", tr_lps=tr_lps, tst_lps=tst_lps)
+
+    # output statistics
+    print
+    print "#############################################################"
+    print "Runs:                              %d" % len(tr_lps)
+    print 
+    print "<log p(x from training set)>    =  %f" % np.mean(tr_lps)
+    print "std[log p(x from training set)] =  %f" % np.std(tr_lps)
+    print
+    print "<log p(x from test set)>        =  %f" % np.mean(tst_lps)
+    print "std[log p(x from test set)]     =  %f" % np.std(tst_lps)
+    print "#############################################################"
     print
 
 
-np.savez_compressed("performance.npz", tr_lps=tr_lps, tst_lps=tst_lps)
 
-print "Runs:                              %d" % len(tr_lps)
-print 
-print "<log p(x from training set)>    =  %f" % np.mean(tr_lps)
-print "std[log p(x from training set)] =  %f" % np.std(tr_lps)
-print
-print "<log p(x from test set)>        =  %f" % np.mean(tst_lps)
-print "std[log p(x from test set)]     =  %f" % np.std(tst_lps)
-print
 
