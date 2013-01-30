@@ -5,6 +5,7 @@ import numpy as np
 import Image as pil
 import cPickle
 import gzip
+import os
 
 from common import util
 from common import dlutil
@@ -34,9 +35,13 @@ def enter_rbm_plot_directory(dataset, n_hid, use_pcd, n_gibbs_steps,
         pcd_str = "p"
     else:
         pcd_str = ""
-    outdir = "mnist-rbm-%03d-%scd%02d" % (n_hid, pcd_str, n_gibbs_steps)
+    outdir = "%s-rbm-%03d-%scd%02d" % (dataset, n_hid, pcd_str, n_gibbs_steps)
     util.enter_plot_directory(outdir, clean=clean)
     util.tee_output_to_log(logfilename)
+
+def leave_rbm_plot_directory():
+    util.untee_output()
+    os.chdir("..")
 
 def plot_samples(rbm, epoch, init_samples, 
                  n_plot_samples, n_gibbs_steps_between_samples):

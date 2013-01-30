@@ -26,6 +26,7 @@
     <Compile Include="matlab_compare_from.py" />
     <Compile Include="matlab_compare.py" />
     <Compile Include="mnist_base_rbm.py" />
+    <Compile Include="mnist_performance.py" />
     <Compile Include="mnist_prob.py" />
     <Compile Include="mnist_rbm_from.py" />
     <Compile Include="mnist_rbm_pf.py" />
