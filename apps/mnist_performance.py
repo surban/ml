@@ -19,11 +19,8 @@ from rbm.ais import AnnealedImportanceSampler
 from rbm.util import sample_binomial
 from common.util import myrand as mr
 
-
 # parameters
 n_iterations = 100
-rbmutil.use_debug_rng = True
-#rbmutil.use_debug_rng = False
 ais_runs = 100
 ais_gibbs_steps = 1
 ais_betas = np.concatenate((np.linspace(0.0, 0.5,   500, endpoint=False),
@@ -32,7 +29,6 @@ ais_betas = np.concatenate((np.linspace(0.0, 0.5,   500, endpoint=False),
 ais_base_samples = 10000
 ais_base_chains = 1000
 ais_base_gibbs_steps_between_samples = 1000
-
 
 # initialize
 tr_lps = []
@@ -69,13 +65,19 @@ for i in range(n_iterations):
     tr_lps.append(tr_lp)
     tst_lps.append(tst_lp)
 
+    # save statistics
     rbmutil.leave_rbm_plot_directory()
-    np.savez_compressed("performance.npz", tr_lps=tr_lps, tst_lps=tst_lps)
+    if cfg.use_pcd:
+        pcd_str = "p"
+    else:
+        pcd_str = ""
+    np.savez_compressed("mnist-rbm-%03d-%scd%02d-performance.npz" % 
+                        (cfg.n_hid, pcd_str, cfg.n_gibbs_steps), 
+                        tr_lps=tr_lps, tst_lps=tst_lps)
 
     # output statistics
     print
     print "#############################################################"
-    print "use_debug_rng:                     %s" % rbmutil.use_debug_rng
     print "Runs:                              %d" % len(tr_lps)
     print 
     print "<log p(x from training set)>    =  %f" % np.mean(tr_lps)

@@ -6,15 +6,16 @@ import common.util
 import decimal
 from sys import stderr
 
-from .util import sample_binomial, all_states
-from common.util import logsum
+from .util import sample_binomial, all_states, save_parameters, plot_weights, \
+    plot_pcd_chains
+from common.util import logsum, draw_slices
 
 
 class RestrictedBoltzmannMachine(object):
     "A Restricted Boltzmann Machine (RBM) with binary units"
 
     def __init__(self, batch_size, n_vis, n_hid, cd_steps, 
-                 init_weight_sigma=0.01, init_bias_sigma=0):
+                 init_weight_sigma, init_bias_sigma):
         """A Restricted Boltzmann Machine (RBM) with binary units.
         batch_size is the size of a batch used for training. It may be 0 if
         the RBM will not be trained.
@@ -225,3 +226,90 @@ class RestrictedBoltzmannMachine(object):
 
 
     
+def train_rbm(tcfg, print_cost=False):
+    """Trains and returns an RBM using the specified 
+    RestrictedBoltzmannMachineTrainingConfiguration"""
+    # seed RNGs
+    gp.seed_rand(tcfg.seed)
+
+    # Build RBM
+    rbm = RestrictedBoltzmannMachine(tcfg.batch_size, 
+                                     tcfg.n_vis, 
+                                     tcfg.n_hid, 
+                                     tcfg.n_gibbs_steps, 
+                                     tcfg.init_weight_sigma,
+                                     tcfg.init_bias_sigma) 
+
+    # initialize momentums
+    weights_update = 0
+    bias_vis_update = 0
+    bias_hid_update = 0
+
+    # train
+    for epoch in range(tcfg.epochs):
+        seen_epoch_samples = 0
+
+        if print_cost:
+            pl_bit = 0
+            pl_sum = 0
+            rc_sum = 0
+
+        for x in draw_slices(tcfg.X, tcfg.batch_size, kind='sequential', 
+                             samples_are='rows', stop=True):
+            #print >>stderr, "%d / %d (epoch: %d / %d)\r" % (seen_epoch_samples, 
+            #                                                tcfg.X.shape[0], 
+            #                                                epoch, tcfg.epochs),
+
+            # binaraize x
+            if tcfg.binarize_data:
+                x = sample_binomial(x)
+
+            # perform weight update
+            if tcfg.use_pcd:
+                weights_step, bias_vis_step, bias_hid_step = rbm.pcd_update(x)
+            else:
+                weights_step, bias_vis_step, bias_hid_step = rbm.cd_update(x)
+
+            if epoch >= tcfg.use_final_momentum_from_epoch:
+                momentum = tcfg.final_momentum
+            else:
+                momentum = tcfg.initial_momentum
+        
+            weights_update = momentum * weights_update + \
+                tcfg.step_rate * (weights_step - tcfg.weight_cost * rbm.weights)
+            bias_vis_update = momentum * bias_vis_update + tcfg.step_rate * bias_vis_step
+            bias_hid_update = momentum * bias_hid_update + tcfg.step_rate * bias_hid_step
+    
+            rbm.weights += weights_update
+            rbm.bias_vis += bias_vis_update
+            rbm.bias_hid += bias_hid_update
+
+            seen_epoch_samples += tcfg.batch_size
+
+            if print_cost:
+                # calculate part of pseudo-likelihood
+                pl_sum += gp.sum(rbm.pseudo_likelihood_for_bit(x > 0.5, pl_bit))
+                pl_bit = (pl_bit + 1) % tcfg.X.shape[1]
+
+                # calculate part of reconstruction cost
+                rc_sum += gp.sum(rbm.reconstruction_cross_entropy(x > 0.5))
+
+        #############################################
+        # end of batch
+
+        # save parameters
+        save_parameters(rbm, epoch)
+
+        # plot weights and current state of PCD chains
+        plot_weights(rbm, epoch)
+        if tcfg.use_pcd:
+            plot_pcd_chains(rbm, epoch)
+
+        if print_cost:
+            # calculate pseudo likelihood and reconstruction cost
+            pl = pl_sum / seen_epoch_samples * tcfg.X.shape[1]
+            rc = rc_sum / seen_epoch_samples
+            print "Epoch %02d: reconstruction cost=%f, pseudo likelihood=%f" % \
+                (epoch, rc, pl)
+
+    return rbm

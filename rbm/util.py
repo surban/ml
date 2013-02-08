@@ -6,10 +6,12 @@ import Image as pil
 import cPickle
 import gzip
 import os
+import scipy.io
 
 from common import util
 from common import dlutil
-from common.util import myrand as mr
+from common.util import myrand 
+from common.util import get_base_dir
 
 use_debug_rng = False
 
@@ -17,7 +19,7 @@ def sample_binomial(p):
     """Samples elementwise from the binomial distribution with 
     probability p"""
     if use_debug_rng:
-        r = mr.rand(p.shape)
+        r = myrand.rand(p.shape)
     else:
         r = gp.rand(p.shape)
     return r < p
@@ -29,14 +31,8 @@ def all_states(size):
         yield bits
         c += 1
 
-def enter_rbm_plot_directory(dataset, n_hid, use_pcd, n_gibbs_steps,
-                             logfilename, clean=True):
-    if use_pcd:
-        pcd_str = "p"
-    else:
-        pcd_str = ""
-    outdir = "%s-rbm-%03d-%scd%02d" % (dataset, n_hid, pcd_str, n_gibbs_steps)
-    util.enter_plot_directory(outdir, clean=clean)
+def enter_rbm_plot_directory(dataset, tcfg, logfilename, clean=True):
+    util.enter_plot_directory(tcfg.output_dir, clean=clean)
     util.tee_output_to_log(logfilename)
 
 def leave_rbm_plot_directory():
@@ -95,7 +91,8 @@ def load_parameters(rbm, filename):
     rbm.bias_hid = gp.as_garray(state['bias_hid'])
 
 def load_mnist(with_verification_set):
-    with gzip.open('mnist.pkl.gz', 'rb') as f:
+    with gzip.open(os.path.join(get_base_dir(), "datasets", "mnist.pkl.gz"), 
+                   'rb') as f:
         (X, Z), (VX, VZ), (TX, TZ) = cPickle.load(f)
 
     TX = gp.as_garray(TX)
@@ -106,4 +103,8 @@ def load_mnist(with_verification_set):
     else:
         X = gp.as_garray(np.concatenate((X,VX), axis=0))
         return X, TX
+
+def load_ruslan_mnist():
+    mdata = scipy.io.loadmat(os.path.join(get_base_dir(), "datasets", "mnist.mat"))
+    return gp.as_garray(mdata['fbatchdata'])
 

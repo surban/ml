@@ -7,58 +7,6 @@ import math
 import numpy as np
 import gnumpy as gp
 
-class MyRand(object):
-    def __init__(self):
-        self.u = None
-        self.v = None
-        self.w = None
-
-    def seed(self, j):
-        self.u = np.uint64(0L)
-        self.v = np.uint64(4101842887655102017L)
-        self.w = np.uint64(1L)
-
-        #print "u: %20d v: %20d w: %20d" % (self.u, self.v, self.w)
-
-        self.u = np.uint64(j) ^ self.v;
-        #print "u: %20d v: %20d w: %20d" % (self.u, self.v, self.w)
-        self.get_uint64()
-        #print "u: %20d v: %20d w: %20d" % (self.u, self.v, self.w)
-
-        self.v = self.u
-        self.get_uint64()
-
-        self.w = self.v
-        self.get_uint64()
-
-    def get_uint64(self):
-        #print "u: %20d v: %20d w: %20d" % (self.u, self.v, self.w)
-        self.u = self.u * np.uint64(2862933555777941757L) + np.uint64(7046029254386353087L)
-        #print "u: %20d v: %20d w: %20d" % (self.u, self.v, self.w)
-        
-        self.v ^= self.v >> np.uint64(17)
-        self.v ^= self.v << np.uint64(31)
-        self.v ^= self.v >> np.uint64(8)
-
-        self.w = np.uint64(4294957665L) * (self.w & np.uint64(0xffffffff)) + \
-            (self.w >> np.uint64(32));
-        
-        x = self.u ^ (self.u << np.uint64(21))
-        x ^= x >> np.uint64(35);
-        x ^= x << np.uint64(4);
-
-        return (x + self.v) ^ self.w
-
-    def get_float(self):
-        return 5.42101086242752217E-20 * self.get_uint64()
-
-    def rand(self, shape):
-        x = np.zeros(shape)
-        for i in range(x.shape[0]):
-            for j in range(x.shape[1]):
-                x[i,j] = self.get_float()
-        return gp.as_garray(x)
-
 
 class LCGRand(object):
     a = 1664525
@@ -258,5 +206,9 @@ def logminus(x, y, shift_method='mean', raise_when_negative=True):
         else:
             return float('-inf')
 
+
+def get_base_dir():
+    """Base directory of the ML project"""
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
