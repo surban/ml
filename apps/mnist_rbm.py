@@ -14,11 +14,11 @@ import mnist_rbm_config as cfg
 
 from rbm.rbm import RestrictedBoltzmannMachine 
 from rbm.util import sample_binomial
-from common.util import myrand as mr
+#from common.util import myrand as mr
 
 # parameters
 plot_samples = False
-rbmutil.use_debug_rng = True
+#rbmutil.use_debug_rng = True
 
 # load dataset
 X, TX = rbmutil.load_mnist(False)
@@ -34,17 +34,17 @@ rbmutil.enter_rbm_plot_directory("mnist", cfg.n_hid, cfg.use_pcd,
 # Build RBM
 rbm = RestrictedBoltzmannMachine(cfg.batch_size, cfg.n_vis, cfg.n_hid, 
                                  cfg.n_gibbs_steps) 
-mr.seed(30)
-rbm.weights = 0.01 * (0.5 - mr.rand(rbm.weights.shape))
+#mr.seed(30)
+#rbm.weights = 0.01 * (0.5 - mr.rand(rbm.weights.shape))
 
 # initialize momentums
 weights_m1 = 0
 bias_vis_m1 = 0
 bias_hid_m1 = 0
 
-np.set_printoptions(precision=15)
-print "weights:"
-print rbm.weights[0:5,0:5]
+#np.set_printoptions(precision=15)
+#print "weights:"
+#print rbm.weights[0:5,0:5]
 #cfg.epochs = 2
 
 # train
@@ -134,18 +134,18 @@ for epoch in range(cfg.epochs):
     print "Epoch %02d: reconstruction cost=%f, pseudo likelihood=%f" % \
         (epoch, rc, pl)
 
-print "after weights:"
-print rbm.weights[0:5,0:5]
+#print "after weights:"
+#print rbm.weights[0:5,0:5]
 
-print "after bias_vis:"
-print rbm.bias_vis[0:5]
+#print "after bias_vis:"
+#print rbm.bias_vis[0:5]
 
-print "after bias_hid:"
-print rbm.bias_hid[0:5]
+#print "after bias_hid:"
+#print rbm.bias_hid[0:5]
 
 
-print "random state:"
-print mr.get_uint32()
+#print "random state:"
+#print mr.get_uint32()
 
 
 

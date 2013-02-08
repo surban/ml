@@ -23,7 +23,7 @@ from rbm.ais import AnnealedImportanceSampler
 gp.seed_rand(int(time.time()))
 
 # AIS parameters
-use_ruslan = True
+use_ruslan = False
 #use_ruslans_base_bias = True
 use_ruslans_base_bias = False
 check_base_rbm_partition_function = False
@@ -37,7 +37,8 @@ ais_gibbs_steps = 1
 ais_betas = np.concatenate((np.linspace(0.0, 0.5,   500, endpoint=False),
                             np.linspace(0.5, 0.9,  4000, endpoint=False),
                             np.linspace(0.9, 1.0, 10000)))
-ais_base_samples = 50000
+#ais_base_samples = 50000
+ais_base_samples = 10000
 ais_base_chains = 1000
 ais_base_gibbs_steps_between_samples = 1000
 #ais_iterations = 10
