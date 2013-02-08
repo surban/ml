@@ -75,6 +75,7 @@ for i in range(n_iterations):
     # output statistics
     print
     print "#############################################################"
+    print "use_debug_rng:                     %s" % rbmutil.use_debug_rng
     print "Runs:                              %d" % len(tr_lps)
     print 
     print "<log p(x from training set)>    =  %f" % np.mean(tr_lps)
