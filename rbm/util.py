@@ -15,6 +15,8 @@ from common.util import get_base_dir
 
 use_debug_rng = False
 
+gp.expensive_check_probability = 0
+
 def sample_binomial(p):
     """Samples elementwise from the binomial distribution with 
     probability p"""
@@ -22,6 +24,9 @@ def sample_binomial(p):
         r = myrand.rand(p.shape)
     else:
         r = gp.rand(p.shape)
+    #n = np.random.random(p.shape)
+    #n = gp.rand(p.shape)
+    #r = gp.zeros(p.shape)
     return r < p
 
 def all_states(size):
@@ -31,13 +36,14 @@ def all_states(size):
         yield bits
         c += 1
 
-def enter_rbm_plot_directory(dataset, tcfg, logfilename, clean=True):
+def enter_rbm_plot_directory(tcfg, logfilename=None, clean=True):
     util.enter_plot_directory(tcfg.output_dir, clean=clean)
-    util.tee_output_to_log(logfilename)
+    if logfilename is not None:
+        util.tee_output_to_log(logfilename)
 
 def leave_rbm_plot_directory():
     util.untee_output()
-    os.chdir("..")
+    util.leave_plot_directory()
 
 def plot_samples(rbm, epoch, init_samples, 
                  n_plot_samples, n_gibbs_steps_between_samples):

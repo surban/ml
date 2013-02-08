@@ -48,7 +48,7 @@ class TrainingConfiguration(object):
             bin_str = "bin-"
         else:
             bin_str = ""
-        return "%s-rbm-%03d-%scd%02d-mb%04d-%sr%.03f-m%.02f:%0.02f(%02d)-c%.04f-iws%.04f-ibs%.04f-%010d" % \
+        return "%s-rbm-%03d-%scd%02d-mbs%04d-%ssr%.03f-m%.02f;%0.02f(%02d)-c%.04f-iws%.04f-ibs%.04f-%010d" % \
             (self.dataset, self.n_hid, pcd_str, self.n_gibbs_steps, self.batch_size,
              bin_str, self.step_rate, self.initial_momentum, self.final_momentum, 
              self.use_final_momentum_from_epoch, self.weight_cost, 

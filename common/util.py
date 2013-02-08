@@ -63,7 +63,9 @@ outputlog = None
 def tee_output_to_log(filename):
     global stdoutsav, outputlog
 
-    assert stdoutsav is None
+    if stdoutsav is not None:
+        untee_output()
+
     stdoutsav = sys.stdout
     #stderrsav = sys.stderr
     try:
@@ -77,12 +79,13 @@ def tee_output_to_log(filename):
 def untee_output():
     global stdoutsav, outputlog
     
-    sys.stdout.flush()
-    sys.stdout = stdoutsav
-    outputlog.close()
+    if stdoutsav is not None:
+        sys.stdout.flush()
+        sys.stdout = stdoutsav
+        outputlog.close()
 
-    stdoutsav = None
-    outputlog = None
+        stdoutsav = None
+        outputlog = None
 
 
 def pack_in_batches(gen, batch_size):
@@ -131,18 +134,33 @@ def draw_slices(X, batch_size, kind='sequential', samples_are='rows',
             if stop and drawn_samples >= n_samples:
                 break
 
+in_plot_directory = False
+
 def enter_plot_directory(dirname, clean=True):
     """Creates and chdirs into given dirname. 
     
     If clean is true deletes all *.png files in the directory.
     """
+    global in_plot_directory
+
+    if in_plot_directory:
+        leave_plot_directory()
+
     print "Writing output into directory %s" % dirname
     if not os.path.exists(dirname):
         os.makedirs(dirname)
     os.chdir(dirname)
+    in_plot_directory = True
+
     if clean:
         for file in glob.glob("*.png"):
             os.remove(file)
+
+def leave_plot_directory():
+    global in_plot_directory
+    if in_plot_directory:
+        os.chdir("..")
+        in_plot_directory = False
 
 def mean_over_dataset(f, dataset, batch_size, sample_axis):
     """Calculates the mean of function f over dataset.

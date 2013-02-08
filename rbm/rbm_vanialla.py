@@ -264,8 +264,6 @@ def train_rbm(tcfg, print_cost=False):
             if tcfg.binarize_data:
                 x = sample_binomial(x)
 
-            continue
-
             # perform weight update
             if tcfg.use_pcd:
                 weights_step, bias_vis_step, bias_hid_step = rbm.pcd_update(x)
