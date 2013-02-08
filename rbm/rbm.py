@@ -254,6 +254,11 @@ def train_rbm(tcfg, print_cost=False):
             pl_sum = 0
             rc_sum = 0
 
+        if epoch >= tcfg.use_final_momentum_from_epoch:
+            momentum = tcfg.final_momentum
+        else:
+            momentum = tcfg.initial_momentum
+
         for x in draw_slices(tcfg.X, tcfg.batch_size, kind='sequential', 
                              samples_are='rows', stop=True):
             #print >>stderr, "%d / %d (epoch: %d / %d)\r" % (seen_epoch_samples, 
@@ -264,19 +269,14 @@ def train_rbm(tcfg, print_cost=False):
             if tcfg.binarize_data:
                 x = sample_binomial(x)
 
-            continue
+            #continue
 
             # perform weight update
             if tcfg.use_pcd:
                 weights_step, bias_vis_step, bias_hid_step = rbm.pcd_update(x)
             else:
                 weights_step, bias_vis_step, bias_hid_step = rbm.cd_update(x)
-
-            if epoch >= tcfg.use_final_momentum_from_epoch:
-                momentum = tcfg.final_momentum
-            else:
-                momentum = tcfg.initial_momentum
-        
+       
             weights_update = momentum * weights_update + \
                 tcfg.step_rate * (weights_step - tcfg.weight_cost * rbm.weights)
             bias_vis_update = momentum * bias_vis_update + tcfg.step_rate * bias_vis_step
@@ -313,5 +313,7 @@ def train_rbm(tcfg, print_cost=False):
             rc = rc_sum / seen_epoch_samples
             print "Epoch %02d: reconstruction cost=%f, pseudo likelihood=%f" % \
                 (epoch, rc, pl)
+        else:
+            print "Epoch %02d completed" % epoch
 
     return rbm
