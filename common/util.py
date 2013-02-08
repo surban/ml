@@ -109,8 +109,13 @@ class Tee:
         self.fd1.flush()
         self.fd2.flush()
 
+stdoutsav = None
+outputlog = None
 
 def tee_output_to_log(filename):
+    global stdoutsav, outputlog
+
+    assert stdoutsav is None
     stdoutsav = sys.stdout
     #stderrsav = sys.stderr
     try:
@@ -120,6 +125,17 @@ def tee_output_to_log(filename):
     outputlog = open(filename, "w")
     sys.stdout = Tee(stdoutsav, outputlog)
     #sys.stderr = Tee(stderrsav, outputlog)
+
+def untee_output():
+    global stdoutsav, outputlog
+    
+    sys.stdout.flush()
+    sys.stdout = stdoutsav
+    outputlog.close()
+
+    stdoutsav = None
+    outputlog = None
+
 
 def pack_in_batches(gen, batch_size):
     """Packs batch_size samples from gen into a batch"""
