@@ -33,25 +33,40 @@ class RestrictedBoltzmannMachine(object):
         if batch_size > 0:
             self.persistent_vis = \
                 gp.as_garray(np.random.normal(0, 1, size=(batch_size, n_vis)))
+        
         self.log_pf = None
+        self.log_pf_high = None
+        self.log_pf_low = None
 
-    def init_weights(self, init_weight_sigma, init_bias_sigma):
+    def init_weights_zero(self):
+        """Initis all weights to zero"""
+        self.weights = gp.zeros((self.n_vis, self.n_hid))
+        self.bias_vis = gp.zeros((self.n_vis,))
+        self.bias_hid = gp.zeros((self.n_hid,))
+
+    def init_weights_normal(self, weight_sigma, bias_sigma):
         """Inits the weights and biases with samples from a normal distribution
         with mean 0 and variance init_weight_sigma^2 / init_bias_sigma^2."""
-        if init_weight_sigma > 0:
-            self.weights = gp.as_garray(np.random.normal(0, init_weight_sigma, 
+        self.init_weights_zero()
+        if weight_sigma > 0:
+            self.weights = gp.as_garray(np.random.normal(0, weight_sigma, 
                                                          size=(self.n_vis, self.n_hid)))
-        else:
-            self.weights = gp.zeros((self.n_vis, self.n_hid))
-
-        if init_bias_sigma > 0:
-            self.bias_vis = gp.as_garray(np.random.normal(0, init_bias_sigma, 
+        if bias_sigma > 0:
+            self.bias_vis = gp.as_garray(np.random.normal(0, bias_sigma, 
                                                           size=(self.n_vis,)))
-            self.bias_hid = gp.as_garray(np.random.normal(0, init_bias_sigma, 
+            self.bias_hid = gp.as_garray(np.random.normal(0, bias_sigma, 
                                                           size=(self.n_hid,)))
-        else:
-            self.bias_vis = gp.zeros((self.n_vis,))
-            self.bias_hid = gp.zeros((self.n_hid,))
+
+    def init_weights_uniform(self, weight_range, bias_range):
+        """Inits the weights and biases with samples from a uniform distribution
+        with support [-weight_range, weight_range] / [-bias_range, bias_range]."""
+        self.init_weights_zero()
+        self.weights = gp.as_garray(np.random.uniform(-weight_range, weight_range,
+                                                      size=(self.n_vis, self.n_hid)))
+        self.bias_vis = gp.as_garray(np.random.uniform(-bias_range, bias_range,
+                                                       size=(self.n_vis,)))
+        self.bias_hid = gp.as_garray(np.random.uniform(-bias_range, bias_range,
+                                                       size=(self.n_hid,)))
 
 
     @property
@@ -256,7 +271,12 @@ def train_rbm(tcfg, print_cost=False):
                                      tcfg.n_vis, 
                                      tcfg.n_hid, 
                                      tcfg.n_gibbs_steps)
-    rbm.init_weights(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
+    if tcfg.init_method == 'normal':
+        rbm.init_weights_normal(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
+    elif tcfg.init_method == 'uniform':
+        rbm.init_weights_uniform(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
+    else:
+        assert False
 
     # initialize momentums
     weights_update = 0

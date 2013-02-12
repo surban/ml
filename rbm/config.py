@@ -11,7 +11,7 @@ class TrainingConfiguration(object):
                  step_rate,
                  use_pcd, binarize_data, initial_momentum, final_momentum,
                  use_final_momentum_from_epoch, weight_cost, 
-                 init_weight_sigma, init_bias_sigma,
+                 init_method, init_weight_sigma, init_bias_sigma,
                  seed):
         self.dataset = dataset
         self.n_vis = n_vis
@@ -26,6 +26,7 @@ class TrainingConfiguration(object):
         self.final_momentum = final_momentum
         self.use_final_momentum_from_epoch = use_final_momentum_from_epoch
         self.weight_cost = weight_cost
+        self.init_method = init_method
         self.init_weight_sigma = init_weight_sigma
         self.init_bias_sigma = init_bias_sigma
         self.seed = seed
@@ -35,6 +36,8 @@ class TrainingConfiguration(object):
     def load_dataset(self):
         if self.dataset == 'mnist':
             self.X, self.TX = util.load_mnist(False)
+        elif self.dataset == 'mnistv':
+            self.X, self.VX, self.TX = util.load_mnist(True)
         elif self.dataset == 'rmnist':
             self.X, self.TX = util.load_ruslan_mnist()
 

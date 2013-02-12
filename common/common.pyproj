@@ -23,6 +23,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="dlutil.py" />
+    <Compile Include="stats.py" />
     <Compile Include="util.py" />
     <Compile Include="__init__.py" />
   </ItemGroup>
