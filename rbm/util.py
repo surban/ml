@@ -96,6 +96,13 @@ def load_parameters(rbm, filename):
     rbm.bias_vis = gp.as_garray(state['bias_vis'])
     rbm.bias_hid = gp.as_garray(state['bias_hid'])
 
+def load_ruslan_parameters(rbm, filename):
+    print "Loading RBM parameters form file %s" % filename
+    mdata = scipy.io.loadmat(filename)
+    rbm.weights = gp.as_garray(mdata['vishid'])
+    rbm.bias_vis = gp.as_garray(mdata['visbiases'][0])
+    rbm.bias_hid = gp.as_garray(mdata['hidbiases'][0])
+
 def load_mnist(with_verification_set):
     with gzip.open(os.path.join(get_base_dir(), "datasets", "mnist.pkl.gz"), 
                    'rb') as f:
@@ -111,6 +118,8 @@ def load_mnist(with_verification_set):
         return X, TX
 
 def load_ruslan_mnist():
-    mdata = scipy.io.loadmat(os.path.join(get_base_dir(), "datasets", "mnist.mat"))
-    return gp.as_garray(mdata['fbatchdata'])
+    mdata = scipy.io.loadmat(os.path.join(get_base_dir(), 
+                                          "datasets", "mnist.mat"))
+    return (gp.as_garray(mdata['fbatchdata']), 
+            gp.as_garray(mdata['test_fbatchdata']))
 

@@ -2,9 +2,12 @@
 
 import gnumpy as gp
 import numpy as np
-import common.util
 import decimal
 from sys import stderr
+from time import time
+
+import common
+import common.util
 
 from .util import sample_binomial, all_states, save_parameters, plot_weights, \
     plot_pcd_chains
@@ -14,29 +17,42 @@ from common.util import logsum, draw_slices
 class RestrictedBoltzmannMachine(object):
     "A Restricted Boltzmann Machine (RBM) with binary units"
 
-    def __init__(self, batch_size, n_vis, n_hid, cd_steps, 
-                 init_weight_sigma, init_bias_sigma):
+    def __init__(self, batch_size, n_vis, n_hid, cd_steps):
         """A Restricted Boltzmann Machine (RBM) with binary units.
         batch_size is the size of a batch used for training. It may be 0 if
         the RBM will not be trained.
         n_vis and n_hid are the number of visible and hidden units.
         cd_steps is the number of alternating Gibbs sampling iterations to
         perform when computing the paramter updates using constrastive divergence."""
+        self.weights = gp.zeros((n_vis, n_hid))
+        self.bias_vis = gp.zeros((n_vis,))
+        self.bias_hid = gp.zeros((n_hid,))
+
         self.cd_steps = cd_steps
-        self.weights = gp.as_garray(np.random.normal(0, init_weight_sigma, 
-                                                     size=(n_vis, n_hid)))
-        if init_bias_sigma > 0:
-            self.bias_vis = gp.as_garray(np.random.normal(0, init_bias_sigma, 
-                                                          size=(n_vis,)))
-            self.bias_hid = gp.as_garray(np.random.normal(0, init_bias_sigma, 
-                                                          size=(n_hid,)))
-        else:
-            self.bias_vis = gp.zeros((n_vis,))
-            self.bias_hid = gp.zeros((n_hid,))
+
         if batch_size > 0:
             self.persistent_vis = \
                 gp.as_garray(np.random.normal(0, 1, size=(batch_size, n_vis)))
         self.log_pf = None
+
+    def init_weights(self, init_weight_sigma, init_bias_sigma):
+        """Inits the weights and biases with samples from a normal distribution
+        with mean 0 and variance init_weight_sigma^2 / init_bias_sigma^2."""
+        if init_weight_sigma > 0:
+            self.weights = gp.as_garray(np.random.normal(0, init_weight_sigma, 
+                                                         size=(self.n_vis, self.n_hid)))
+        else:
+            self.weights = gp.zeros((self.n_vis, self.n_hid))
+
+        if init_bias_sigma > 0:
+            self.bias_vis = gp.as_garray(np.random.normal(0, init_bias_sigma, 
+                                                          size=(self.n_vis,)))
+            self.bias_hid = gp.as_garray(np.random.normal(0, init_bias_sigma, 
+                                                          size=(self.n_hid,)))
+        else:
+            self.bias_vis = gp.zeros((self.n_vis,))
+            self.bias_hid = gp.zeros((self.n_hid,))
+
 
     @property
     def n_vis(self):
@@ -229,6 +245,9 @@ class RestrictedBoltzmannMachine(object):
 def train_rbm(tcfg, print_cost=False):
     """Trains and returns an RBM using the specified 
     RestrictedBoltzmannMachineTrainingConfiguration"""
+
+    start_time = time()
+
     # seed RNGs
     gp.seed_rand(tcfg.seed)
 
@@ -236,9 +255,8 @@ def train_rbm(tcfg, print_cost=False):
     rbm = RestrictedBoltzmannMachine(tcfg.batch_size, 
                                      tcfg.n_vis, 
                                      tcfg.n_hid, 
-                                     tcfg.n_gibbs_steps, 
-                                     tcfg.init_weight_sigma,
-                                     tcfg.init_bias_sigma) 
+                                     tcfg.n_gibbs_steps)
+    rbm.init_weights(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
 
     # initialize momentums
     weights_update = 0
@@ -268,8 +286,6 @@ def train_rbm(tcfg, print_cost=False):
             # binaraize x
             if tcfg.binarize_data:
                 x = sample_binomial(x)
-
-            #continue
 
             # perform weight update
             if tcfg.use_pcd:
@@ -313,7 +329,10 @@ def train_rbm(tcfg, print_cost=False):
             rc = rc_sum / seen_epoch_samples
             print "Epoch %02d: reconstruction cost=%f, pseudo likelihood=%f" % \
                 (epoch, rc, pl)
-        else:
+        elif common.show_progress:
             print "Epoch %02d completed" % epoch
+
+    end_time = time()
+    print "Training took %d s" % (end_time - start_time)
 
     return rbm

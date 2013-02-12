@@ -36,7 +36,7 @@ class TrainingConfiguration(object):
         if self.dataset == 'mnist':
             self.X, self.TX = util.load_mnist(False)
         elif self.dataset == 'rmnist':
-            self.X = util.load_ruslan_mnist()
+            self.X, self.TX = util.load_ruslan_mnist()
 
     @property
     def output_dir(self):

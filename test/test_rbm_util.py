@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import rbm.util
 
 def test_all_states():

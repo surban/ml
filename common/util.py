@@ -8,6 +8,11 @@ import numpy as np
 import gnumpy as gp
 
 
+def interval_contains(interval, x):
+    "Returns true if interval contains x"
+    assert interval[1] >= interval[0]
+    return interval[0] <= x <= interval[1]
+
 class LCGRand(object):
     a = 1664525
     c = 1013904223
