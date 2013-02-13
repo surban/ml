@@ -1,5 +1,5 @@
 @echo off
 call setpath.cmd
 pushd notebooks
-ipython notebook
+ipython notebook --pylab=inline
 popd

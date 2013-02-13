@@ -17,6 +17,8 @@ use_debug_rng = False
 
 gp.expensive_check_probability = 0
 
+loaded_datasets = {}
+
 def sample_binomial(p):
     """Samples elementwise from the binomial distribution with 
     probability p"""
@@ -45,27 +47,28 @@ def leave_rbm_plot_directory():
     util.untee_output()
     util.leave_plot_directory()
 
-def plot_samples(rbm, epoch, init_samples, 
-                 n_plot_samples, n_gibbs_steps_between_samples):
-    batch_size = init_samples.shape[0]
-    pv = init_samples
-    v = init_samples
-    img = np.zeros((29 * n_plot_samples + 1, 29 * batch_size - 1),
-                   dtype='uint8')
+def plot_samples(init_samples, samples, save_to_file=False, epoch=None):
+    all_samples = gp.concatenate((init_samples.reshape((1, 
+                                                        init_samples.shape[0],
+                                                        init_samples.shape[1])),
+                                  samples))
+    n_samples = all_samples.shape[0]
+    n_chains = all_samples.shape[1]
+    img = np.zeros((29 * n_samples + 1, 29 * n_chains - 1), dtype='uint8')
 
-    for i in range(n_plot_samples):
-        print "Sampling %02d / %02d                \r" % (i, n_plot_samples),
-        A = dlutil.tile_raster_images(gp.as_numpy_array(pv), 
+    for step in range(n_samples):
+        v = all_samples[step, :, :]
+        A = dlutil.tile_raster_images(gp.as_numpy_array(v), 
                                       img_shape=(28, 28), 
-                                      tile_shape=(1, batch_size),
+                                      tile_shape=(1, n_chains),
                                       tile_spacing=(1, 1))
-        img[29*i:29*i+28,:] = A
+        img[29*step:29*step+28,:] = A
 
-        if i != n_plot_samples - 1:
-            v, pv = rbm.gibbs_sample(v, n_gibbs_steps_between_samples)
-            pv = gp.as_numpy_array(pv)
-    pilimage = pil.fromarray(img) 
-    pilimage.save('samples-%02i.png' % epoch)
+    if save_to_file:
+        assert epoch is not None
+        pilimage = pil.fromarray(img) 
+        pilimage.save('samples-%02i.png' % epoch)
+    return img
 
 def plot_weights(rbm, epoch):
     W = gp.as_numpy_array(rbm.weights)
@@ -108,14 +111,19 @@ def load_mnist(with_verification_set):
                    'rb') as f:
         (X, Z), (VX, VZ), (TX, TZ) = cPickle.load(f)
 
-    TX = gp.as_garray(TX)
     if with_verification_set:
-        X = gp.as_garray(X)
-        VX = gp.as_garray(VX)
-        return X, VX, TX
+        if 'mnistv_X' not in loaded_datasets:
+            loaded_datasets['mnistv_X'] = gp.as_garray(X)
+            loaded_datasets['mnistv_VX'] = gp.as_garray(VX)
+            loaded_datasets['mnistv_TX'] = gp.as_garray(TX)
+        return (loaded_datasets['mnistv_X'], loaded_datasets['mnistv_VX'],
+                loaded_datasets['mnistv_TX'])
     else:
-        X = gp.as_garray(np.concatenate((X,VX), axis=0))
-        return X, TX
+        if 'mnist_X' not in loaded_datasets:
+            loaded_datasets['mnist_X'] = gp.as_garray(np.concatenate((X,VX), 
+                                                                     axis=0))
+            loaded_datasets['mnist_TX'] = gp.as_garray(TX)       
+        return loaded_datasets['mnist_X'], loaded_datasets['mnist_TX']
 
 def load_ruslan_mnist():
     mdata = scipy.io.loadmat(os.path.join(get_base_dir(), 

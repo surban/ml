@@ -94,8 +94,8 @@ def test_compare_rbm_with_lisa():
     """Trains own RBM and compares average likelihood on training and test set 
     with RBM trained by the Deep Learning Tutorials"""
     ref_file = "test/lisa-rbm.npz"
-    #iterations = 10
-    iterations = 2
+    iterations = 10
+    #iterations = 2
     alpha = 0.10
 
     common.show_progress = True
@@ -158,14 +158,15 @@ def test_compare_rbm_with_lisa():
         ref_lls.append(ref_ll)
         print "Test:      Average log p(x from training set) =  %f" % ref_ll
      
-
-    ll_mean, ll_pm = common.stats.normal_mean(lls, alpha)
-    ref_ll_mean, ref_ll_pm = common.stats.normal_mean(ref_lls, alpha)
-    print
-    print "Test:      <Average log p(x from training set)> =  %g +/- %g" % \
-        (ll_mean, ll_pm)
-    print "Reference: <Average log p(x from training set)> =  %g +/- %g" % \
-        (ref_ll_mean, ref_ll_pm)
+        # print statistics
+        ll_mean, ll_pm = common.stats.normal_mean(lls, alpha)
+        ref_ll_mean, ref_ll_pm = common.stats.normal_mean(ref_lls, alpha)
+        print "############################################################"
+        print "After %d iterations:" % i
+        print "Test:      <Average log p(x from training set)> =  %g +/- %g" % \
+            (ll_mean, ll_pm)
+        print "Reference: <Average log p(x from training set)> =  %g +/- %g" % \
+            (ref_ll_mean, ref_ll_pm)
 
     assert common.util.interval_contains(common.stats.normal_mean_confint(lls, 
                                                                           alpha),

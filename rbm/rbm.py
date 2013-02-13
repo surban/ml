@@ -170,21 +170,39 @@ class RestrictedBoltzmannMachine(object):
         return (vis, p_vis)
 
     def sample_vis(self, n_chains, n_steps, gibbs_steps_between_samples,
-                   sample_probabilities=False):
-        """Obtains unbiased samples for the visible units.
-        Runs n_chains Gibbs chains in parallel for n_steps.
-        Grabs samples every gibbs_steps_between_samples Gibbs steps."""
-        samples = gp.zeros((n_chains * n_steps, self.n_vis))
-        vis = gp.rand((n_chains, self.n_vis)) < 0.5
+                   sample_probabilities=False, init_vis=None):
+        """Same as sample_vis_3d but concatenates all samples into a 2d array"""
+        samples3d = self.sample_vis_3d(n_chains, n_steps, gibbs_steps_between_samples,
+                                       sample_probabilities, init_vis)
+        samples2d = gp.zeros((n_chains * n_steps, self.n_vis))
         for step in range(n_steps):
-            print >>stderr, "%d / %d                 \r" % (step, n_steps),
+            samples2d[step*n_chains : (step+1)*n_chains, :] = \
+                samples3d[step, :, :]
+        return samples2d
+
+    def sample_vis_3d(self, n_chains, n_steps, gibbs_steps_between_samples,
+                      sample_probabilities=False, init_vis=None):
+        """Obtains unbiased samples for the visible units.
+        Runs n_chains Gibbs chains in parallel for 
+        (n_steps*gibbs_steps_between_samples) steps.
+        Grabs samples every gibbs_steps_between_samples Gibbs steps."""
+        samples = gp.zeros((n_steps, n_chains, self.n_vis))
+        if init_vis is None:
+            vis = gp.rand((n_chains, self.n_vis)) < 0.5
+        else:
+            assert init_vis.shape[0] == n_chains
+            vis = init_vis
+
+        for step in range(n_steps):
+            #print >>stderr, "%d / %d                 \r" % (step, n_steps),
             vis, p_vis = self.gibbs_sample(vis, gibbs_steps_between_samples)
             if sample_probabilities:
                 sample = p_vis
             else:
                 sample = vis
-            samples[step*n_chains : (step+1)*n_chains, :] = sample
+            samples[step, :, :] = sample
         return samples
+
 
     def _cd_update_terms(self, vis, model_vis, model_p_vis):
         """Returns (weights update, visible bias update, hidden bias update) given
