@@ -114,16 +114,27 @@ def load_mnist(with_verification_set):
     if with_verification_set:
         if 'mnistv_X' not in loaded_datasets:
             loaded_datasets['mnistv_X'] = gp.as_garray(X)
+            loaded_datasets['mnistv_Z'] = Z
             loaded_datasets['mnistv_VX'] = gp.as_garray(VX)
+            loaded_datasets['mnistv_VZ'] = VZ
             loaded_datasets['mnistv_TX'] = gp.as_garray(TX)
-        return (loaded_datasets['mnistv_X'], loaded_datasets['mnistv_VX'],
-                loaded_datasets['mnistv_TX'])
+            loaded_datasets['mnistv_TZ'] = TZ
+        return (loaded_datasets['mnistv_X'], 
+                loaded_datasets['mnistv_VX'],
+                loaded_datasets['mnistv_TX'],
+                loaded_datasets['mnistv_Z'],
+                loaded_datasets['mnistv_VZ'],
+                loaded_datasets['mnistv_TZ'])
     else:
         if 'mnist_X' not in loaded_datasets:
             loaded_datasets['mnist_X'] = gp.as_garray(np.concatenate((X,VX), 
                                                                      axis=0))
+            loaded_datasets['mnist_Z'] = np.concatenate((Z,VZ), axis=0)
             loaded_datasets['mnist_TX'] = gp.as_garray(TX)       
-        return loaded_datasets['mnist_X'], loaded_datasets['mnist_TX']
+            loaded_datasets['mnist_TZ'] = TZ
+        return (loaded_datasets['mnist_X'], loaded_datasets['mnist_TX'],
+                loaded_datasets['mnist_Z'], loaded_datasets['mnist_TZ'])
+
 
 def load_ruslan_mnist():
     mdata = scipy.io.loadmat(os.path.join(get_base_dir(), 

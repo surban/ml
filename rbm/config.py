@@ -35,9 +35,9 @@ class TrainingConfiguration(object):
 
     def load_dataset(self):
         if self.dataset == 'mnist':
-            self.X, self.TX = util.load_mnist(False)
+            self.X, self.TX, self.Z, self.TZ = util.load_mnist(False)
         elif self.dataset == 'mnistv':
-            self.X, self.VX, self.TX = util.load_mnist(True)
+            self.X, self.VX, self.TX, self.Z, self.VZ, self.TZ = util.load_mnist(True)
         elif self.dataset == 'rmnist':
             self.X, self.TX = util.load_ruslan_mnist()
 

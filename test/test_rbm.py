@@ -5,6 +5,7 @@ import numpy as np
 import gnumpy as gp
 import time
 import random
+import os
 
 import rbm.rbm
 import rbm.util
@@ -30,6 +31,8 @@ def test_compare_rbm_with_ruslan():
     n_hid = int(mdata['numhid'][0,0])
     cd = int(mdata['CD'][0,0])
     epochs = int(mdata['maxepoch'][0,0])
+
+    os.chdir("test-tmp")   
 
     ll_trainings = []
     ll_tests = []
@@ -107,6 +110,8 @@ def test_compare_rbm_with_lisa():
     refrbm = rbm.rbm.RestrictedBoltzmannMachine(20, n_vis, n_hid, 0)
     rbm.util.load_parameters(refrbm, ref_file)
 
+    os.chdir("test-tmp")
+
     lls = []
     ref_lls = []
     print "Running %d iterations" % iterations
@@ -124,6 +129,7 @@ def test_compare_rbm_with_lisa():
                                                 weight_cost=0,
                                                 init_method='uniform', init_weight_sigma=init_weight_sigma, init_bias_sigma=0,
                                                 seed=random.randint(0, 100000))
+        rbm.util.enter_rbm_plot_directory(tcfg)
         myrbm = rbm.rbm.train_rbm(tcfg)
    
         # AIS on my RBM

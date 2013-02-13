@@ -4,6 +4,7 @@ import scipy.io
 import numpy as np
 import gnumpy as gp
 import time
+import os
 
 import rbm.rbm
 import rbm.util

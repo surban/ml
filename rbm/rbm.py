@@ -126,54 +126,50 @@ class RestrictedBoltzmannMachine(object):
             else:
                 return logsum(allfhes)
 
-    def p_hid_given_vis(self, vis):
+    def p_hid_given_vis(self, vis, beta=1):
         """Returns a vector whose ith component is the probability that the ith
         hidden unit is active given the states of the visible units"""
-        return gp.logistic(gp.dot(vis, self.weights) + self.bias_hid)
+        return gp.logistic(beta * (gp.dot(vis, self.weights) + self.bias_hid))
 
-        #try:
-        #    return gp.logistic(gp.dot(vis, self.weights) + self.bias_hid)
-        #except Exception, e:
-        #    np.set_printoptions(threshold=np.nan)
-        #    print e
-        #    print "vis: ", vis
-        #    #print "weights: ", self.weights
-        #    print "bias_hid: ", self.bias_hid
-        #    print "prod: ", gp.dot(vis, self.weights) + self.bias_hid
-        #    raise
-
-
-    def sample_hid_given_vis(self, vis):
+    def sample_hid_given_vis(self, vis, beta=1):
         """Samples the hidden units given the visible units"""
-        p = self.p_hid_given_vis(vis)
+        p = self.p_hid_given_vis(vis, beta)
         return sample_binomial(p)
 
-    def p_vis_given_hid(self, hid):
+    def p_vis_given_hid(self, hid, beta=1):
         """Returns a vector whose ith component is the probability that the ith
         visible unit is active given the states of the hidden units"""
-        return gp.logistic(gp.dot(hid, self.weights.T) + self.bias_vis)
+        return gp.logistic(beta * (gp.dot(hid, self.weights.T) + self.bias_vis))
 
-    def sample_vis_given_hid(self, hid):
+    def sample_vis_given_hid(self, hid, beta=1):
         """Samples the visible units given the hidden units"""
-        p = self.p_vis_given_hid(hid)
+        p = self.p_vis_given_hid(hid, beta)
         return sample_binomial(p)
 
-    def gibbs_sample(self, vis, k):
+    def gibbs_sample(self, vis, k, beta=1):
         """Performs k steps of alternating Gibbs sampling. Returns a tuple
         consisting of the final state of the visible units and the probability
         that they are active given the state of the hiddens in the previous
         to last step."""
         for i in range(k):
-            hid = self.sample_hid_given_vis(vis)
-            vis = self.sample_vis_given_hid(hid)
-        p_vis = self.p_vis_given_hid(hid)
-        return (vis, p_vis)
+            hid = self.sample_hid_given_vis(vis, beta)
+            vis = self.sample_vis_given_hid(hid, beta)
+        p_vis = self.p_vis_given_hid(hid, beta)
+        return vis, p_vis
+
+    def annealed_gibbs_sample(self, vis, betas):
+        for beta in betas:
+            beta = float(beta)
+            hid = self.sample_hid_given_vis(vis, beta)
+            vis = self.sample_vis_given_hid(hid, beta)
+        p_vis = self.p_vis_given_hid(hid, float(betas[-1]))
+        return vis, p_vis
 
     def sample_vis(self, n_chains, n_steps, gibbs_steps_between_samples,
-                   sample_probabilities=False, init_vis=None):
+                   sample_probabilities=False, init_vis=None, beta=1):
         """Same as sample_vis_3d but concatenates all samples into a 2d array"""
         samples3d = self.sample_vis_3d(n_chains, n_steps, gibbs_steps_between_samples,
-                                       sample_probabilities, init_vis)
+                                       sample_probabilities, init_vis, beta=beta)
         samples2d = gp.zeros((n_chains * n_steps, self.n_vis))
         for step in range(n_steps):
             samples2d[step*n_chains : (step+1)*n_chains, :] = \
@@ -181,7 +177,8 @@ class RestrictedBoltzmannMachine(object):
         return samples2d
 
     def sample_vis_3d(self, n_chains, n_steps, gibbs_steps_between_samples,
-                      sample_probabilities=False, init_vis=None):
+                      sample_probabilities=False, init_vis=None, beta=1,
+                      betas=None):
         """Obtains unbiased samples for the visible units.
         Runs n_chains Gibbs chains in parallel for 
         (n_steps*gibbs_steps_between_samples) steps.
@@ -195,7 +192,12 @@ class RestrictedBoltzmannMachine(object):
 
         for step in range(n_steps):
             #print >>stderr, "%d / %d                 \r" % (step, n_steps),
-            vis, p_vis = self.gibbs_sample(vis, gibbs_steps_between_samples)
+            if betas is None:
+                vis, p_vis = self.gibbs_sample(vis, gibbs_steps_between_samples,
+                                               beta=beta)
+            else:
+                assert gibbs_steps_between_samples is None
+                vis, p_vis = self.annealed_gibbs_sample(vis, betas)
             if sample_probabilities:
                 sample = p_vis
             else:
