@@ -8,6 +8,31 @@ import numpy as np
 import gnumpy as gp
 
 
+
+def map_reduce(X, batch_size, map_func, reduce_func,
+               samples_are='rows'):
+    rs = []
+    for x in draw_slices(X, batch_size, kind='sequential', 
+                         samples_are=samples_are, stop=True):
+        m = map_func(x)
+        r = reduce_func(m)
+        rs.append(r)
+    return reduce_func(rs)
+
+
+def map(X, batch_size, map_func, 
+        samples_are='rows'):
+    ms = None
+    for x in draw_slices(X, batch_size, kind='sequential', 
+                         samples_are=samples_are, stop=True):
+        m = gp.as_numpy_array(map_func(x))
+        if ms is None:
+            ms = m
+        else:
+            ms = np.concatenate((ms, m))
+    return gp.as_garray(ms)
+
+
 def interval_contains(interval, x):
     "Returns true if interval contains x"
     assert interval[1] >= interval[0]
