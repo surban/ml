@@ -38,7 +38,7 @@ def all_states(size):
         yield bits
         c += 1
 
-def enter_rbm_plot_directory(tcfg, logfilename=None, clean=True):
+def enter_rbm_plot_directory(tcfg, logfilename=None, clean=False):
     util.enter_plot_directory(tcfg.output_dir, clean=clean)
     if logfilename is not None:
         util.tee_output_to_log(logfilename)
@@ -92,7 +92,11 @@ def save_parameters(rbm, epoch_or_filename):
                         bias_vis=gp.as_numpy_array(rbm.bias_vis),
                         bias_hid=gp.as_numpy_array(rbm.bias_hid))
 
-def load_parameters(rbm, filename):
+def load_parameters(rbm, epoch_or_filename):
+    if type(epoch_or_filename) == str:
+        filename = epoch_or_filename
+    else:
+        filename = "weights-%02i.npz" % epoch_or_filename
     print "Loading RBM parameters form file %s" % filename
     state = np.load(filename)
     rbm.weights = gp.as_garray(state['weights'])

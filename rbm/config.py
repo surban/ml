@@ -31,15 +31,29 @@ class TrainingConfiguration(object):
         self.init_bias_sigma = init_bias_sigma
         self.seed = seed
 
+        assert (self.binarize_data == 'random' or 
+                self.binarize_data == 'round' or
+                self.binarize_data == 'none')
+
         self.load_dataset()
 
     def load_dataset(self):
         if self.dataset == 'mnist':
             self.X, self.TX, self.Z, self.TZ = util.load_mnist(False)
+            self.VX = self.VZ = None
         elif self.dataset == 'mnistv':
             self.X, self.VX, self.TX, self.Z, self.VZ, self.TZ = util.load_mnist(True)
         elif self.dataset == 'rmnist':
             self.X, self.TX = util.load_ruslan_mnist()
+            self.VX = self.VZ = None
+        else:   
+            assert False
+
+        if self.binarize_data == 'round':
+            self.X = self.X > 0.5
+            self.TX = self.TX > 0.5
+            if self.VX is not None:
+                self.VX = self.VX > 0.5
 
     @property
     def output_dir(self):
@@ -47,9 +61,11 @@ class TrainingConfiguration(object):
             pcd_str = "p"
         else:
             pcd_str = ""
-        if self.binarize_data:
+        if self.binarize_data == 'random':
             bin_str = "bin-"
-        else:
+        elif self.binarize_data == 'round':
+            bin_str = "round-"
+        elif self.binarize_data == 'none':
             bin_str = ""
         return "%s-rbm-%03d-%scd%02d-mbs%04d-%ssr%.03f-m%.02f;%0.02f(%02d)-c%.04f-iws%.04f-ibs%.04f-%010d" % \
             (self.dataset, self.n_hid, pcd_str, self.n_gibbs_steps, self.batch_size,

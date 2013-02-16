@@ -10,7 +10,7 @@ import common
 import common.util
 
 from .util import sample_binomial, all_states, save_parameters, plot_weights, \
-    plot_pcd_chains
+    plot_pcd_chains, load_parameters
 from common.util import logsum, draw_slices
 
 
@@ -277,7 +277,7 @@ class RestrictedBoltzmannMachine(object):
 
 
     
-def train_rbm(tcfg, print_cost=False):
+def train_rbm(tcfg, print_cost=False, start_from_epoch=0):
     """Trains and returns an RBM using the specified 
     RestrictedBoltzmannMachineTrainingConfiguration"""
 
@@ -291,12 +291,17 @@ def train_rbm(tcfg, print_cost=False):
                                      tcfg.n_vis, 
                                      tcfg.n_hid, 
                                      tcfg.n_gibbs_steps)
-    if tcfg.init_method == 'normal':
-        rbm.init_weights_normal(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
-    elif tcfg.init_method == 'uniform':
-        rbm.init_weights_uniform(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
+
+    # init or load weights
+    if start_from_epoch == 0:
+        if tcfg.init_method == 'normal':
+            rbm.init_weights_normal(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
+        elif tcfg.init_method == 'uniform':
+            rbm.init_weights_uniform(tcfg.init_weight_sigma, tcfg.init_bias_sigma)
+        else:
+            assert False
     else:
-        assert False
+        load_parameters(rbm, start_from_epoch - 1)
 
     # initialize momentums
     weights_update = 0
@@ -304,7 +309,7 @@ def train_rbm(tcfg, print_cost=False):
     bias_hid_update = 0
 
     # train
-    for epoch in range(tcfg.epochs):
+    for epoch in range(start_from_epoch, tcfg.epochs):
         seen_epoch_samples = 0
 
         if print_cost:
@@ -324,7 +329,7 @@ def train_rbm(tcfg, print_cost=False):
             #                                                epoch, tcfg.epochs),
 
             # binaraize x
-            if tcfg.binarize_data:
+            if tcfg.binarize_data == 'random':
                 x = sample_binomial(x)
 
             # perform weight update

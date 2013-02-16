@@ -164,33 +164,43 @@ def draw_slices(X, batch_size, kind='sequential', samples_are='rows',
             if stop and drawn_samples >= n_samples:
                 break
 
-in_plot_directory = False
+def in_plot_directory(value=None):
+    if value != None:
+        if value:
+            os.environ['IN_PLOT_DIRECTORY'] = '1'
+        else:
+            os.environ['IN_PLOT_DIRECTORY'] = '0'
+    else:
+        if 'IN_PLOT_DIRECTORY' in os.environ:
+            return os.environ['IN_PLOT_DIRECTORY'] == '1'
+        else:
+            return False
 
-def enter_plot_directory(dirname, clean=True):
+def enter_plot_directory(dirname, clean=False):
     """Creates and chdirs into given dirname. 
     
     If clean is true deletes all *.png files in the directory.
     """
-    global in_plot_directory
-
-    if in_plot_directory:
+    if in_plot_directory():
         leave_plot_directory()
 
-    print "Writing output into directory %s" % dirname
     if not os.path.exists(dirname):
         os.makedirs(dirname)
     os.chdir(dirname)
-    in_plot_directory = True
+    in_plot_directory(True)
+    print "Entered plot directory %s" % os.getcwd()
 
     if clean:
         for file in glob.glob("*.png"):
             os.remove(file)
 
 def leave_plot_directory():
-    global in_plot_directory
-    if in_plot_directory:
+    if in_plot_directory():
+        print "Leaving plot directory %s" % os.getcwd()
         os.chdir("..")
-        in_plot_directory = False
+        in_plot_directory(False)
+        #print "Now in directory %s" % os.getcwd()
+
 
 def mean_over_dataset(f, dataset, batch_size, sample_axis):
     """Calculates the mean of function f over dataset.
