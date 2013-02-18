@@ -8,26 +8,55 @@ import numpy as np
 import gnumpy as gp
 import matplotlib.pyplot as plt
 
-def ipy_plot_samples(samples, width=28, height=28):
-    return plt.imshow(plot_samples(samples, width=width, height=height),
-                      cmap='gray', interpolation='none')
+def ipy_plot_samples(samples, samples_force=None, width=28, height=28):
+    return plt.imshow(plot_samples(samples, samples_force=samples_force, 
+                                   width=width, height=height),
+                      interpolation='none')
 
-def plot_samples(samples, width=28, height=28):
+def plot_samples(samples, samples_force=None, width=28, height=28):
     samples = gp.as_numpy_array(samples)
     samples = np.asarray(samples)
+    if samples_force is not None:
+        samples_force = gp.as_numpy_array(samples_force)
+        samples_force = np.asarray(samples_force)
+
     if samples.ndim == 1:
-        return _plot_one_sample(samples, width=width, height=height)
+        return _plot_one_sample(samples, samples_force,
+                                width=width, height=height)
     else:
         n_samples = samples.shape[0]
-        out = np.zeros((height, width*n_samples))
+        out = np.zeros((height, width*n_samples, 3))
         for s in range(n_samples):
-            out[:, s*width : (s+1)*width] = _plot_one_sample(samples[s],
-                                                             width=width,
-                                                             height=height)
+            if samples_force is not None:
+                o = _plot_one_sample(samples[s], samples_force[s],
+                                     width=width, height=height)
+            else:
+                o =  _plot_one_sample(samples[s], None,
+                                     width=width, height=height)
+            out[:, s*width : (s+1)*width, :] = o
         return out
 
-def _plot_one_sample(sample, width, height):
-    return np.reshape(sample, (width, height))
+def _plot_one_sample(sample, sample_force, width, height):  
+    red = np.zeros((width, height))
+    green = np.zeros((width, height))
+    blue = np.zeros((width, height))
+
+    s = np.reshape(sample, (width, height))
+    red[:] = s[:]
+    green[:] = s[:]
+    blue[:] = s[:]
+
+    if sample_force is not None:
+        sf = np.reshape(sample_force, (width, height))    
+        red[sf == 0] = 0
+        green[sf == 0] =0.5
+        blue[sf == 0] = 0
+
+    out = np.zeros((width, height, 3))    
+    out[:, :, 0] = red
+    out[:, :, 1] = green
+    out[:, :, 2] = blue
+    return out    
     
 
 def map_reduce(X, batch_size, map_func, reduce_func,

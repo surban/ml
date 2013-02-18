@@ -25,6 +25,7 @@
   <ItemGroup>
     <Compile Include="ais.py" />
     <Compile Include="config.py" />
+    <Compile Include="orrbm.py" />
     <Compile Include="rbm_vanialla.py" />
     <Compile Include="rbm.py" />
     <Compile Include="sampling.py" />
