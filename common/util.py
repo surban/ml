@@ -6,8 +6,29 @@ import glob
 import math
 import numpy as np
 import gnumpy as gp
+import matplotlib.pyplot as plt
 
+def ipy_plot_samples(samples, width=28, height=28):
+    return plt.imshow(plot_samples(samples, width=width, height=height),
+                      cmap='gray', interpolation='none')
 
+def plot_samples(samples, width=28, height=28):
+    samples = gp.as_numpy_array(samples)
+    samples = np.asarray(samples)
+    if samples.ndim == 1:
+        return _plot_one_sample(samples, width=width, height=height)
+    else:
+        n_samples = samples.shape[0]
+        out = np.zeros((height, width*n_samples))
+        for s in range(n_samples):
+            out[:, s*width : (s+1)*width] = _plot_one_sample(samples[s],
+                                                             width=width,
+                                                             height=height)
+        return out
+
+def _plot_one_sample(sample, width, height):
+    return np.reshape(sample, (width, height))
+    
 
 def map_reduce(X, batch_size, map_func, reduce_func,
                samples_are='rows'):
