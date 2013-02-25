@@ -146,15 +146,20 @@ class RestrictedBoltzmannMachine(object):
         p = self.p_vis_given_hid(hid, beta)
         return sample_binomial(p)
 
-    def gibbs_sample(self, vis, k, beta=1):
+    def gibbs_sample(self, vis_start, k, beta=1, vis_force=None):
         """Performs k steps of alternating Gibbs sampling. Returns a tuple
         consisting of the final state of the visible units and the probability
         that they are active given the state of the hiddens in the previous
         to last step."""
+        vis = vis_start
         for i in range(k):
             hid = self.sample_hid_given_vis(vis, beta)
             vis = self.sample_vis_given_hid(hid, beta)
+            if vis_force is not None:
+                vis[vis_force] = vis_start[vis_force]
         p_vis = self.p_vis_given_hid(hid, beta)
+        if vis_force is not None:
+            p_vis[vis_force] = vis_start[vis_force]
         return vis, p_vis
 
     def annealed_gibbs_sample(self, vis, betas):
