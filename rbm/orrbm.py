@@ -3,6 +3,32 @@
 import gnumpy as gp
 import numpy as np
 
+def generate_or_dataset(X, Z, samples):
+    X = gp.as_numpy_array(X)
+    Z = gp.as_numpy_array(Z)
+
+    si = np.random.randint(0, X.shape[0], 
+                           size=(samples, 2))
+
+    x = X[si[:,0], :]
+    y = X[si[:,1], :]
+    O = or_sample(x, y)
+
+    OZ = np.zeros((samples, 2))
+    OZ[:, 0] = Z[si[:,0]]
+    OZ[:, 1] = Z[si[:,1]]
+
+    return O, OZ
+
+def save_or_dataset(filename, O, OZ):
+    np.savez_compressed(filename, O=O, OZ=OZ)
+
+def load_or_dataset(filename):
+    data = np.load(filename)
+    O = gp.as_garray(data['O'])
+    OZ = gp.as_garray(data['OZ'])
+    return O, OZ
+
 def or_sample(x, y):
     return (x + y) > 0.5
 

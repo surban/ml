@@ -320,3 +320,10 @@ def get_base_dir():
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
+def classification_error(predicted, truth):
+    """Calculates the classification error probability given the predicted 
+    and true classes"""
+    diff = predicted - truth
+    errors = np.count_nonzero(diff)
+    return errors / float(len(truth))
+
