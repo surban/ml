@@ -4,6 +4,7 @@ import gnumpy as gp
 import numpy as np
 import pickle
 import sys
+import gzip
 
 from sklearn import svm
 
@@ -26,8 +27,10 @@ def train():
 
     filename = "mnist_svm.dat"
     print "Writing model to %s" % filename
-    with open(filename, 'wb') as file:
-        pickle.dump(svc, file)
+    with gzip.open(filename, 'wb') as file:
+        pickle.dump(svc, file, pickle.HIGHEST_PROTOCOL)
+
+    return svc
 
 def check_performance(svc):
     X, TX, y, Ty = rbm.util.load_mnist(False)
@@ -37,24 +40,25 @@ def check_performance(svc):
     Ty = gp.as_numpy_array(Ty)
 
     print "Checking performance..."
-    #Py = svc.predict(X)
-    #training_err = common.util.classification_error(Py, y)
+    nt = 10000
+    Py = svc.predict(X[0:nt])
+    training_err = common.util.classification_error(Py, y[0:nt])
     PTy = svc.predict(TX)
     test_err = common.util.classification_error(PTy, Ty)
 
-    #print "Prediction error on training set: %g" % training_err
-    print "Prediction error on test set:     %g" % test_err
+    print "Prediction error on first %d training samples: %g" % (nt, training_err)
+    print "Prediction error on test set:                  %g" % test_err
 
     return svc
 
 def load():
-    with open("mnist_svm.dat", 'rb') as file:
+    with gzip.open("mnist_svm.dat", 'rb') as file:
         return pickle.load(file)
 
 if __name__ == '__main__':
     if sys.argv[1] == "load":
         svc = load()
-    else:
+    elif sys.argv[1] == "train":
         svc = train()
     check_performance(svc)
 

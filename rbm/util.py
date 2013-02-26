@@ -146,3 +146,16 @@ def load_ruslan_mnist():
     return (gp.as_garray(mdata['fbatchdata']), 
             gp.as_garray(mdata['test_fbatchdata']))
 
+
+def load_or_dataset():
+    if 'or_O' not in loaded_datasets:
+        trn_data = np.load(os.path.join(get_base_dir(), "datasets", "ordata.npz"))
+        tst_data = np.load(os.path.join(get_base_dir(), "datasets", "ordata_test.npz"))
+
+        loaded_datasets['or_OX'] = gp.as_garray(trn_data['O'])
+        loaded_datasets['or_OZ'] = gp.as_garray(trn_data['OZ'])
+        loaded_datasets['or_TOX'] = gp.as_garray(tst_data['O'])
+        loaded_datasets['or_TOZ'] = gp.as_garray(tst_data['OZ'])
+
+    return (loaded_datasets['or_OX'], loaded_datasets['or_TOX'],
+            loaded_datasets['or_OZ'], loaded_datasets['or_TOZ'])

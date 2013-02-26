@@ -23,12 +23,6 @@ def generate_or_dataset(X, Z, samples):
 def save_or_dataset(filename, O, OZ):
     np.savez_compressed(filename, O=O, OZ=OZ)
 
-def load_or_dataset(filename):
-    data = np.load(filename)
-    O = gp.as_garray(data['O'])
-    OZ = gp.as_garray(data['OZ'])
-    return O, OZ
-
 def or_sample(x, y):
     return (x + y) > 0.5
 
