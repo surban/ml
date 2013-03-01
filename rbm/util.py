@@ -7,6 +7,7 @@ import cPickle
 import gzip
 import os
 import scipy.io
+import common.stats
 
 from common import util
 from common import dlutil
@@ -20,26 +21,46 @@ gp.expensive_check_probability = 0
 loaded_datasets = {}
 
 
-def generation_performance(svc, tmpl_X, gen_X, tmpl_Z):
-    gen_Z = svc.predict(gp.as_numpy_array(gen_X))
+def gen_acc_from_total_acc(total_acc, p_svc_acc):
+    return (9*total_acc + p_svc_acc - 1) / (10*p_svc_acc - 1)
+
+def generation_accuracy(svc, p_svc_acc, tmpl_X, gen_X, tmpl_Z, 
+                        exclude_incorrectly_classified_tmpl=True,
+                        alpha=0.02, gen_Z=None):
+
+    if gen_Z is None:
+        gen_Z = common.util.map(gp.as_numpy_array(gen_X), 100, svc.predict,
+                                caption="Classifying results with SVM")
     tmpl_Z = gp.as_numpy_array(tmpl_Z)
+    n_samples = tmpl_X.shape[0]
 
     diff = tmpl_Z - gen_Z
     errs = np.count_nonzero(diff)
-    err_prob = errs / float(tmpl_X.shape[0])
+    corr = n_samples - errs
 
-    err_tmpl_X = gp.zeros((errs, tmpl_X.shape[1]))
-    err_gen_X = gp.zeros((errs, gen_X.shape[1]))
-    err_tmpl_Z = np.zeros((errs,), dtype='uint8')
-    err_gen_Z = np.zeros((errs,), dtype='uint8')
+    acc_low, acc_high = \
+        common.stats.binomial_p_confint(corr, n_samples, alpha=alpha)
+    gen_acc_low = gen_acc_from_total_acc(acc_low, p_svc_acc)
+    gen_acc_high = gen_acc_from_total_acc(acc_high, p_svc_acc)
+
+    err_tmpl_X = []
+    err_gen_X = []
+    err_tmpl_Z = []
+    err_gen_Z = []
+    err_tmpl_CZ = []
     for n, k in enumerate(np.nonzero(diff)[0]):
-        err_tmpl_X[n, :] = tmpl_X[k, :]
-        err_gen_X[n, :] = gen_X[k, :]
-        err_tmpl_Z[n] = tmpl_Z[k]
-        err_gen_Z[n] = int(gen_Z[k])
+        cz = svc.predict(gp.as_numpy_array(tmpl_X[k, :]))[0]
+        if not exclude_incorrectly_classified_tmpl or tmpl_Z[k] == cz:
+            err_tmpl_X.append(tmpl_X[k, :])
+            err_gen_X.append(gen_X[k, :])
+            err_tmpl_Z.append(tmpl_Z[k])
+            err_gen_Z.append(int(gen_Z[k]))
+            err_tmpl_CZ.append(cz)
 
-    err_tmpl_CZ = svc.predict(gp.as_numpy_array(err_tmpl_X))
-    return err_prob, err_tmpl_X, err_gen_X, err_tmpl_Z, err_gen_Z, err_tmpl_CZ
+    return (gen_acc_low, gen_acc_high,
+            np.asarray(err_tmpl_X), np.asarray(err_gen_X), 
+            np.asarray(err_tmpl_Z), np.asarray(err_gen_Z), 
+            np.asarray(err_tmpl_CZ), gen_Z)
 
 
 def sample_binomial(p):

@@ -4,9 +4,12 @@ import os
 import sys
 import glob
 import math
+import fractions
 import numpy as np
 import gnumpy as gp
 import matplotlib.pyplot as plt
+
+import common.progress as progress
 
 def masked_set(var, mask, val):
     """Sets var[i,j] = val[i,j] where mask[i,j] == 1"""
@@ -76,22 +79,26 @@ def map_reduce(X, batch_size, map_func, reduce_func,
 
 
 def map(X, batch_size, map_func, 
-        samples_are='rows', show_progress=False):
+        samples_are='rows', caption=""):
+    if isinstance(X, gp.garray):
+        xp = gp
+    else:
+        xp = np
     ms = None
     for b, x in enumerate(draw_slices(X, batch_size, kind='sequential', 
-                                      samples_are=samples_are, stop=True)):
-        if show_progress:
-            print "%d / %d" % (b, X.shape[0] / batch_size)
+                                      samples_are=samples_are, stop=True, 
+                                      last_batch_may_be_smaller=True)):
+        progress.status(b, X.shape[0] / batch_size, caption)
 
         m = map_func(x)
         if ms is None:
             if m.ndim == 1:
-                ms = gp.zeros((X.shape[0],))
+                ms = xp.zeros((X.shape[0],))
             elif m.ndim == 2:
                 if samples_are == 'rows':
-                    ms = gp.zeros((X.shape[0], m.shape[1]))
+                    ms = xp.zeros((X.shape[0], m.shape[1]))
                 elif samples_are == 'columns':
-                    ms = gp.zeros((m.shape[0], X.shape[1]))
+                    ms = xp.zeros((m.shape[0], X.shape[1]))
                 else:
                     assert False
             else:
@@ -105,6 +112,7 @@ def map(X, batch_size, map_func,
             elif samples_are == 'columns':
                 ms[:, b*batch_size : (b+1)*batch_size] = m 
 
+    progress.done()
     return ms
 
 
@@ -209,7 +217,7 @@ def pack_in_batches(gen, batch_size):
         yield gp.as_garray(batch[0:pos,:])
 
 def draw_slices(X, batch_size, kind='sequential', samples_are='rows', 
-                stop=False):
+                stop=False, last_batch_may_be_smaller=False):
     assert kind == 'sequential' or kind == 'random'
     assert samples_are == 'rows' or samples_are == 'columns'
 
@@ -219,17 +227,23 @@ def draw_slices(X, batch_size, kind='sequential', samples_are='rows',
         n_samples = X.shape[1]
 
     if kind == 'sequential':
-        assert n_samples % batch_size == 0
+        if not last_batch_may_be_smaller:
+            assert n_samples % batch_size == 0
         pos = 0
         while True:
             if samples_are == 'rows':
-                yield X[pos:pos+batch_size,:]
+                slice = X[pos:pos+batch_size,:]
+                yield slice
+                pos += slice.shape[0]
             elif samples_are == 'columns':
-                yield X[:,pos:pos+batch_size]
-            pos += batch_size
-            pos = pos % n_samples
-            if stop and pos == 0:
-                break
+                slice = X[:,pos:pos+batch_size]
+                yield slice
+                pos += slice.shape[1]
+            if pos == n_samples:
+                if stop:
+                    break
+                else:
+                    pos = 0
     elif kind == 'random':
         drawn_samples = 0
         while True:
