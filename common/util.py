@@ -8,6 +8,11 @@ import numpy as np
 import gnumpy as gp
 import matplotlib.pyplot as plt
 
+def masked_set(var, mask, val):
+    """Sets var[i,j] = val[i,j] where mask[i,j] == 1"""
+    var[:, :] = var * (1. - mask) + val * mask
+    return var
+
 def ipy_plot_samples(samples, samples_force=None, width=28, height=28):
     return plt.imshow(plot_samples(samples, samples_force=samples_force, 
                                    width=width, height=height),
@@ -71,16 +76,36 @@ def map_reduce(X, batch_size, map_func, reduce_func,
 
 
 def map(X, batch_size, map_func, 
-        samples_are='rows'):
+        samples_are='rows', show_progress=False):
     ms = None
-    for x in draw_slices(X, batch_size, kind='sequential', 
-                         samples_are=samples_are, stop=True):
-        m = gp.as_numpy_array(map_func(x))
+    for b, x in enumerate(draw_slices(X, batch_size, kind='sequential', 
+                                      samples_are=samples_are, stop=True)):
+        if show_progress:
+            print "%d / %d" % (b, X.shape[0] / batch_size)
+
+        m = map_func(x)
         if ms is None:
-            ms = m
-        else:
-            ms = np.concatenate((ms, m))
-    return gp.as_garray(ms)
+            if m.ndim == 1:
+                ms = gp.zeros((X.shape[0],))
+            elif m.ndim == 2:
+                if samples_are == 'rows':
+                    ms = gp.zeros((X.shape[0], m.shape[1]))
+                elif samples_are == 'columns':
+                    ms = gp.zeros((m.shape[0], X.shape[1]))
+                else:
+                    assert False
+            else:
+                assert False
+        
+        if ms.ndim == 1:
+            ms[b*batch_size : (b+1)*batch_size] = m
+        elif ms.ndim == 2:
+            if samples_are == 'rows':
+                ms[b*batch_size : (b+1)*batch_size, :] = m
+            elif samples_are == 'columns':
+                ms[:, b*batch_size : (b+1)*batch_size] = m 
+
+    return ms
 
 
 def interval_contains(interval, x):

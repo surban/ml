@@ -19,6 +19,29 @@ gp.expensive_check_probability = 0
 
 loaded_datasets = {}
 
+
+def generation_performance(svc, tmpl_X, gen_X, tmpl_Z):
+    gen_Z = svc.predict(gp.as_numpy_array(gen_X))
+    tmpl_Z = gp.as_numpy_array(tmpl_Z)
+
+    diff = tmpl_Z - gen_Z
+    errs = np.count_nonzero(diff)
+    err_prob = errs / float(tmpl_X.shape[0])
+
+    err_tmpl_X = gp.zeros((errs, tmpl_X.shape[1]))
+    err_gen_X = gp.zeros((errs, gen_X.shape[1]))
+    err_tmpl_Z = np.zeros((errs,), dtype='uint8')
+    err_gen_Z = np.zeros((errs,), dtype='uint8')
+    for n, k in enumerate(np.nonzero(diff)[0]):
+        err_tmpl_X[n, :] = tmpl_X[k, :]
+        err_gen_X[n, :] = gen_X[k, :]
+        err_tmpl_Z[n] = tmpl_Z[k]
+        err_gen_Z[n] = int(gen_Z[k])
+
+    err_tmpl_CZ = svc.predict(gp.as_numpy_array(err_tmpl_X))
+    return err_prob, err_tmpl_X, err_gen_X, err_tmpl_Z, err_gen_Z, err_tmpl_CZ
+
+
 def sample_binomial(p):
     """Samples elementwise from the binomial distribution with 
     probability p"""

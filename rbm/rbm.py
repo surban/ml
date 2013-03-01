@@ -151,15 +151,18 @@ class RestrictedBoltzmannMachine(object):
         consisting of the final state of the visible units and the probability
         that they are active given the state of the hiddens in the previous
         to last step."""
+
         vis = vis_start
         for i in range(k):
             hid = self.sample_hid_given_vis(vis, beta)
             vis = self.sample_vis_given_hid(hid, beta)
             if vis_force is not None:
-                vis[vis_force] = vis_start[vis_force]
+                common.util.masked_set(vis, vis_force, vis_start)
+
         p_vis = self.p_vis_given_hid(hid, beta)
         if vis_force is not None:
-            p_vis[vis_force] = vis_start[vis_force]
+            common.util.masked_set(p_vis, vis_force, vis_start)
+
         return vis, p_vis
 
     def annealed_gibbs_sample(self, vis, betas):

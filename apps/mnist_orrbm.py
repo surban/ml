@@ -6,12 +6,15 @@ import pickle
 import sys
 import apps.mnist_svm
 import rbm.orrbm
+import math
 
 
 def or_performance(myrbm, svc, OX, OZ, iters, gibbs_steps, beta):
+    OZ = gp.as_numpy_array(OZ)
     batch_size = 1000
+    errs = 0
 
-    for i in range(OX.shape[0] / batch_size):
+    for i in range(int(math.ceil(OX.shape[0] / float(batch_size)))):
         ox = OX[i*batch_size : (i+1)*batch_size, :]
         oz = OZ[i*batch_size : (i+1)*batch_size, :]
 
