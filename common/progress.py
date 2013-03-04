@@ -7,20 +7,33 @@ try:
 except ImportError:
     have_notebook = False
 
-start_time = 0
+_start_time = 0
+_progress_interval = 0
 
 def status(current_iter, max_iter, caption=""):
-    global start_time
+    """Displays the progress of a loop as a progressbar.
+    current_iter is the number of the current iteration and max_iter is the
+    total number of iterations. caption is an optional caption to display."""
+    global _start_time, _progress_interval
 
     if current_iter == 0:
-        start_time = time.time()
-        time_left = "?"
+        _start_time = time.time()
+        time_left = ""
+
+        _progress_interval = 0
     else:
         cur_time = time.time()
-        iters_per_sec = (cur_time - start_time) / current_iter
+        iters_per_sec = (cur_time - _start_time) / current_iter
         secs_left = (max_iter - current_iter) * iters_per_sec
         d = datetime.datetime(1,1,1) + datetime.timedelta(seconds=secs_left)
-        time_left = "%d:%02d:%02d" % (d.hour, d.minute, d.second)
+        time_left = "%d:%02d:%02d left" % (d.hour, d.minute, d.second)
+
+        if _progress_interval == 0:
+            _progress_interval = current_iter
+
+    if _progress_interval != 0 and current_iter + _progress_interval >= max_iter:
+        done()
+        return
 
     if caption is None:
         return
@@ -31,13 +44,15 @@ def status(current_iter, max_iter, caption=""):
     if have_notebook:
         IPython.core.display.clear_output(stdout=False, stderr=False, other=True)
         IPython.core.display.display_html(
-             '<i>%s</i><meter value="%d" min="0" max="%d">%d / %d</meter> %s left' 
+             '<i>%s</i><meter value="%d" min="0" max="%d">%d / %d</meter> %s' 
              % (desc, current_iter, max_iter, current_iter, max_iter, time_left), raw=True)
     else:
-        print "%s%d / %d (%s left)                             \r" \
+        print "%s%d / %d (%s)                                 \r" \
             % (desc, current_iter, max_iter, time_left)
 
 def done():
+    """Removes the progressbar when the loop is done. Calling is optional.
+    In most cases the progressbar is automatically removed."""
     if have_notebook:
         IPython.core.display.clear_output(stdout=False, stderr=False, other=True)
     else:
