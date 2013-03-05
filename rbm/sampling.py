@@ -5,9 +5,35 @@ from __future__ import division
 import gnumpy as gp
 import numpy as np
 import matplotlib.pyplot as plt
+import xlrd
 
 import common.stats
 import util
+
+class ColumnNotFound(Exception):
+    pass
+
+def find_column(sheet, name):
+    for col in range(sh.ncols):
+        if sheet.cell(0, col).value.lower() == name.lower():
+            return col
+    raise ColumnNotFound()
+
+def read_stabilities_from_spreadsheet(filename):
+    with xlrd.open_workbook(filename) as book:
+        sh = book.sheet_by_index(0)
+   
+        ss = []
+        for row in range(1, sh.nrows):
+            s = Stability()
+            for name in s.__dict__.iterkeys():
+                try:
+                    s.__dict__[name] = sh.cell(row, find_column(sh, name))
+                except ColumnNotFound:
+                    pass
+            ss.append(s)
+        return ss
+
 
 def generation_accuracy(label, svc, p_svc_acc, tmpl_X, gen_X, tmpl_Z, 
                         exclude_incorrectly_classified_tmpl=True,
@@ -29,6 +55,9 @@ def generation_accuracy(label, svc, p_svc_acc, tmpl_X, gen_X, tmpl_Z,
     s = Stability(label, n_samples, corr, p_svc_acc, 0, 0)
     acc_low, acc_high, acc_mle = s.generator_accuracy_interval(alpha=alpha)
     print "Generator error probability: [%g, %g]" % (1-acc_high, 1-acc_low)
+    print "================"
+    print s.to_tab_separated_line()
+    print "================"
 
     # collect incorrectly classified samples
     err_tmpl_X = []
@@ -57,8 +86,8 @@ def gen_acc_from_total_acc(total_acc, p_svc_acc):
     return (9*total_acc + p_svc_acc - 1) / (10*p_svc_acc - 1)
 
 class Stability(object):
-    def __init__(self, label, n_samples, n_success, classifier_accuracy,
-                 fe_mean, fe_variance):
+    def __init__(self, label=None, n_samples=None, n_success=None, 
+                 classifier_accuracy=None, fe_mean=None, fe_variance=None):
         self.label = label
         self.n_samples = n_samples
         self.n_success = n_success
@@ -79,6 +108,11 @@ class Stability(object):
         return common.stats.normal_mean_confint_ss(self.n_samples, self.fe_mean,
                                                    self.fe_variance, 
                                                    alpha=alpha)
+
+    def to_tab_separated_line(self):
+        return "%s\t%d\t%d\t%g\t%g\t%g" % \
+            (self.label, self.n_samples, self.n_success, 
+             self.classifier_accuracy, self.fe_mean, self_fe_variance)
 
 
 def plot_box(x, lower, upper, middle):
