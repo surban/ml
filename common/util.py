@@ -11,6 +11,26 @@ import matplotlib.pyplot as plt
 
 import common.progress as progress
 
+try:    
+    import IPython.core.display
+    have_notebook = True
+except ImportError:
+    have_notebook = False
+
+def output_table(titles, values):
+    if have_notebook:
+        header_cells = ["<th>%s</th>" % t for t in titles]
+        value_cells = ["<td>%s</td>" % v for v in values]
+        header_row = "<tr>" + "".join(header_cells) + "</tr>"
+        value_row = "<tr>" + "".join(value_cells) + "</tr>"
+        table = "<table>" + header_row + value_row + "</table>"
+        IPython.core.display.display_html(table, raw=True)
+    else:
+        header = "\t".join(titles)
+        values = "\t".join(values)
+        print header
+        print values
+
 def masked_set(var, mask, val):
     """Sets var[i,j] = val[i,j] where mask[i,j] == 1"""
     var[:, :] = var * (1. - mask) + val * mask

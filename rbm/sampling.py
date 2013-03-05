@@ -35,51 +35,52 @@ def read_stabilities_from_spreadsheet(filename):
         return ss
 
 
-def generation_accuracy(label, svc, p_svc_acc, tmpl_X, gen_X, tmpl_Z, 
-                        exclude_incorrectly_classified_tmpl=True,
-                        alpha=0.02, gen_Z=None):
+def generation_accuracy(label, svc, myrbm,
+                        tmpl_X, tmpl_Z, tmpl_CZ,
+                        gen_X, gen_Z=None):
+
+    n_samples = tmpl_X.shape[0]
+
+    # calculate accuracy of classifier
+    diff = tmpl_Z - tmpl_CZ
+    errs = np.count_nonzero(diff)
+    corr = n_samples - errs
+    svc_acc = corr / n_samples
 
     # classify generated data
     if gen_Z is None:
         gen_Z = common.util.map(gp.as_numpy_array(gen_X), 100, svc.predict,
                                 caption="Classifying results with SVM")
     tmpl_Z = gp.as_numpy_array(tmpl_Z)
-    n_samples = tmpl_X.shape[0]
 
     # count correctly classified samples
     diff = tmpl_Z - gen_Z
     errs = np.count_nonzero(diff)
     corr = n_samples - errs
 
+    # find incorrect samples
+    incorrect_samples = np.nonzero(diff)[0]
+
+    # calculate free energy
+    fes = common.util.map(gen_X, 1000, myrbm.free_energy, 
+                          caption="Calculating free energy")
+    fes = gp.as_numpy_array(fes)
+    fe_mean = np.mean(fes)
+    fe_variance = common.stats.unbiased_varince(fes)
+
     # create stability object
-    s = Stability(label, n_samples, corr, p_svc_acc, 0, 0)
-    acc_low, acc_high, acc_mle = s.generator_accuracy_interval(alpha=alpha)
-    print "Generator error probability: [%g, %g]" % (1-acc_high, 1-acc_low)
-    print "================"
-    print s.to_tab_separated_line()
-    print "================"
+    s = Stability(label, n_samples, corr, svc_acc, 
+                  fe_mean, fe_variance, incorrect_samples)
+    s.tmpl_X = tmpl_X
+    s.tmpl_Z = tmpl_Z
+    s.tmpl_CZ = tmpl_CZ
+    s.gen_X = gen_X
+    s.gen_Z = gen_Z
 
-    # collect incorrectly classified samples
-    err_tmpl_X = []
-    err_gen_X = []
-    err_tmpl_Z = []
-    err_gen_Z = []
-    err_tmpl_CZ = []
-    for n, k in enumerate(np.nonzero(diff)[0]):
-        if n % 100 == 0:
-            common.progress.status(n, errs, "Collecting misclassified samples")
-        cz = svc.predict(gp.as_numpy_array(tmpl_X[k, :]))[0]
-        if not exclude_incorrectly_classified_tmpl or tmpl_Z[k] == cz:
-            err_tmpl_X.append(tmpl_X[k, :])
-            err_gen_X.append(gen_X[k, :])
-            err_tmpl_Z.append(tmpl_Z[k])
-            err_gen_Z.append(int(gen_Z[k]))
-            err_tmpl_CZ.append(cz)
+    # output performance data in table format
+    s.output_data_line()
 
-    return (s,
-            np.asarray(err_tmpl_X), np.asarray(err_gen_X), 
-            np.asarray(err_tmpl_Z), np.asarray(err_gen_Z), 
-            np.asarray(err_tmpl_CZ), gen_Z)
+    return s
 
 
 def gen_acc_from_total_acc(total_acc, p_svc_acc):
@@ -87,13 +88,21 @@ def gen_acc_from_total_acc(total_acc, p_svc_acc):
 
 class Stability(object):
     def __init__(self, label=None, n_samples=None, n_success=None, 
-                 classifier_accuracy=None, fe_mean=None, fe_variance=None):
+                 classifier_accuracy=None, fe_mean=None, fe_variance=None,
+                 incorrect_samples=None):
         self.label = label
         self.n_samples = n_samples
         self.n_success = n_success
         self.classifier_accuracy = classifier_accuracy
         self.fe_mean = fe_mean
         self.fe_variance = fe_variance
+        self.incorrect_samples = incorrect_samples
+
+        self.tmpl_X = None
+        self.tmpl_Z = None
+        self.tmpl_CZ = None
+        self.gen_X = None
+        self.gen_Z = None
 
     def generator_accuracy_interval(self, alpha=0.05):
         low, high = common.stats.binomial_p_confint(self.n_success, self.n_samples,
@@ -109,11 +118,47 @@ class Stability(object):
                                                    self.fe_variance, 
                                                    alpha=alpha)
 
-    def to_tab_separated_line(self):
-        return "%s\t%d\t%d\t%g\t%g\t%g" % \
-            (self.label, self.n_samples, self.n_success, 
-             self.classifier_accuracy, self.fe_mean, self_fe_variance)
+    def output_data_line(self):
+        common.util.output_table(("label", "n_samples", "n_success",
+                                  "classifier_accuracy", "fe_mean",
+                                  "fe_variance"),
+                                 (self.label, self.n_samples, self.n_success, 
+                                  self.classifier_accuracy, self.fe_mean, 
+                                  self.fe_variance))
 
+    def output_errors(self, n_plot=100000, alpha=0.05,
+                      exclude_incorrectly_classified_tmpl=True):
+
+        # output statistics
+        acc_low, acc_high, acc_mle = \
+            self.generator_accuracy_interval(alpha=alpha)
+        print "Error probability: [%g, %g]" % (1-acc_high, 1-acc_low)
+        fe_low, fe_high = self.fe_interval(alpha=alpha)
+        print "Free energy:       [%g, %g]" % (fe_low, fe_high)
+ 
+        # collect incorrectly classified samples
+        err_tmpl_X = []
+        err_gen_X = []
+        err_tmpl_Z = []
+        err_gen_Z = []
+        for n, k in enumerate(self.incorrect_samples):
+            if (not exclude_incorrectly_classified_tmpl or 
+                self.tmpl_CZ[k] == self.tmpl_Z[k]):
+                err_tmpl_X.append(self.tmpl_X[k, :])
+                err_gen_X.append(self.gen_X[k, :])
+                err_tmpl_Z.append(self.tmpl_Z[k])
+                err_gen_Z.append(int(self.gen_Z[k]))
+        err_tmpl_X = np.asarray(err_tmpl_X)
+        err_gen_X = np.asarray(err_gen_X)
+    
+        # output
+        print "Misclassified samples:"
+        print "True labels:      ", err_tmpl_Z[0:n_plot]
+        print "Generated labels: ", err_gen_Z[0:n_plot]
+        if err_tmpl_X.shape[0] > 0:
+            myplt = np.concatenate((common.util.plot_samples(err_tmpl_X[0:n_plot]), 
+                                    common.util.plot_samples(err_gen_X[0:n_plot])))
+            plt.imshow(myplt, interpolation='none')
 
 def plot_box(x, lower, upper, middle):
     width = 0.2
