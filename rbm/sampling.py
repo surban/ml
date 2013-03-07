@@ -6,6 +6,7 @@ import gnumpy as gp
 import numpy as np
 import matplotlib.pyplot as plt
 import xlrd
+import sys
 
 import common.stats
 import util
@@ -35,23 +36,23 @@ def read_stabilities_from_spreadsheet(filename):
         return ss
 
 
-def generation_accuracy(label, svc, myrbm,
-                        tmpl_X, tmpl_Z, tmpl_CZ,
+def generation_accuracy(label, ref_predict, myrbm,
+                        tmpl_X, tmpl_Z, tmpl_ref_Z,
                         gen_X, gen_Z=None):
 
+    tmpl_Z = gp.as_numpy_array(tmpl_Z)
     n_samples = tmpl_X.shape[0]
 
-    # calculate accuracy of classifier
-    diff = tmpl_Z - tmpl_CZ
+    # calculate accuracy of reference classifier
+    diff = tmpl_Z - tmpl_ref_Z
     errs = np.count_nonzero(diff)
     corr = n_samples - errs
     svc_acc = corr / n_samples
 
     # classify generated data
     if gen_Z is None:
-        gen_Z = common.util.map(gp.as_numpy_array(gen_X), 100, svc.predict,
-                                caption="Classifying results with SVM")
-    tmpl_Z = gp.as_numpy_array(tmpl_Z)
+        gen_Z = common.util.map(gp.as_numpy_array(gen_X), 100, ref_predict,
+                                caption="Classifying results with reference predictor")
 
     # count correctly classified samples
     diff = tmpl_Z - gen_Z
@@ -73,7 +74,7 @@ def generation_accuracy(label, svc, myrbm,
                   fe_mean, fe_variance, incorrect_samples)
     s.tmpl_X = tmpl_X
     s.tmpl_Z = tmpl_Z
-    s.tmpl_CZ = tmpl_CZ
+    s.tmpl_ref_Z = tmpl_ref_Z
     s.gen_X = gen_X
     s.gen_Z = gen_Z
 
@@ -100,7 +101,7 @@ class Stability(object):
 
         self.tmpl_X = None
         self.tmpl_Z = None
-        self.tmpl_CZ = None
+        self.tmpl_ref_Z = None
         self.gen_X = None
         self.gen_Z = None
 
@@ -132,24 +133,22 @@ class Stability(object):
         # output statistics
         acc_low, acc_high, acc_mle = \
             self.generator_accuracy_interval(alpha=alpha)
-        print "Error probability: [%g, %g]" % (1-acc_high, 1-acc_low)
+        print "Error probability: %g [%g, %g]" % (1-acc_mle, 
+                                                  1-acc_high, 1-acc_low)
         fe_low, fe_high = self.fe_interval(alpha=alpha)
         print "Free energy:       [%g, %g]" % (fe_low, fe_high)
  
         # collect incorrectly classified samples
-        err_tmpl_X = []
-        err_gen_X = []
-        err_tmpl_Z = []
-        err_gen_Z = []
-        for n, k in enumerate(self.incorrect_samples):
-            if (not exclude_incorrectly_classified_tmpl or 
-                self.tmpl_CZ[k] == self.tmpl_Z[k]):
-                err_tmpl_X.append(self.tmpl_X[k, :])
-                err_gen_X.append(self.gen_X[k, :])
-                err_tmpl_Z.append(self.tmpl_Z[k])
-                err_gen_Z.append(int(self.gen_Z[k]))
-        err_tmpl_X = np.asarray(err_tmpl_X)
-        err_gen_X = np.asarray(err_gen_X)
+        tmpl_X = gp.as_numpy_array(self.tmpl_X)
+        gen_X = gp.as_numpy_array(self.gen_X)
+        s = self.incorrect_samples
+        if exclude_incorrectly_classified_tmpl:
+            s = s[self.tmpl_ref_Z[s] == self.tmpl_Z[s]]
+
+        err_tmpl_X = tmpl_X[s,:]
+        err_gen_X = gen_X[s,:]
+        err_tmpl_Z = self.tmpl_Z[s]
+        err_gen_Z = np.asarray(self.gen_Z[s], dtype='uint8')
     
         # output
         print "Misclassified samples:"
