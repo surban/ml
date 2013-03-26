@@ -38,7 +38,8 @@ def read_stabilities_from_spreadsheet(filename):
 
 def generation_accuracy(label, ref_predict, myrbm,
                         tmpl_X, tmpl_Z, tmpl_ref_Z,
-                        gen_X, gen_Z=None):
+                        gen_X, gen_Z=None,
+                        output_data_line=True, store_samples=True):
 
     tmpl_Z = gp.as_numpy_array(tmpl_Z)
     n_samples = tmpl_X.shape[0]
@@ -61,6 +62,9 @@ def generation_accuracy(label, ref_predict, myrbm,
 
     # find incorrect samples
     incorrect_samples = np.nonzero(diff)[0]
+    guilty_samples = \
+        incorrect_samples[tmpl_ref_Z[incorrect_samples] == 
+                          tmpl_Z[incorrect_samples]]
 
     # calculate free energy
     fes = common.util.map(gen_X, 1000, myrbm.free_energy, 
@@ -71,15 +75,17 @@ def generation_accuracy(label, ref_predict, myrbm,
 
     # create stability object
     s = Stability(label, n_samples, corr, svc_acc, 
-                  fe_mean, fe_variance, incorrect_samples)
-    s.tmpl_X = tmpl_X
-    s.tmpl_Z = tmpl_Z
-    s.tmpl_ref_Z = tmpl_ref_Z
-    s.gen_X = gen_X
-    s.gen_Z = gen_Z
+                  fe_mean, fe_variance, incorrect_samples, guilty_samples)
+    if store_samples:
+        s.tmpl_X = tmpl_X
+        s.tmpl_Z = tmpl_Z
+        s.tmpl_ref_Z = tmpl_ref_Z
+        s.gen_X = gen_X
+        s.gen_Z = gen_Z
 
     # output performance data in table format
-    s.output_data_line()
+    if output_data_line:
+        s.output_data_line()
 
     return s
 
@@ -90,7 +96,7 @@ def gen_acc_from_total_acc(total_acc, p_svc_acc):
 class Stability(object):
     def __init__(self, label=None, n_samples=None, n_success=None, 
                  classifier_accuracy=None, fe_mean=None, fe_variance=None,
-                 incorrect_samples=None):
+                 incorrect_samples=None, guilty_samples=None):
         self.label = label
         self.n_samples = n_samples
         self.n_success = n_success
@@ -98,12 +104,15 @@ class Stability(object):
         self.fe_mean = fe_mean
         self.fe_variance = fe_variance
         self.incorrect_samples = incorrect_samples
+        self.guilty_samples = guilty_samples
 
         self.tmpl_X = None
         self.tmpl_Z = None
         self.tmpl_ref_Z = None
         self.gen_X = None
         self.gen_Z = None
+
+        self.tag = None
 
     def generator_accuracy_interval(self, alpha=0.05):
         low, high = common.stats.binomial_p_confint(self.n_success, self.n_samples,
@@ -128,7 +137,7 @@ class Stability(object):
                                   self.fe_variance))
 
     def output_errors(self, n_plot=100000, alpha=0.05,
-                      exclude_incorrectly_classified_tmpl=True):
+                      plot_only_guilty_samples=True):
 
         # output statistics
         acc_low, acc_high, acc_mle = \
@@ -141,9 +150,10 @@ class Stability(object):
         # collect incorrectly classified samples
         tmpl_X = gp.as_numpy_array(self.tmpl_X)
         gen_X = gp.as_numpy_array(self.gen_X)
-        s = self.incorrect_samples
-        if exclude_incorrectly_classified_tmpl:
-            s = s[self.tmpl_ref_Z[s] == self.tmpl_Z[s]]
+        if plot_only_guilty_samples:
+            s = self.guilty_samples
+        else:
+            s = self.incorrect_samples
 
         err_tmpl_X = tmpl_X[s,:]
         err_gen_X = gen_X[s,:]
@@ -160,7 +170,7 @@ class Stability(object):
             plt.imshow(myplt, interpolation='none')
 
 def plot_box(x, lower, upper, middle):
-    width = 0.2
+    width = 0.5
     plt.gca().add_patch(plt.Rectangle((x-width/2,lower), width, upper-lower, fill=False))
     plt.hlines(middle, x-width/2, x+width/2, 'r')
 
@@ -171,6 +181,7 @@ def plot_stability(stability_data, alpha=0.05):
         lower, upper, mle = s.generator_accuracy_interval(alpha=alpha)
         lower = max(0, lower)
         upper = min(1, upper)
+        mle = max(0, min(1, mle))
         plot_box(i+1, lower, upper, mle)
     plt.xlim(0, len(stability_data)+1)
     plt.xticks(range(1, len(stability_data)+1), ["" for s in stability_data])

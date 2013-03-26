@@ -82,11 +82,11 @@ class RestrictedBoltzmannMachine(object):
         (with the normalization constant)"""
         return - self.free_energy(vis) - self.log_pf
 
-    def free_energy(self, vis):
+    def free_energy(self, vis, beta=1):
         """The negative log probability of the visible units being in state vis 
         (without the normalization constant)"""
-        return (- gp.dot(vis, self.bias_vis) 
-                - gp.sum(gp.log_1_plus_exp(self.bias_hid + gp.dot(vis, self.weights)),
+        return (- beta * gp.dot(vis, self.bias_vis) 
+                - gp.sum(gp.log_1_plus_exp((self.bias_hid + gp.dot(vis, self.weights)) / beta),
                          axis=1))
 
     def free_hidden_energy(self, hid):
