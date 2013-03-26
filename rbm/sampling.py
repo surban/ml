@@ -42,7 +42,13 @@ def generation_accuracy(label, ref_predict, myrbm,
                         output_data_line=True, store_samples=True):
 
     tmpl_Z = gp.as_numpy_array(tmpl_Z)
-    n_samples = tmpl_X.shape[0]
+    n_samples = gen_X.shape[0]
+
+    if n_samples < tmpl_X.shape[0]:
+        print "Warning: less generated samples than template samples were provided"
+        tmpl_X = tmpl_X[0:n_samples,:]
+        tmpl_Z = tmpl_Z[0:n_samples]
+        tmpl_ref_Z = tmpl_ref_Z[0:n_samples]
 
     # calculate accuracy of reference classifier
     diff = tmpl_Z - tmpl_ref_Z
