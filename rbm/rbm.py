@@ -173,6 +173,78 @@ class RestrictedBoltzmannMachine(object):
         p_vis = self.p_vis_given_hid(hid, float(betas[-1]))
         return vis, p_vis
 
+    def free_energies_during_gibbs_sampling(self, x, kmax, beta=1):
+        fes = []
+        fes.append(gp.as_numpy_array(self.free_energy(x)))
+        for k in range(kmax):
+            x, _ = self.gibbs_sample(x, 1, beta=beta)
+            fes.append(gp.as_numpy_array(self.free_energy(x)))
+        fes=np.asarray(fes)
+        return fes
+
+    def strict_flip_sample(self, vis_start, iterations, beta=1):
+        """Flips a randomly chosen bit and accepts the change if the
+        resulting free energy is lower. Repeats for given iterations."""
+        vis = vis_start.copy()
+        fes = self.free_energy(vis) 
+        n_total_flips = 0
+    
+        for i in range(iterations):
+            # flip a bit at random
+            f = np.random.randint(0, vis.shape[1])
+            vis_prop = vis.copy()
+            vis_prop[:,f] = 1-vis[:,f]
+        
+            # calculate new free energy and accept change if it is lower
+            fes_prop = self.free_energy(vis_prop, beta=beta)
+            acc_prop = fes_prop <= fes
+            n_flips = gp.sum(acc_prop)
+            n_total_flips += n_flips
+        
+            # compose new state
+            acc_prop_t = gp.tile(acc_prop, (vis.shape[1], 1)).T
+            vis = acc_prop_t * vis_prop + (1-acc_prop_t) * vis
+            fes = acc_prop * fes_prop + (1-acc_prop) * fes
+        
+        return vis
+
+    def metropolis_flip_sample(self, vis_start, iterations, beta=1, abeta=1):
+        """Flips a randomly chosen bit and accepts the change if the
+        resulting free energy is lower or with probability exp(-abeta*dE)
+        where dE is the positive difference in energy. 
+        Repeats for given iterations."""
+        vis = vis_start.copy()
+        fes = self.free_energy(vis)
+        n_total_flips = 0
+    
+        for i in range(iterations):
+            # flip a bit at random
+            f = np.random.randint(0, vis.shape[1])
+            vis_prop = vis.copy()
+            vis_prop[:,f] = 1-vis[:,f]
+        
+            # calculate new free energy 
+            fes_prop = self.free_energy(vis_prop, beta=beta)
+            fes_diff = fes_prop - fes
+        
+            # accept if it is lower or with negative exponential probability
+            fes_smaller = fes_diff <= 0
+            acc_p = fes_smaller + (1-fes_smaller) * gp.exp(-(1-fes_smaller)*abeta*fes_diff)
+            acc_rng = gp.rand(acc_p.shape)
+            acc = acc_rng <= acc_p
+        
+            # statistics
+            n_flips = gp.sum(acc)
+            n_total_flips += n_flips
+        
+            # compose new state
+            acc_t = gp.tile(acc, (vis.shape[1], 1)).T
+            vis = acc_t * vis_prop + (1-acc_t) * vis
+            fes = acc * fes_prop + (1-acc) * fes
+        
+        #print "Total number of flips: ", n_total_flips
+        return vis
+
     def sample_vis(self, n_chains, n_steps, gibbs_steps_between_samples,
                    sample_probabilities=False, init_vis=None, beta=1):
         """Same as sample_vis_3d but concatenates all samples into a 2d array"""

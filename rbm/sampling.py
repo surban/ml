@@ -153,27 +153,28 @@ class Stability(object):
         fe_low, fe_high = self.fe_interval(alpha=alpha)
         print "Free energy:       [%g, %g]" % (fe_low, fe_high)
  
-        # collect incorrectly classified samples
-        tmpl_X = gp.as_numpy_array(self.tmpl_X)
-        gen_X = gp.as_numpy_array(self.gen_X)
-        if plot_only_guilty_samples:
-            s = self.guilty_samples
-        else:
-            s = self.incorrect_samples
+        if self.tmpl_X is not None:
+            # collect incorrectly classified samples
+            tmpl_X = gp.as_numpy_array(self.tmpl_X)
+            gen_X = gp.as_numpy_array(self.gen_X)
+            if plot_only_guilty_samples:
+                s = self.guilty_samples
+            else:
+                s = self.incorrect_samples
 
-        err_tmpl_X = tmpl_X[s,:]
-        err_gen_X = gen_X[s,:]
-        err_tmpl_Z = self.tmpl_Z[s]
-        err_gen_Z = np.asarray(self.gen_Z[s], dtype='uint8')
+            err_tmpl_X = tmpl_X[s,:]
+            err_gen_X = gen_X[s,:]
+            err_tmpl_Z = self.tmpl_Z[s]
+            err_gen_Z = np.asarray(self.gen_Z[s], dtype='uint8')
     
-        # output
-        print "Misclassified samples:"
-        print "True labels:      ", err_tmpl_Z[0:n_plot]
-        print "Generated labels: ", err_gen_Z[0:n_plot]
-        if err_tmpl_X.shape[0] > 0:
-            myplt = np.concatenate((common.util.plot_samples(err_tmpl_X[0:n_plot]), 
-                                    common.util.plot_samples(err_gen_X[0:n_plot])))
-            plt.imshow(myplt, interpolation='none')
+            # output
+            print "Misclassified samples:"
+            print "True labels:      ", err_tmpl_Z[0:n_plot]
+            print "Generated labels: ", err_gen_Z[0:n_plot]
+            if err_tmpl_X.shape[0] > 0:
+                myplt = np.concatenate((common.util.plot_samples(err_tmpl_X[0:n_plot]), 
+                                        common.util.plot_samples(err_gen_X[0:n_plot])))
+                plt.imshow(myplt, interpolation='none')
 
 def plot_box(x, lower, upper, middle):
     width = 0.5

@@ -22,16 +22,21 @@ def status(current_iter, max_iter, caption=""):
 
         _progress_interval = 0
     else:
-        cur_time = time.time()
-        iters_per_sec = (cur_time - _start_time) / current_iter
-        secs_left = (max_iter - current_iter) * iters_per_sec
-        d = datetime.datetime(1,1,1) + datetime.timedelta(seconds=secs_left)
-        time_left = "%d:%02d:%02d left" % (d.hour, d.minute, d.second)
+        try:
+            cur_time = time.time()
+            iters_per_sec = (cur_time - _start_time) / current_iter
+            secs_left = (max_iter - current_iter) * iters_per_sec
+            d = datetime.datetime(1,1,1) + datetime.timedelta(seconds=secs_left)
+            time_left = "%d:%02d:%02d left" % (d.hour, d.minute, d.second)
+        except OverflowError:
+            time_left = ""
 
         if _progress_interval == 0:
             _progress_interval = current_iter
 
-    if _progress_interval != 0 and current_iter + _progress_interval >= max_iter:
+    if current_iter > max_iter:
+        time_left = "%d" % current_iter
+    elif _progress_interval != 0 and current_iter + _progress_interval >= max_iter:
         done()
         return
 
