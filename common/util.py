@@ -17,6 +17,13 @@ try:
 except ImportError:
     have_notebook = False
 
+
+def flatten_samples(samples):
+    return samples.reshape((samples.shape[0], -1))
+
+def unflatten_samples_like(samples, ref):
+    return samples.reshape(ref.shape)
+
 def output_table(titles, values):
     if have_notebook:
         header_cells = ["<th>%s</th>" % t for t in titles]
@@ -36,51 +43,73 @@ def masked_set(var, mask, val):
     var[:, :] = var * (1. - mask) + val * mask
     return var
 
-def ipy_plot_samples(samples, samples_force=None, width=28, height=28):
+def ipy_plot_samples(samples, samples_force=None, twod=False, width=28, height=28):
     return plt.imshow(plot_samples(samples, samples_force=samples_force, 
-                                   width=width, height=height),
+                                   twod=twod, width=width, height=height),
                       interpolation='none')
 
-def plot_samples(samples, samples_force=None, width=28, height=28):
+def plot_samples(samples, samples_force=None, twod=False, width=28, height=28):
     samples = gp.as_numpy_array(samples)
     samples = np.asarray(samples)
     if samples_force is not None:
         samples_force = gp.as_numpy_array(samples_force)
         samples_force = np.asarray(samples_force)
-
-    if samples.ndim == 1:
-        return _plot_one_sample(samples, samples_force,
+   
+    if (not twod and samples.ndim == 1) or (twod and samples.ndim == 2):
+        if twod:
+            height = samples.shape[0]
+            width = samples.shape[1]
+        return _plot_one_sample(samples, samples_force, twod=twod,
                                 width=width, height=height)
     else:
         n_samples = samples.shape[0]
+        if twod:
+            height = samples.shape[1]
+            width = samples.shape[2]
         out = np.zeros((height, width*n_samples, 3))
         for s in range(n_samples):
             if samples_force is not None:
-                o = _plot_one_sample(samples[s], samples_force[s],
+                o = _plot_one_sample(samples[s], samples_force[s], twod=twod,
                                      width=width, height=height)
             else:
-                o =  _plot_one_sample(samples[s], None,
-                                     width=width, height=height)
+                o =  _plot_one_sample(samples[s], None, twod=twod,
+                                      width=width, height=height)
             out[:, s*width : (s+1)*width, :] = o
         return out
 
-def _plot_one_sample(sample, sample_force, width, height):  
-    red = np.zeros((width, height))
-    green = np.zeros((width, height))
-    blue = np.zeros((width, height))
+def _plot_one_sample(sample, sample_force, 
+                     twod, width=None, height=None):  
+    if twod:
+        height = sample.shape[0]
+        width = sample.shape[1]
+        s = sample
+    else:
+        s = np.reshape(sample, (height, width))
+    
+    red = np.zeros((height, width))
+    green = np.zeros((height, width))
+    blue = np.zeros((height, width))
 
-    s = np.reshape(sample, (width, height))
     red[:] = s[:]
     green[:] = s[:]
     blue[:] = s[:]
 
     if sample_force is not None:
-        sf = np.reshape(sample_force, (width, height))    
-        red[sf == 0] = 0
-        green[sf == 0] =0.5
-        blue[sf == 0] = 0
+        if twod:
+            sf = sample_force
+        else:
+            sf = np.reshape(sample_force, (height, width))    
 
-    out = np.zeros((width, height, 3))    
+        red[(sf == 1) & (s == 1)] = 0.9
+        green[(sf == 1) & (s == 1)] = 0
+        blue[(sf == 1) & (s == 1)] = 0
+
+        red[(sf == 1) & (s == 0)] = 0.3
+        green[(sf == 1) & (s == 0)] = 0
+        blue[(sf == 1) & (s == 0)] = 0
+
+
+    out = np.zeros((height, width, 3))    
     out[:, :, 0] = red
     out[:, :, 1] = green
     out[:, :, 2] = blue

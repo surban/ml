@@ -1,3 +1,4 @@
+ml.sln
 *.pyc
 *.suo
 apps/*/*.png
