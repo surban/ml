@@ -23,6 +23,24 @@ def generate_or_dataset(X, Z, samples):
 
     return O, OZ
 
+def generate_or_dataset_with_shift(S, SZ, ref_SZ, x_shift, y_shift, n_samples):
+    S = gp.as_numpy_array(S)
+    SZ = gp.as_numpy_array(SZ)
+
+    si = np.random.randint(0, S.shape[0], size=(n_samples, 2))
+
+    X = S[si[:,0]]
+    XZ = SZ[si[:,0]]
+    ref_XZ = ref_SZ[si[:,0]]
+    Y = S[si[:,1]]
+    YZ = SZ[si[:,1]]
+    ref_YZ = ref_SZ[si[:,1]]
+
+    O = or_sample_with_shift(X, Y, x_shift, y_shift)
+
+    return X, XZ, ref_XZ, Y, YZ, ref_YZ, O
+
+
 def save_or_dataset(filename, O, OZ):
     np.savez_compressed(filename, O=O, OZ=OZ)
 
@@ -64,6 +82,9 @@ def or_rest(z, x):
     # If pixels that are needed to explain the picture are forced on
     # this results in pixels that cannot be turned off by the rbm.
     ym[(z == 1) & (x == 0)] = 0
+
+    # turn off whole force:
+    #ym = ym * 0
     
     return gp.as_garray(y), gp.as_garray(ym)   
 

@@ -17,6 +17,13 @@ try:
 except ImportError:
     have_notebook = False
 
+def add_noise(samples, p):
+    noise = np.random.binomial(1, p, size=samples.shape)
+    noise = 1 - noise * 2
+    samples = samples - 0.5
+    samples = samples * noise
+    samples = samples + 0.5
+    return samples
 
 def flatten_samples(samples):
     return samples.reshape((samples.shape[0], -1))
@@ -128,14 +135,24 @@ def map_reduce(X, batch_size, map_func, reduce_func,
 
 
 def map(X, batch_size, map_func, 
-        samples_are='rows', caption=""):
-    if isinstance(X, gp.garray):
-        xp = gp
+        caption="", force_output_type=None):
+
+    if force_output_type is not None:
+        if force_output_type == 'gnumpy':
+            xp = gp
+        elif force_output_type == 'numpy':
+            xp = np
+        else:
+            assert False, "force_output_type must be either numpy or gnumpy"
     else:
-        xp = np
+        if isinstance(X, gp.garray):
+            xp = gp
+        else:
+            xp = np
+
     ms = None
     for b, x in enumerate(draw_slices(X, batch_size, kind='sequential', 
-                                      samples_are=samples_are, stop=True, 
+                                      samples_are='rows', stop=True, 
                                       last_batch_may_be_smaller=True)):
         progress.status(b, X.shape[0] / batch_size, caption)
 
@@ -144,22 +161,22 @@ def map(X, batch_size, map_func,
             if m.ndim == 1:
                 ms = xp.zeros((X.shape[0],))
             elif m.ndim == 2:
-                if samples_are == 'rows':
-                    ms = xp.zeros((X.shape[0], m.shape[1]))
-                elif samples_are == 'columns':
-                    ms = xp.zeros((m.shape[0], X.shape[1]))
-                else:
-                    assert False
+                ms = xp.zeros((X.shape[0], m.shape[1]))
+            elif m.ndim == 3:
+                ms = xp.zeros((X.shape[0], m.shape[1], m.shape[2]))
+            elif m.ndim == 4:
+                ms = xp.zeros((X.shape[0], m.shape[1], m.shape[2], m.shape[3]))
             else:
-                assert False
+                assert False, "%d dimensions are not supported" % m.ndim
         
         if ms.ndim == 1:
             ms[b*batch_size : (b+1)*batch_size] = m
         elif ms.ndim == 2:
-            if samples_are == 'rows':
-                ms[b*batch_size : (b+1)*batch_size, :] = m
-            elif samples_are == 'columns':
-                ms[:, b*batch_size : (b+1)*batch_size] = m 
+            ms[b*batch_size : (b+1)*batch_size, :] = m
+        elif ms.ndim == 3:
+            ms[b*batch_size : (b+1)*batch_size, :, :] = m
+        elif ms.ndim == 4:
+            ms[b*batch_size : (b+1)*batch_size, :, :, :] = m
 
     progress.done()
     return ms

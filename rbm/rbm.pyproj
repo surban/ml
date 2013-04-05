@@ -23,6 +23,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="accuracy.py" />
     <Compile Include="ais.py" />
     <Compile Include="config.py" />
     <Compile Include="orrbm.py" />
