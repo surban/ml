@@ -17,6 +17,12 @@ try:
 except ImportError:
     have_notebook = False
 
+
+def plot_box(x, lower, upper, middle):
+    width = 0.5
+    plt.gca().add_patch(plt.Rectangle((x-width/2,lower), width, upper-lower, fill=False))
+    plt.hlines(middle, x-width/2, x+width/2, 'r')
+    
 def add_noise(samples, p):
     noise = np.random.binomial(1, p, size=samples.shape)
     noise = 1 - noise * 2

@@ -183,3 +183,17 @@ class SeparationAccuracy(object):
                 comb_plt = common.util.plot_samples(err_comb, twod=True)
                 plt.imshow(comb_plt, interpolation='none')
 
+
+
+def plot_accuracies(accuracies, alpha=0.05):
+    for i, a in enumerate(accuracies):
+        lower, upper, mle = a.accuracy_interval(alpha=alpha)
+        lower = max(0, lower)
+        upper = min(1, upper)
+        mle = max(0, min(1, mle))
+        common.util.plot_box(i+1, lower, upper, mle)
+    plt.xlim(0, len(accuracies)+1)
+    plt.xticks(range(1, len(accuracies)+1), [a.label for a in accuracies])
+    plt.ylabel("accuracy")
+
+

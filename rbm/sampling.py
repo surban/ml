@@ -176,11 +176,6 @@ class Stability(object):
                                         common.util.plot_samples(err_gen_X[0:n_plot])))
                 plt.imshow(myplt, interpolation='none')
 
-def plot_box(x, lower, upper, middle):
-    width = 0.5
-    plt.gca().add_patch(plt.Rectangle((x-width/2,lower), width, upper-lower, fill=False))
-    plt.hlines(middle, x-width/2, x+width/2, 'r')
-
 
 def plot_stability(stability_data, alpha=0.05):
     plt.subplot(2, 1, 1)
@@ -189,7 +184,7 @@ def plot_stability(stability_data, alpha=0.05):
         lower = max(0, lower)
         upper = min(1, upper)
         mle = max(0, min(1, mle))
-        plot_box(i+1, lower, upper, mle)
+        common.util.plot_box(i+1, lower, upper, mle)
     plt.xlim(0, len(stability_data)+1)
     plt.xticks(range(1, len(stability_data)+1), ["" for s in stability_data])
     plt.ylabel("accuracy")
@@ -198,7 +193,7 @@ def plot_stability(stability_data, alpha=0.05):
     for i, s in enumerate(stability_data):
         lower, upper = s.fe_interval(alpha=alpha)
         mle = (lower + upper) / 2
-        plot_box(i+1, lower, upper, mle)
+        common.util.plot_box(i+1, lower, upper, mle)
     plt.xlim(0, len(stability_data)+1)
     plt.xticks(range(1, len(stability_data)+1), [s.label for s in stability_data])
     plt.ylabel("free energy")
