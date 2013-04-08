@@ -10,6 +10,7 @@ import sys
 import math
 
 import common.stats
+import common.util
 import util
 
 
@@ -46,9 +47,9 @@ def calc_separation_accuracy(label, ref_predict, myrbm,
     svc_acc = corr / (2*n_samples)
 
     # classify generated data
-    sep_XZ = common.util.map(sep_X, 1000, ref_predict,
+    sep_XZ = common.util.map(common.util.flatten_samples(sep_X), 1000, ref_predict,
                              caption="Classifying X results with reference predictor")
-    sep_YZ = common.util.map(sep_Y, 1000, ref_predict,
+    sep_YZ = common.util.map(common.util.flatten_samples(sep_Y), 1000, ref_predict,
                              caption="Classifying Y results with reference predictor")
 
     # count correctly classified samples
@@ -95,7 +96,7 @@ def calc_separation_accuracy(label, ref_predict, myrbm,
 
 def sep_acc_from_total_acc(total_acc, p_svc_acc):
     single_tot_acc = math.sqrt(total_acc)
-    single_sep_acc = (9*single_total_acc + p_svc_acc - 1) / (10*p_svc_acc - 1)
+    single_sep_acc = (9*single_tot_acc + p_svc_acc - 1) / (10*p_svc_acc - 1)
     return math.pow(single_sep_acc, 2)
 
 class SeparationAccuracy(object):
@@ -169,16 +170,14 @@ class SeparationAccuracy(object):
             # output
             if err_comb.shape[0] > 0:
                 print "Misclassified samples:"
-                print "True labels:      ", ["(%d, %d)" % (xz, yz) for xz, yz in 
-                                             zip(err_tmpl_XZ, err_tmpl_YZ)]
-                print "Separated labels: ", ["(%d, %d)" % (xz, yz) for xz, yz in
-                                             zip(err_sep_XZ, err_sep_YZ)]
+                print "True labels:      ", zip(err_tmpl_XZ, err_tmpl_YZ)
+                print "Separated labels: ", zip(err_sep_XZ, err_sep_YZ)
 
                 err_plt = np.concatenate((common.util.plot_samples(err_tmpl_X, twod=True), 
                                           common.util.plot_samples(err_sep_X, twod=True),
                                           common.util.plot_samples(err_tmpl_Y, twod=True),
                                           common.util.plot_samples(err_sep_Y, twod=True)))
-                plt.imshow(myplt, interpolation='none')
+                plt.imshow(err_plt, interpolation='none')
 
                 plt.figure()
                 comb_plt = common.util.plot_samples(err_comb, twod=True)
