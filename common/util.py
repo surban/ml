@@ -9,8 +9,12 @@ import numpy as np
 import gnumpy as gp
 import matplotlib.pyplot as plt
 import gc
+import theano
+import scipy.io
 
 import common.progress as progress
+
+from operator import mul
 
 try:    
     import IPython.core.display
@@ -470,4 +474,125 @@ def classification_error(predicted, truth):
     diff = predicted - truth
     errors = np.count_nonzero(diff)
     return errors / float(len(truth))
+
+def floatx(x):
+    """Converts the numpy array to use Theano's float type"""
+    return np.asarray(x, dtype=theano.config.floatX)
+
+class ParameterMerger(object):
+    """Merges and unmerges parameter vectors for optimizers.
+    Do not use. Use breze.util.ParameterSet instead."""
+
+    def __init__(self, *args):
+        self.shapes = [arg.shape for arg in args]
+
+        self.total_size = 0
+        for s in self.shapes:
+            l = reduce(mul, s)
+            self.total_size += l
+
+    def make_func(self, f):
+        def wrapper(merged):
+            args = self.unflatten(merged)
+            ret = f(*args)
+            if isinstance(ret, (list, tuple)):
+                return self.flatten(*ret)
+            elif ret.size > 1:
+                return self.flatten(ret)
+            else:
+                return ret
+            return self.flatten(*ret)
+        return wrapper
+
+    def flatten(self, *args):
+        assert len(args) == len(self.shapes), "wrong number of args"
+
+        merged = np.zeros((self.total_size,))
+        pos = 0
+        for arg, s in zip(args, self.shapes):
+            assert arg.shape == s, "argument shape %s does not equal %s" % \
+                (arg.shape, s)
+            l = reduce(mul, s)
+            merged[pos : pos+l] = np.reshape(arg, (l,))
+            pos += l
+        return merged
+
+    def unflatten(self, merged):
+        pos = 0
+        args = []
+        for s in self.shapes:
+            l = reduce(mul, s)
+            arg = np.reshape(merged[pos : pos+l], s)
+            args.append(arg)
+            pos += l
+        return tuple(args)
+
+
+class ParameterHistory(object):
+    """Keeps track of parameter history, corresponding loses and optimization
+    termination criteria."""
+
+    def __init__(self, max_missed_val_improvements=20, show_progress=True):
+        self.max_missed_val_improvements = max_missed_val_improvements
+        self.show_progress = show_progress
+
+        self.best_val_loss = float('inf')
+        self.history = np.zeros((4,0))
+        self.missed_val_improvements = 0
+        self.should_terminate = False
+
+    def add(self, iter, pars, trn_loss, val_loss, tst_loss):
+        if val_loss < self.best_val_loss:
+            self.best_iter = iter
+            self.best_val_loss = val_loss
+            self.best_tst_loss = tst_loss
+            self.best_pars = np.copy(pars)
+            self.missed_val_improvements = 0
+        else:
+            self.missed_val_improvements += 1
+            if self.missed_val_improvements > self.max_missed_val_improvements:
+                self.should_terminate = True
+
+        self.history = np.hstack((self.history, [[iter],
+                                                 [trn_loss], 
+                                                 [val_loss], 
+                                                 [tst_loss]]))
+
+        if self.show_progress:
+            progress.status(iter, caption=\
+                "training: %9.5f  validation: %9.5f (best: %9.5f)  test: %9.5f" % \
+                 (trn_loss, val_loss, self.best_val_loss, tst_loss))
+
+    def plot(self):
+        plt.figsize(10,5)
+        plt.clf()
+        plt.hold(True)        
+        plt.yscale('log')
+        #plt.xscale('log')
+        plt.plot(self.history[0], self.history[1], 'b')
+        plt.plot(self.history[0], self.history[2], 'c')
+        plt.plot(self.history[0], self.history[3], 'r')
+        yl = plt.ylim()
+        plt.vlines(self.best_iter, yl[0], yl[1])
+        plt.xlabel('iteration')
+        plt.ylabel('loss')
+        plt.legend(['training', 'validation', 'test'])
+
+        print "best iteration: %5d  best validation test loss: %9.5f  best test loss: %9.5f" % \
+            (self.best_iter, self.best_val_loss, self.best_tst_loss)
+
+
+
+
+def load_theano_data(filename):
+    """Loads a .mat file into Theano shared variables"""
+    dat = scipy.io.loadmat(filename)
+    RX = theano.shared(floatx(dat['RX']))
+    RZ = theano.shared(floatx(dat['RZ']))
+    VX = theano.shared(floatx(dat['VX']))
+    VZ = theano.shared(floatx(dat['VZ']))
+    TX = theano.shared(floatx(dat['TX']))
+    TZ = theano.shared(floatx(dat['TZ']))
+    return RX, RZ, VX, VZ, TX, TZ
+
 

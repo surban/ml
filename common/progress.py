@@ -10,7 +10,7 @@ except ImportError:
 _start_time = 0
 _progress_interval = 0
 
-def status(current_iter, max_iter, caption=""):
+def status(current_iter, max_iter=0, caption=""):
     """Displays the progress of a loop as a progressbar.
     current_iter is the number of the current iteration and max_iter is the
     total number of iterations. caption is an optional caption to display."""
@@ -48,9 +48,13 @@ def status(current_iter, max_iter, caption=""):
         desc = ""
     if have_notebook:
         IPython.core.display.clear_output(stdout=False, stderr=False, other=True)
-        IPython.core.display.display_html(
-             '<i>%s</i><meter value="%d" min="0" max="%d">%d / %d</meter> %s' 
-             % (desc, current_iter, max_iter, current_iter, max_iter, time_left), raw=True)
+        if max_iter > 0:
+            IPython.core.display.display_html(
+                 '<i>%s</i><meter value="%d" min="0" max="%d">%d / %d</meter> %s' 
+                 % (desc, current_iter, max_iter, current_iter, max_iter, time_left), raw=True)
+        else:
+            IPython.core.display.display_html(
+                 '<pre>%d: %s' % (current_iter, caption), raw=True)
     else:
         print "%s%d / %d (%s)                                 \r" \
             % (desc, current_iter, max_iter, time_left)

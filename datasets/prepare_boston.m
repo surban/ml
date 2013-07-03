@@ -3,7 +3,7 @@ data = boston.data';
 targets = boston.target';
 
 % permute
-rng(100);
+rng(101);
 ind = randperm(size(data,2));
 pdata = data(:,ind);
 ptargets = targets(:,ind);
@@ -23,5 +23,5 @@ VZ = ptargets(:, trn_cnt+1 : trn_cnt+val_cnt);
 TX = pdata(:, trn_cnt+val_cnt+1 : trn_cnt+val_cnt+tst_cnt);
 TZ = ptargets(:, trn_cnt+val_cnt+1 : trn_cnt+val_cnt+tst_cnt);
 
-save('dat_boston.mat', 'RX', 'RZ', 'VX', 'VZ', 'TX', 'TZ');
+save('boston_split.mat', 'RX', 'RZ', 'VX', 'VZ', 'TX', 'TZ');
 
