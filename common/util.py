@@ -8,6 +8,7 @@ import fractions
 import numpy as np
 import gnumpy as gp
 import matplotlib.pyplot as plt
+import gc
 
 import common.progress as progress
 
@@ -16,6 +17,38 @@ try:
     have_notebook = True
 except ImportError:
     have_notebook = False
+
+def print_total_garray_size():
+    gp.free_reuse_cache()
+    tot = 0
+    for obj in gc.get_objects():
+        if isinstance(obj, gp.garray):
+            tot += obj.size
+    print "Total GPU memory used by garrays:        %.1f MB" % (tot / 1e6)
+    print "Total GPU memory use reported by gnumpy: %.1f MB" % (gp.memory_in_use() / 1e6)
+
+def find_garrays(obj, path="", max_depth=5):
+    if max_depth < 0:
+        return
+
+    #print "Trying: ", path
+    if isinstance(obj, gp.garray):
+        if path == "":
+            print "obj itself"
+        else:
+            print path
+    else:
+        members = dir(obj)
+        for m in members:
+            if not m.startswith('__'):
+                find_garrays(getattr(obj, m), path + "." + m, max_depth-1)
+
+        try:
+            keys = obj.keys()
+            for k in keys:
+                find_garrays(obj[k], path + "['" + str(k) + "']", max_depth-1)
+        except Exception:
+            pass
 
 
 def plot_box(x, lower, upper, middle):

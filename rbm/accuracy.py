@@ -183,6 +183,21 @@ class SeparationAccuracy(object):
                 comb_plt = common.util.plot_samples(err_comb, twod=True)
                 plt.imshow(comb_plt, interpolation='none')
 
+    def clear_stored_samples(self):
+        self.tmpl_X = None
+        self.tmpl_XZ = None
+        self.tmpl_ref_XZ = None
+
+        self.tmpl_Y = None
+        self.tmpl_YZ = None
+        self.tmpl_ref_YZ = None
+
+        self.comb = None
+        self.sep_X = None
+        self.sep_XZ = None
+        self.sep_Y = None
+        self.sep_YZ = None
+
 
 
 def plot_accuracies(accuracies, alpha=0.05):

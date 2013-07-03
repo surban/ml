@@ -176,6 +176,13 @@ class Stability(object):
                                         common.util.plot_samples(err_gen_X[0:n_plot])))
                 plt.imshow(myplt, interpolation='none')
 
+    def clear_stored_samples(self):
+        self.tmpl_X = None
+        self.tmpl_Z = None
+        self.tmpl_ref_Z = None
+        self.gen_X = None
+        self.gen_Z = None
+
 
 def plot_stability(stability_data, alpha=0.05):
     plt.subplot(2, 1, 1)
