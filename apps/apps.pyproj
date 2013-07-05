@@ -39,6 +39,7 @@
     <Compile Include="mnist_rbm_config.py" />
     <Compile Include="mnist_svm.py" />
     <Compile Include="mnist_orrbm.py" />
+    <Compile Include="test_gpu.py" />
     <Compile Include="__init__.py" />
   </ItemGroup>
   <ItemGroup>

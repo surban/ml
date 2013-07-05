@@ -56,6 +56,9 @@ class StackedRBF(object):
         ky = T.addbroadcast(ky, 1)
 
         d = T.sum((kx-ky)**2, 2, keepdims=False)
+        #l = T.reshape(l, (1, 1))
+        l = T.addbroadcast(l, 0)
+        l = T.addbroadcast(l, 1)
         K = T.exp(-d / (2*l**2))
 
         return K.T
