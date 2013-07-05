@@ -39,11 +39,17 @@
     <Compile Include="mnist_rbm_config.py" />
     <Compile Include="mnist_svm.py" />
     <Compile Include="mnist_orrbm.py" />
+    <Compile Include="RBFonNN-RBF.py" />
     <Compile Include="test_gpu.py" />
     <Compile Include="__init__.py" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="debug\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="usecpu32.cmd" />
+    <Content Include="usecpu64.cmd" />
+    <Content Include="usegpu.cmd" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
 </Project>

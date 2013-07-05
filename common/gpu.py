@@ -6,6 +6,8 @@ import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
 
+from common.util import floatx
+
 GPU = theano.config.device == 'gpu'
 if GPU:
     import gnumpy
@@ -184,14 +186,29 @@ def var_exp_for_gpu(variables, exprs, outputs=True):
     return gpu_variables, gpu_exprs
 
 
-def function(variables, exprs, *args, **kwargs):
+def function(inputs, outputs, *args, **kwargs):
     if GPU:
-        gpu_variables, gpu_exprs = var_exp_for_gpu(variables, exprs)
-        f = theano.function(gpu_variables, gpu_exprs, *args, **kwargs)
+        gpu_inputs, gpu_outputs = var_exp_for_gpu(inputs, outputs)
+        f = theano.function(gpu_inputs, gpu_outputs, *args, **kwargs)
         f = gnumpy_to_ndarray_wrap(f)
     else:
-        f = theano.function(variables, exprs, *args, **kwargs)
+        f = theano.function(inputs, outputs, *args, **kwargs)
     return f
+
+def gather(x):
+    """Copys array from GPU if running on GPU"""
+    if GPU:
+        return gp.as_numpy_array(x)
+    else:
+        return x
+
+def post(x):
+    """Copys array to GPU if running on GPU"""
+    if GPU:
+        return gp.as_garray(x)
+    else:
+        return floatx(x)
+
 
 
 

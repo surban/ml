@@ -546,7 +546,10 @@ class ParameterHistory(object):
             self.best_iter = iter
             self.best_val_loss = val_loss
             self.best_tst_loss = tst_loss
-            self.best_pars = np.copy(pars)
+            if isinstance(pars, gp.garray):
+                self.best_pars = gp.garray(pars, copy=True)
+            else:
+                self.best_pars = np.copy(pars)
             self.missed_val_improvements = 0
         else:
             self.missed_val_improvements += 1
@@ -564,7 +567,8 @@ class ParameterHistory(object):
                  (trn_loss, val_loss, self.best_val_loss, tst_loss))
 
     def plot(self):
-        plt.figsize(10,5)
+        if 'figsize' in dir(plt):
+            plt.figsize(10,5)
         plt.clf()
         plt.hold(True)        
         plt.yscale('log')

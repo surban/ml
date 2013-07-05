@@ -34,6 +34,18 @@ f_kernel_matrix = function([tx, ty, tl], StackedRBF.kernel_matrix(tx, ty, tl))
 K = f_kernel_matrix(x, y, l)
 print K
 
-K2 = f_kernel_matrix(x, y, l)
-print K2
+
+tsq = T.sum(tx**2)
+f_sq = function([tx], tsq)
+print f_sq(gp.as_garray([[5]]))
+
+
+gsq = T.grad(tsq, [tx])
+f_gsq = function([tx], gsq)
+print f_gsq(gp.as_garray([[5]]))
+
+
+
+
+
 

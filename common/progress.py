@@ -1,10 +1,12 @@
 import time
 import datetime
+import sys
 
 try:    
     import IPython.core.display
+    __IPYTHON__
     have_notebook = True
-except ImportError:
+except (ImportError, NameError):
     have_notebook = False
 
 _start_time = 0
@@ -56,8 +58,12 @@ def status(current_iter, max_iter=0, caption=""):
             IPython.core.display.display_html(
                  '<pre>%d: %s' % (current_iter, caption), raw=True)
     else:
-        print "%s%d / %d (%s)                                 \r" \
-            % (desc, current_iter, max_iter, time_left)
+        if max_iter > 0:
+            print "%s%d / %d (%s)                                 \r" \
+                % (desc, current_iter, max_iter, time_left),
+        else:
+            print "%d: %s                                         \r" \
+                % (current_iter, caption),
 
 def done():
     """Removes the progressbar when the loop is done. Calling is optional.
@@ -65,7 +71,7 @@ def done():
     if have_notebook:
         IPython.core.display.clear_output(stdout=False, stderr=False, other=True)
     else:
-        print "                                                            \r"
+        print "                                                            \r",
 
 
 
