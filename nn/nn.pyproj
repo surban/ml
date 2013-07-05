@@ -26,6 +26,7 @@
     <Compile Include="nn.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="shift.py" />
     <Compile Include="__init__.py" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
