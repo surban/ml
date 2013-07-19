@@ -22,6 +22,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="complex.py" />
     <Compile Include="dlutil.py" />
     <Compile Include="gpu.py">
       <SubType>Code</SubType>
