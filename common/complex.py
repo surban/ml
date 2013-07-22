@@ -12,6 +12,7 @@ def cexp(re, im):
     return exp_re, exp_im
 
 def cdot(a_re, a_im, b_re, b_im):
+    """Returns a*b where a and b are complex numbers."""
     dot_re = T.dot(a_re, b_re) - T.dot(a_im, b_im)
     dot_im = T.dot(a_im, b_re) + T.dot(a_re, b_im)
     return dot_re, dot_im
