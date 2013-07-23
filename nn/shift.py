@@ -1,3 +1,5 @@
+from __future__ import division
+
 import theano
 import theano.tensor as T
 import numpy as np
@@ -24,8 +26,7 @@ class FourierShiftNet(object):
         self.yhat_to_y_im = yhat_to_y_im
 
     @staticmethod
-    def parameter_shapes(x_len, max_shift):
-        s_len = max_shift+1
+    def parameter_shapes(x_len, s_len):
         return {'x_to_xhat_re': (x_len, x_len),
                 'x_to_xhat_im': (x_len, x_len),
                 's_to_shat_re': (s_len, s_len),
@@ -71,28 +72,82 @@ class FourierShiftNet(object):
         # output is real part of y
         return y_re
 
+    @staticmethod
+    def optimal_weights(x_len, s_len):
+        # DFT layer of x: xhat
+        x_to_xhat = fourier_weights(x_len)
+        x_to_xhat_re = np.real(x_to_xhat)
+        x_to_xhat_im = np.imag(x_to_xhat)
+
+        # DFT layer of s: shat
+        s_to_shat = fourier_weights(s_len)
+        s_to_shat_re = np.real(s_to_shat)
+        s_to_shat_im = np.imag(s_to_shat)
+
+        # multiplication of Yhat and Shat in log space: Yhat
+        Xhat_to_Yhat = np.eye(x_len)
+        Xhat_to_Yhat_re = np.real(Xhat_to_Yhat)
+        Xhat_to_Yhat_im = np.imag(Xhat_to_Yhat)
+
+        Shat_to_Yhat = np.eye(x_len, s_len)
+        Shat_to_Yhat_re = np.real(Shat_to_Yhat)
+        Shat_to_Yhat_im = np.imag(Shat_to_Yhat)
+
+        # inverse DFT layer of yhat y:
+        yhat_to_y = inverse_fourier_weights(x_len)
+        yhat_to_y_re = np.real(yhat_to_y)
+        yhat_to_y_im = np.imag(yhat_to_y)
+
+        return (x_to_xhat_re, x_to_xhat_im,
+                s_to_shat_re, s_to_shat_im,
+                Xhat_to_Yhat_re, Xhat_to_Yhat_im,
+                Shat_to_Yhat_re, Shat_to_Yhat_im,
+                yhat_to_y_re, yhat_to_y_im)
+
+
+
+def fourier_weights(N):
+    n = np.arange(0, N)[np.newaxis, :]
+    k = np.arange(0, N)[:, np.newaxis]
+    W = np.exp(-2j*np.pi*k*n/N)
+    return W
+
+def inverse_fourier_weights(N):
+    k = np.arange(0, N)[np.newaxis, :]
+    n = np.arange(0, N)[:, np.newaxis]
+    W = 1/N * np.exp(-2j*np.pi*k*n/N)
+    return W
+
 
 def shifted(x, s):
     assert x.ndim == 1 and s.ndim == 1, "x and s must be vectors"
     assert len(s) <= len(x), "x must be at least as long as s"
-    spos = np.nonzero(s)
-    assert len(spos) == 1, "exactly one entry of s must be one"
-    shift = spos[0]
-    assert s[shift] == 1, "entries of s must be either 0 or 1"
+    spos = np.nonzero(s)[0]
+    assert len(spos) <= 1, "zero or one entries of s must be one"
+    if len(spos) == 0:
+        shift = 0
+    else:
+        assert s[spos[0]] == 1, "entries of s must be either 0 or 1"
+        shift = spos[0]+1
     y = np.roll(x, shift)
     return y
 
 
-def generate_data(x_len, max_shift, n_samples):
-    assert max_shift <= x_len
+def generate_data(x_len, s_len, n_samples, binary=False):
+    assert s_len <= x_len
     inputs = np.zeros((x_len, n_samples))
-    shifts = np.zeros((max_shift+1, n_samples))
+    shifts = np.zeros((s_len, n_samples))
     targets = np.zeros((x_len, n_samples))
 
     for s in range(n_samples):
-        inputs[:,s] = np.random.random((x_len,)) - 0.5
-        shft = np.random.randint(0, max_shift)
-        shifts[shft,s] = 1
+        if binary:
+            inputs[:,s] = np.random.randint(0, 2, (x_len,))
+        else:
+            inputs[:,s] = np.random.random((x_len,)) - 0.5
+        #shft = np.random.randint(-1, s_len)
+        shft = np.random.randint(0, s_len)
+        if shft != -1:
+            shifts[shft,s] = 1
         targets[:,s] = shifted(inputs[:,s], shifts[:,s])
 
     return inputs, shifts, targets
