@@ -28,15 +28,23 @@ def cmul(a_re, a_im, b_re, b_im):
     return mul_re, mul_im
 
 
-def dft_weights(N):
+def dft_weights_complex(N):
     n = np.arange(N)[np.newaxis, :]
     k = np.arange(N)[:, np.newaxis]   
     w = np.exp(-2j*np.pi*k*n/N)
+    return w
+
+def dft_weights(N):
+    w = dft_weights_complex(N)
     return w.real, w.imag
 
-def idft_weights(N):
+def idft_weights_complex(N):
     n = np.arange(N)[np.newaxis, :]
     k = np.arange(N)[:, np.newaxis]   
     w = np.exp(2j*np.pi*k*n/N) / N
+    return w
+
+def idft_weights(N):
+    w = idft_weights_complex(N)
     return w.real, w.imag
 
