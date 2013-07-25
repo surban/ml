@@ -532,9 +532,11 @@ class ParameterHistory(object):
     """Keeps track of parameter history, corresponding loses and optimization
     termination criteria."""
 
-    def __init__(self, max_missed_val_improvements=20, show_progress=True):
+    def __init__(self, max_missed_val_improvements=20, show_progress=True,
+                 desired_loss=None):
         self.max_missed_val_improvements = max_missed_val_improvements
         self.show_progress = show_progress
+        self.desired_loss = desired_loss
 
         self.best_val_loss = float('inf')
         self.history = np.zeros((4,0))
@@ -555,6 +557,9 @@ class ParameterHistory(object):
             self.missed_val_improvements += 1
             if self.missed_val_improvements > self.max_missed_val_improvements:
                 self.should_terminate = True
+
+        if self.desired_loss is not None and val_loss <= self.desired_loss:
+            self.should_terminate = True
 
         self.history = np.hstack((self.history, [[iter],
                                                  [trn_loss], 
