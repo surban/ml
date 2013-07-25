@@ -141,6 +141,8 @@ def generate_data(x_len, s_len, n_samples, binary=False):
             inputs[:,s] = np.random.randint(0, 2, (x_len,))
         else:
             inputs[:,s] = np.random.random((x_len,)) - 0.5
+        if np.sum(inputs[:,s]) == 0:
+            inputs[0,s] = 1
         shft = np.random.randint(0, s_len)
         shifts[shft,s] = 1
         targets[:,s] = shifted(inputs[:,s], shifts[:,s])
