@@ -37,11 +37,11 @@ t = T.matrix('t')
 
 # functions
 fsn = FourierShiftNet(**ps.vars)
-f_output = theano.function(inputs=[ps.flat,x,s], outputs=fsn.output(x,s))
+f_output = function(inputs=[ps.flat,x,s], outputs=fsn.output(x,s))
 
 loss = T.mean((fsn.output(x,s) - t)**2)
-f_loss = theano.function(inputs=[ps.flat,x,s,t], outputs=loss)
-f_dloss = theano.function(inputs=[ps.flat,x,s,t], outputs=T.grad(loss, ps.flat))
+f_loss = function(inputs=[ps.flat,x,s,t], outputs=loss)
+f_dloss = function(inputs=[ps.flat,x,s,t], outputs=T.grad(loss, ps.flat))
 
 # generate data
 trn_inputs, trn_shifts, trn_targets = generate_data(x_len, s_len, n_samples)
