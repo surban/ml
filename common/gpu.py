@@ -198,14 +198,14 @@ def function(inputs, outputs, *args, **kwargs):
 def gather(x):
     """Copys array from GPU if running on GPU"""
     if GPU:
-        return gp.as_numpy_array(x)
+        return gnumpy.as_numpy_array(x)
     else:
         return x
 
 def post(x):
     """Copys array to GPU if running on GPU"""
     if GPU:
-        return gp.as_garray(x)
+        return gnumpy.as_garray(x)
     else:
         return floatx(x)
 
