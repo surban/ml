@@ -4,9 +4,21 @@ Rprop:
 best iteration:   570  best validation test loss:   0.00010  best test loss:   0.00009
 
 
+============================================================================================
+
 20 units:
 
+--------------
 Rprop:
-best iteration:   790  best validation test loss:   0.00098  best test loss:   0.00086
 
+CPU64:
+best iteration:   720  best validation test loss:   0.00024  best test loss:   0.00020
+training took 246.96 s
 
+CPU32:
+best iteration:  1930  best validation test loss:   0.00009  best test loss:   0.00009
+training took 213.58 s
+
+GPU:
+best iteration:  1500  best validation test loss:   0.00049  best test loss:   0.00045
+training took 198.47 s

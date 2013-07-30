@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import gc
 import theano
 import scipy.io
+import time
 
 import common.progress as progress
 
@@ -533,18 +534,21 @@ class ParameterHistory(object):
     termination criteria."""
 
     def __init__(self, max_missed_val_improvements=20, show_progress=True,
-                 desired_loss=None):
+                 desired_loss=None, min_improvement=0.00001, max_iters=None):
         self.max_missed_val_improvements = max_missed_val_improvements
         self.show_progress = show_progress
         self.desired_loss = desired_loss
+        self.min_improvement = min_improvement
+        self.max_iters = max_iters
 
         self.best_val_loss = float('inf')
         self.history = np.zeros((4,0))
         self.missed_val_improvements = 0
         self.should_terminate = False
+        self.start_time = time.time()
 
     def add(self, iter, pars, trn_loss, val_loss, tst_loss):
-        if val_loss < self.best_val_loss:
+        if val_loss < self.best_val_loss - self.min_improvement:
             self.best_iter = iter
             self.best_val_loss = val_loss
             self.best_tst_loss = tst_loss
@@ -561,6 +565,9 @@ class ParameterHistory(object):
         if self.desired_loss is not None and val_loss <= self.desired_loss:
             self.should_terminate = True
 
+        if self.max_iters is not None and iter >= self.max_iters:
+            self.should_terminate = True
+
         self.history = np.hstack((self.history, [[iter],
                                                  [trn_loss], 
                                                  [val_loss], 
@@ -572,6 +579,8 @@ class ParameterHistory(object):
                  (trn_loss, val_loss, self.best_val_loss, tst_loss))
 
     def plot(self):
+        self.end_time = time.time()
+
         if 'figsize' in dir(plt):
             plt.figsize(10,5)
         plt.clf()
@@ -589,6 +598,7 @@ class ParameterHistory(object):
 
         print "best iteration: %5d  best validation test loss: %9.5f  best test loss: %9.5f" % \
             (self.best_iter, self.best_val_loss, self.best_tst_loss)
+        print "training took %.2f s" % (self.end_time - self.start_time)
 
 
 
