@@ -150,6 +150,16 @@ def generate_data(x_len, s_len, n_samples, binary=False):
     return inputs, shifts, targets
 
 
+def shift_amounts(shifts):
+    nz = np.transpose(np.nonzero(shifts))
+    amounts = np.zeros((shifts.shape[1],))
+    amounts[nz[:,1]] = nz[:,0]
+    return amounts
+
+
+
+
+
 
 
 

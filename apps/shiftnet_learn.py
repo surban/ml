@@ -57,6 +57,7 @@ else:
     f_dloss = function(inputs=[ps.flat,x,s,t], outputs=T.grad(loss, ps.flat))
 
 # generate data
+
 trn_inputs, trn_shifts, trn_targets = generate_data(x_len, s_len, n_samples)
 val_inputs, val_shifts, val_targets = generate_data(x_len, s_len, n_samples)
 tst_inputs, tst_shifts, tst_targets = generate_data(x_len, s_len, n_samples)

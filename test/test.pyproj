@@ -25,6 +25,9 @@
   <ItemGroup>
     <Compile Include="test_ais.py" />
     <Compile Include="test_common_complex.py" />
+    <Compile Include="test_common_gpu.py" />
+    <Compile Include="test_gpu_shift.py" />
+    <Compile Include="test_misc.py" />
     <Compile Include="test_rbm.py" />
     <Compile Include="__init__.py" />
     <Compile Include="test_common_util.py" />

@@ -1,16 +1,26 @@
 # mostly copied from Breze
 
+import sys
+gpu_imported = ('theano' in sys.modules or 'cudamat' in sys.modules or 
+                'gnumpy' in sys.modules or 'pycuda' in sys.modules)
+
 import numpy as np
 import theano
 import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
+import ctypes
 
 from common.util import floatx
 
 GPU = theano.config.device == 'gpu'
 if GPU:
+    if gpu_imported:
+        raise ImportError('common.gpu must be imported before Theano, cudamat, gnumpy, pycuda')
+    import cudamat
     import gnumpy
+    import pycuda.gpuarray as gpuarray
+
 
 
 def flatten(nested):
@@ -210,5 +220,50 @@ def post(x):
         return floatx(x)
 
 
+
+___const_garray = gnumpy.rand(1)
+
+def gpuarray_to_garray(x):
+    "Creates a Gnumpy garray that uses the same memory as PyCUDA GPUArray x"
+    # mostly adapted from Theano
+
+    assert isinstance(x, gpuarray.GPUArray), "x must be a PyCUDA GPUArray"
+    assert x.dtype == np.float32, "x must be of data type float32"
+
+    # check that x is in continous row-major order
+    size = 1
+    continous = True
+    ndim = len(x.shape)
+    for i in range(ndim-1, -1, -1):
+        if x.shape[i] == 1:
+            continue
+        if x.strides[i] != size*4:
+            continous = False
+            break
+        size *= x.shape[i]
+    assert continous, "x must be in continous row-major order"
+     
+    # the next step is to create a CUDAMatrix object. We do so by first creating
+    # a cudamat object with no data_host.
+    cm_mat = cudamat.cudamat()
+    cm_mat.size[0] = reduce(lambda x,y:x*y, x.shape, 1)
+    cm_mat.size[1] = 1
+    cm_mat.data_device = ctypes.cast(x.ptr, ctypes.POINTER(ctypes.c_float))
+    cm_mat.on_host = 0
+    cm_mat.on_device = 1
+    cm_mat.is_trans = 0
+    cm_mat.owns_data = 0 
+    # note: cm_mat dosen't owe the data; x does. So x will delete it.
+
+    # create CUDAMatrix
+    px = cudamat.CUDAMatrix(cm_mat)
+    px._base = x # x won't be freed if the cudamat object isn't freed.
+    px.mat_on_host = False # let cudamat know that we don't have a numpy
+                           # array attached.
+
+    # create garray
+    ans = gnumpy.garray(px, x.shape, ___const_garray)
+
+    return ans
 
 
