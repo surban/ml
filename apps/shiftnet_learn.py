@@ -3,6 +3,8 @@
 
 # <codecell>
 
+import common.gpu
+
 import climin
 import numpy as np
 import theano
@@ -11,6 +13,7 @@ import breze.util
 import matplotlib.pyplot as plt
 
 import common.util
+import nn.gpushift
 from nn.shift import *
 from common.complex import *
 from common.util import floatx
@@ -57,21 +60,26 @@ else:
     f_dloss = function(inputs=[ps.flat,x,s,t], outputs=T.grad(loss, ps.flat))
 
 # generate data
+#trn_inputs, trn_shifts, trn_targets = generate_data(x_len, s_len, n_samples)
+#val_inputs, val_shifts, val_targets = generate_data(x_len, s_len, n_samples)
+#tst_inputs, tst_shifts, tst_targets = generate_data(x_len, s_len, n_samples)
 
-trn_inputs, trn_shifts, trn_targets = generate_data(x_len, s_len, n_samples)
-val_inputs, val_shifts, val_targets = generate_data(x_len, s_len, n_samples)
-tst_inputs, tst_shifts, tst_targets = generate_data(x_len, s_len, n_samples)
+print "Generating data..."
+trn_inputs, trn_shifts, trn_targets = nn.gpushift.generate_data(x_len, s_len, n_samples)
+val_inputs, val_shifts, val_targets = nn.gpushift.generate_data(x_len, s_len, n_samples)
+tst_inputs, tst_shifts, tst_targets = nn.gpushift.generate_data(x_len, s_len, n_samples)
 
 # transfer to GPU
-trn_inputs = post(trn_inputs)
-trn_shifts = post(trn_shifts)
-trn_targets = post(trn_targets)
-val_inputs = post(val_inputs)
-val_shifts = post(val_shifts)
-val_targets = post(val_targets)
-tst_inputs = post(tst_inputs)
-tst_shifts = post(tst_shifts)
-tst_targets = post(tst_targets)
+#trn_inputs = post(trn_inputs)
+#trn_shifts = post(trn_shifts)
+#trn_targets = post(trn_targets)
+#val_inputs = post(val_inputs)
+#val_shifts = post(val_shifts)
+#val_targets = post(val_targets)
+#tst_inputs = post(tst_inputs)
+#tst_shifts = post(tst_shifts)
+#tst_targets = post(tst_targets)
+print "Done."
 
 # Training 
 ps.data[:] = 0.01 * (np.random.random(ps.data.shape) - 0.5)

@@ -23,7 +23,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="gpu_shift.py" />
+    <Compile Include="gpushift.py" />
     <Compile Include="nn.py">
       <SubType>Code</SubType>
     </Compile>

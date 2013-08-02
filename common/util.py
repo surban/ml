@@ -12,6 +12,7 @@ import gc
 import theano
 import scipy.io
 import time
+import ctypes
 
 import common.progress as progress
 
@@ -613,5 +614,3 @@ def load_theano_data(filename):
     TX = theano.shared(floatx(dat['TX']))
     TZ = theano.shared(floatx(dat['TZ']))
     return RX, RZ, VX, VZ, TX, TZ
-
-

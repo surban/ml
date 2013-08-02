@@ -1,26 +1,31 @@
 # mostly copied from Breze
 
 import sys
+
 gpu_imported = ('theano' in sys.modules or 'cudamat' in sys.modules or 
                 'gnumpy' in sys.modules or 'pycuda' in sys.modules)
+if gpu_imported:
+    raise ImportError('common.gpu must be imported before Theano, cudamat, gnumpy, pycuda')
 
-import numpy as np
+# the import order is important
+import theano
+#import theano.misc.pycuda_init
+
+import pycuda.autoinit
+import pycuda.gpuarray as gpuarray
+import cudamat
+import gnumpy
 import theano
 import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
+
+import numpy as np
 import ctypes
 
 from common.util import floatx
 
 GPU = theano.config.device == 'gpu'
-if GPU:
-    if gpu_imported:
-        raise ImportError('common.gpu must be imported before Theano, cudamat, gnumpy, pycuda')
-    import cudamat
-    import gnumpy
-    import pycuda.gpuarray as gpuarray
-
 
 
 def flatten(nested):

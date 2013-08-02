@@ -40,6 +40,7 @@
     <Compile Include="mnist_svm.py" />
     <Compile Include="mnist_orrbm.py" />
     <Compile Include="RBFonNN-RBF.py" />
+    <Compile Include="shiftnet_learn_minibatch.py" />
     <Compile Include="shiftnet_learn.py" />
     <Compile Include="test_gpu.py" />
     <Compile Include="__init__.py" />

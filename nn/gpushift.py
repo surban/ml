@@ -1,12 +1,15 @@
 from __future__ import division
 
+import common.gpu
 import pycuda.driver as cuda
-import pycuda.autoinit
+#import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import pycuda.gpuarray as gp
 import pycuda.curandom as gprng
 import numpy as np
 import math
+
+from common.gpu import gpuarray_to_garray
 
 # Kernels
 cuda_mod = SourceModule(r"""
@@ -68,7 +71,7 @@ gpu_shift_to_hot = cuda_mod.get_function('shift_to_hot')
 gpu_rng = gprng.XORWOWRandomNumberGenerator()
 
 
-def generate_random_data_gpu(x_len, n_samples, binary=False):
+def generate_random_data(x_len, n_samples, binary=False):
     data = gpu_rng.gen_uniform((x_len, n_samples), np.float32)
     if binary:
         onehalf = gp.zeros_like(data) + 0.5
@@ -76,7 +79,7 @@ def generate_random_data_gpu(x_len, n_samples, binary=False):
     return data
 
 
-def generate_shifts_gpu(s_len, n_samples):
+def generate_shifts(s_len, n_samples):
     shifts = gpu_rng.gen_uniform((n_samples,), np.float32)
     shifts = shifts * s_len
     #print "interm:", shifts
@@ -94,7 +97,7 @@ def generate_shifts_gpu(s_len, n_samples):
     return shifts, shifts_hot
 
 
-def generate_shifted_gpu(data, shifts):
+def generate_shifted(data, shifts):
     x_len = data.shape[0]
     n_samples = data.shape[1]
     assert len(shifts.shape) == 1 and shifts.shape[0] == n_samples
@@ -108,6 +111,16 @@ def generate_shifted_gpu(data, shifts):
               block=(threads_per_block, 1,1), grid=(n_blocks, 1))
 
     return shifted
+
+
+def generate_data(x_len, s_len, n_samples, binary=False):
+    data = generate_random_data(x_len, n_samples, binary=binary)
+    shifts, shifts_hot = generate_shifts(s_len, n_samples)
+    shifted = generate_shifted(data, shifts)
+    return (gpuarray_to_garray(data), 
+            gpuarray_to_garray(shifts_hot), 
+            gpuarray_to_garray(shifted))
+
 
 
 
