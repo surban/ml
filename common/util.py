@@ -13,8 +13,11 @@ import theano
 import scipy.io
 import time
 import ctypes
+import imp
+import itertools
 
 import common.progress as progress
+import __main__ as main
 
 from operator import mul
 
@@ -376,6 +379,39 @@ def in_plot_directory(value=None):
         else:
             return False
 
+
+def multiglob(*patterns):
+    return itertools.chain.from_iterable(glob.glob(pattern) for pattern in patterns)
+
+def standard_cfg(clean_plots=True):
+    """Reads the configuration file cfg.py from the configuration directory
+    specified as the first parameter on the command line.
+    Returns a tuple consisting of the configuration module and the plot 
+    directory."""
+    if len(sys.argv) < 2:
+        print "Usage: %s <config>" % sys.argv[0]
+        sys.exit(1)
+
+    scriptname, _ = os.path.splitext(os.path.basename(main.__file__))
+    cfgdir = os.path.join(scriptname, sys.argv[1])
+    cfgname = os.path.join(cfgdir, 'cfg.py')
+    if not os.path.exists(cfgname):
+        print "Configuration %s not found" % cfgname
+        sys.exit(2)
+    print "Using configuration %s" % cfgname
+    sys.dont_write_bytecode = True
+    cfg = imp.load_source('cfg', cfgname)
+
+    # clean plot directory
+    if clean_plots:
+        curdir = os.path.abspath(os.curdir)
+        os.chdir(cfgdir)
+        for file in multiglob('*.png', '*.pdf'):
+            os.remove(file)
+        os.chdir(curdir)
+    
+    return cfg, cfgdir
+
 def enter_plot_directory(dirname, clean=False):
     """Creates and chdirs into given dirname. 
     
@@ -393,6 +429,24 @@ def enter_plot_directory(dirname, clean=False):
     if clean:
         for file in glob.glob("*.png"):
             os.remove(file)
+
+def enter_plot_directory_from_cfg(task, **cfg):
+    #assert len(cfg) > 0, "At least one configuration parameter must be specified"
+
+    dir = task
+    for name in sorted(cfg.keys()):
+        if name == 'clean':
+            continue
+        s = "%s=%s" % (name, str(cfg[name]))
+        dir = dir + "-" + s
+
+    if 'clean' in cfg:
+        enter_plot_directory(dir, clean=cfg['clean'])
+    else:
+        enter_plot_directory(dir)
+
+
+
 
 def leave_plot_directory():
     if in_plot_directory():
@@ -534,7 +588,7 @@ class ParameterHistory(object):
     """Keeps track of parameter history, corresponding loses and optimization
     termination criteria."""
 
-    def __init__(self, max_missed_val_improvements=20, show_progress=True,
+    def __init__(self, max_missed_val_improvements=200, show_progress=True,
                  desired_loss=None, min_improvement=0.00001, max_iters=None):
         self.max_missed_val_improvements = max_missed_val_improvements
         self.show_progress = show_progress
@@ -544,11 +598,12 @@ class ParameterHistory(object):
 
         self.best_val_loss = float('inf')
         self.history = np.zeros((4,0))
-        self.missed_val_improvements = 0
+        self.last_val_improvement = 0
         self.should_terminate = False
         self.start_time = time.time()
 
     def add(self, iter, pars, trn_loss, val_loss, tst_loss):
+        # keep track of best results so far
         if val_loss < self.best_val_loss - self.min_improvement:
             self.best_iter = iter
             self.best_val_loss = val_loss
@@ -557,15 +612,13 @@ class ParameterHistory(object):
                 self.best_pars = gp.garray(pars, copy=True)
             else:
                 self.best_pars = np.copy(pars)
-            self.missed_val_improvements = 0
-        else:
-            self.missed_val_improvements += 1
-            if self.missed_val_improvements > self.max_missed_val_improvements:
-                self.should_terminate = True
+            self.last_val_improvement = iter
 
+        # termination criteria
+        if iter - self.last_val_improvement > self.max_missed_val_improvements:
+            self.should_terminate = True
         if self.desired_loss is not None and val_loss <= self.desired_loss:
             self.should_terminate = True
-
         if self.max_iters is not None and iter >= self.max_iters:
             self.should_terminate = True
 
