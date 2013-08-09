@@ -81,7 +81,7 @@ def generate_random_data(x_len, n_samples, binary=False):
 
 def generate_shifts(s_len, n_samples):
     shifts = gpu_rng.gen_uniform((n_samples,), np.float32)
-    shifts = shifts * s_len
+    shifts = shifts * (s_len - 0.01)
     #print "interm:", shifts
     shifts = shifts.astype(np.uint32)
 

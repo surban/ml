@@ -33,6 +33,7 @@ if profile:
 
 # hyperparameters
 cfg, plot_dir = common.util.standard_cfg()
+cfg.steprate = common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val)
 
 # parameters
 ps = breze.util.ParameterSet(**FourierShiftNet.parameter_shapes(cfg.x_len, cfg.s_len))
@@ -88,9 +89,13 @@ if cfg.optimizer == 'lbfgs':
 elif cfg.optimizer == 'rprop':
     opt = climin.Rprop(ps.data, f_trn_loss, f_trn_dloss)
 elif cfg.optimizer == 'rmsprop':
-    opt = climin.RmsProp(ps.data, f_trn_dloss, steprate=cfg.steprate, momentum=cfg.momentum)
+    opt = climin.RmsProp(ps.data, f_trn_dloss, 
+                         steprate=cfg.steprate[0], 
+                         momentum=cfg.momentum)
 elif cfg.optimizer == 'gradientdescent':
-    opt = climin.GradientDescent(ps.data, f_trn_dloss, steprate=cfg.steprate)
+    opt = climin.GradientDescent(ps.data, f_trn_dloss, 
+                                 steprate=cfg.steprate[0],
+                                 momentum=cfg.momentum)
 else:
     assert False, "unknown optimizer"
 
@@ -103,10 +108,16 @@ ps.data[:] = cfg.init * (np.random.random(ps.data.shape) - 0.5)
 print "initial loss: ", f_loss(ps.data, trn_inputs, trn_shifts, trn_targets)
 
 # optimize
-his = common.util.ParameterHistory(max_missed_val_improvements=1000,
+his = common.util.ParameterHistory(max_missed_val_improvements=2000,
                                    desired_loss=0.0001)
+#his = common.util.ParameterHistory(max_missed_val_improvements=None,
+#                                   max_iters=20000,
+#                                   desired_loss=0.0001)
 for iter, sts in enumerate(opt):
     if iter % 10 == 0:
+        #print "learning rate is %f for iter %d" % (cfg.steprate[iter], iter)
+        opt.steprate = cfg.steprate[iter]
+
         trn_loss = gather(f_loss(ps.data, trn_inputs, trn_shifts, trn_targets))
         val_loss = gather(f_loss(ps.data, val_inputs, val_shifts, val_targets))
         tst_loss = gather(f_loss(ps.data, tst_inputs, tst_shifts, tst_targets))

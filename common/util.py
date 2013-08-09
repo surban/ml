@@ -615,7 +615,8 @@ class ParameterHistory(object):
             self.last_val_improvement = iter
 
         # termination criteria
-        if iter - self.last_val_improvement > self.max_missed_val_improvements:
+        if (self.max_missed_val_improvements is not None and 
+            iter - self.last_val_improvement > self.max_missed_val_improvements):
             self.should_terminate = True
         if self.desired_loss is not None and val_loss <= self.desired_loss:
             self.should_terminate = True
@@ -667,3 +668,45 @@ def load_theano_data(filename):
     TX = theano.shared(floatx(dat['TX']))
     TZ = theano.shared(floatx(dat['TZ']))
     return RX, RZ, VX, VZ, TX, TZ
+
+
+class ValueIter(object):
+    """Maps values (learning rates, etc.) to iterations."""
+
+    def __init__(self, iters, values, 
+                 transition='hard', transition_length=1000):
+        self.iters = iters
+        self.values = values
+        self.transition = transition
+        self.transition_length = transition_length
+
+    def find_iter_index(self,iter):
+        for i in range(len(self.iters)):
+            if self.iters[i] > iter:
+                return i-1
+        return len(self.iters)-1
+
+
+    def value_for_iter(self, current_iter):
+        """Returns value[i] where i is the smallest i so that iters[0], ...,
+        iters[i] are all smaller than or equal to current_iter.
+        If iters is None than values is returned, i.e. it is assumed that the same
+        value should be used for all iterations."""
+        if self.iters is None:
+            return self.values
+
+        if self.transition == 'hard':
+            return self.values[self.find_iter_index(current_iter)]
+        elif self.transition == 'linear':
+            cn = self.find_iter_index(current_iter)
+            ifp = current_iter - self.iters[cn]
+            if ifp < self.transition_length and cn > 0:
+                f = float(ifp) / float(self.transition_length)
+                return f*self.values[cn] + (1-f)*self.values[cn-1]
+            else:
+                return self.values[cn]
+                
+
+    def __getitem__(self, key):
+        return self.value_for_iter(key)
+
