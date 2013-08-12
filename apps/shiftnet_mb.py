@@ -32,7 +32,7 @@ signal.signal(signal.SIGINT, break_handler)
 check_nans = False
 cfg, plot_dir = common.util.standard_cfg()
 cfg.steprate = common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val,
-                                     transition='linear', transition_length=300)
+                                     transition='linear', transition_length=1000)
 
 # parameters
 ps = breze.util.ParameterSet(**FourierShiftNet.parameter_shapes(cfg.x_len, cfg.s_len))
@@ -62,6 +62,12 @@ def generate_new_data():
     trn_inputs, trn_shifts, trn_targets = \
         nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_batch)
 
+def f_trn_loss(p):
+    global trn_inputs, trn_shifts, trn_targets
+    if check_nans:
+        assert np.all(np.isfinite(gather(p))), "NaN in p given to f_trn_loss"
+    return f_loss(p, trn_inputs, trn_shifts, trn_targets) 
+
 def f_trn_dloss(p):
     global trn_inputs, trn_shifts, trn_targets
     if check_nans:
@@ -73,7 +79,10 @@ def f_trn_dloss(p):
             import pdb; pdb.set_trace()  
     return dloss
 
-if cfg.optimizer == 'rmsprop':
+if cfg.optimizer == 'rprop':
+    opt = climin.Rprop(ps.data, f_trn_dloss, 
+                       step_shrink=cfg.step_shrink, max_step=cfg.max_step)
+elif cfg.optimizer == 'rmsprop':
     opt = climin.RmsProp(ps.data, f_trn_dloss, 
                          steprate=cfg.steprate[0], 
                          momentum=cfg.momentum)
@@ -97,7 +106,8 @@ generate_new_data()
 
 # optimize
 his = common.util.ParameterHistory(max_missed_val_improvements=1000,
-                                   desired_loss=0.0001)
+                                   desired_loss=0.0001,
+                                   max_iters=cfg.max_iters)
 for iter, sts in enumerate(opt):
     if check_nans:
         assert np.all(np.isfinite(gather(sts['step']))), 'NaN in step'
@@ -109,8 +119,9 @@ for iter, sts in enumerate(opt):
 
     if iter % 10 == 0:
         opt.steprate = cfg.steprate[iter]
-        print "steprate: ", cfg.steprate[iter]
+        #print "steprate: ", cfg.steprate[iter]
 
+        trn_loss = gather(f_trn_loss(ps.data))
         val_loss = gather(f_loss(ps.data, val_inputs, val_shifts, val_targets))
         tst_loss = gather(f_loss(ps.data, tst_inputs, tst_shifts, tst_targets))
         
@@ -120,7 +131,7 @@ for iter, sts in enumerate(opt):
             ps.data[:] = his.best_pars
             continue
 
-        his.add(iter, ps.data, 1, val_loss, tst_loss)
+        his.add(iter, ps.data, trn_loss, val_loss, tst_loss)
         if his.should_terminate:
             break
                       

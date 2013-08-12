@@ -87,7 +87,7 @@ print "Done."
 if cfg.optimizer == 'lbfgs':
     opt = climin.Lbfgs(ps.data, f_trn_loss, f_trn_dloss)
 elif cfg.optimizer == 'rprop':
-    opt = climin.Rprop(ps.data, f_trn_loss, f_trn_dloss)
+    opt = climin.Rprop(ps.data, f_trn_dloss)
 elif cfg.optimizer == 'rmsprop':
     opt = climin.RmsProp(ps.data, f_trn_dloss, 
                          steprate=cfg.steprate[0], 
