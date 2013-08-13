@@ -37,8 +37,10 @@
     <Compile Include="mnist_rbm_pl.py" />
     <Compile Include="mnist_ais.py" />
     <Compile Include="mnist_rbm_config.py" />
+    <Compile Include="mnist_reference_dropout.py" />
     <Compile Include="mnist_svm.py" />
     <Compile Include="mnist_orrbm.py" />
+    <Compile Include="orrbm_shiftstat.py" />
     <Compile Include="RBFonNN-RBF.py" />
     <Compile Include="shiftnet_mb.py" />
     <Compile Include="shiftnet.py" />

@@ -383,7 +383,7 @@ def in_plot_directory(value=None):
 def multiglob(*patterns):
     return itertools.chain.from_iterable(glob.glob(pattern) for pattern in patterns)
 
-def standard_cfg(clean_plots=True):
+def standard_cfg(clean_plots=False):
     """Reads the configuration file cfg.py from the configuration directory
     specified as the first parameter on the command line.
     Returns a tuple consisting of the configuration module and the plot 

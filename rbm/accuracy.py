@@ -135,6 +135,11 @@ class SeparationAccuracy(object):
         high = sep_acc_from_total_acc(tot_high, self.classifier_accuracy)
         return low, high, mle
 
+    @property
+    def accuracy(self):
+        _, _, mle = self.accuracy_interval()
+        return mle
+
     def output_data_line(self):
         common.util.output_table(("label", "n_samples", "n_success",
                                   "classifier_accuracy"),

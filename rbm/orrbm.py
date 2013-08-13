@@ -23,11 +23,19 @@ def generate_or_dataset(X, Z, samples):
 
     return O, OZ
 
-def generate_or_dataset_with_shift(S, SZ, ref_SZ, x_shift, y_shift, n_samples):
+def generate_sample_indices_for_or_dataset(S, n_samples):
+    S = gp.as_numpy_array(S)
+    return np.random.randint(0, S.shape[0], size=(n_samples, 2))
+
+def generate_or_dataset_with_shift(S, SZ, ref_SZ, x_shift, y_shift, n_samples,
+                                   sample_indices=None):
     S = gp.as_numpy_array(S)
     SZ = gp.as_numpy_array(SZ)
 
-    si = np.random.randint(0, S.shape[0], size=(n_samples, 2))
+    if sample_indices is not None:
+        si = samples_indicies
+    else:
+        si = generate_sample_indices_for_or_dataset(S, n_samples)
 
     X = S[si[:,0]]
     XZ = SZ[si[:,0]]
