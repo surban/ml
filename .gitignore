@@ -10,8 +10,8 @@ apps/mnist-???????????????-rbm-???-cd??
 notebooks/*-rbm-*-iws*
 notebooks/Untitled*.ipynb
 apps/old/
-apps/shiftnet/
-apps/shiftnet_mb/
+apps/shiftnet/*/*.pdf
+apps/shiftnet_mb/*/*.pdf
 
 
 
