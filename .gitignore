@@ -2,7 +2,7 @@ ml.sln
 *.pyc
 *.suo
 apps/*/*.png
-apps/*/*.npz
+#apps/*/*.npz
 apps/mnist-rbm-pcd
 apps/mnist-rbm-pcd-myupdaterule
 apps/mnist-rbm-???-cd??
