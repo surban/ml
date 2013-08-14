@@ -1,10 +1,14 @@
 from __future__ import division
 
+# workaround for Theano bug
+import os
+# turn off for training reference_deep_svm
+#os.environ['BREZE_PARAMETERSET_DEVICE'] = 'cpu'
+
 from rbm.rbm import train_rbm, RestrictedBoltzmannMachine
 from rbm.config import TrainingConfiguration
 from rbm.ais import AnnealedImportanceSampler
 from common.util import flatten_samples, unflatten_samples_like
-import apps.mnist_reference_dropout as ref
 import apps.generate_letters
 import rbm.util
 import rbm.sampling
@@ -19,6 +23,7 @@ import os
 import pickle, cPickle
 import gzip
 import gc
+import matplotlib.pyplot as plt
 
 #gp.expensive_check_probability = 0
 #gp.track_memory_usage = True
@@ -38,35 +43,67 @@ def tuple_to_array(t):
     return out    
 
 
+def plot_or_direct(OX, OY, n_samples):
+    OX = OX[0:n_samples, :, :]
+    OY = OY[0:n_samples, :, :]
+    for n in range(OX.shape[0]):
+        ax = plt.subplot(OX.shape[0], 2, 1+2*n)
+        common.util.ipy_plot_samples(OX[n,:,:], twod=True)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        ax = plt.subplot(OX.shape[0], 2, 1+2*n+1)
+        common.util.ipy_plot_samples(OY[n,:,:], twod=True)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
 
 # configuration
 cfg, plot_dir = common.util.standard_cfg()
+os.chdir(plot_dir)
 tcfg = cfg.rbm_cfg
 
 print "Loading RBM..."
-epoch = tcfg.epochs - 1
-myrbm = RestrictedBoltzmannMachine(0, tcfg.n_vis, tcfg.n_hid, 0)
-rbm.util.load_parameters(myrbm, epoch)
+try:
+    epoch = tcfg.epochs - 1
+    myrbm = RestrictedBoltzmannMachine(tcfg.batch_size, tcfg.n_vis, tcfg.n_hid, 
+                                       tcfg.n_gibbs_steps)
+    rbm.util.load_parameters(myrbm, epoch)
+except IOError, e:
+    print "Failed: ", e
+    print "Training RBM..."
+    common.show_progress = True
+    myrbm = train_rbm(tcfg, print_cost=False)
+    common.show_progress = False
 
 print "Loading classifier..."
 if cfg.classifier == 'mlp':
-    ref_mod = ref.build_model("../mnist_dropout_model.npz")
-    ref_predict = ref.build_predictor(ref_mod)
-
-    print "Calculating classifier performance on single digits..."
-    ref_Z = common.util.map(gp.as_numpy_array(tcfg.X), map_batch, ref_predict)
-    ref_TZ = common.util.map(gp.as_numpy_array(tcfg.TX), map_batch, ref_predict)
-    ref_acc = 1 - common.util.classification_error(ref_Z, tcfg.Z)
-    ref_tacc = 1 - common.util.classification_error(ref_TZ, tcfg.TZ)
-    print "Classification error on whole training set:  %g" % (1-ref_acc)
-    print "Classification error on whole test set:      %g" % (1-ref_tacc)
+    import apps.mnist_reference_dropout as ref
+elif cfg.classifier == 'deepsvm':
+    import apps.mnist_reference_deep_svm as ref
 else:
     assert False, "unknown classifier"
 
+try:
+    ref_predict = ref.build_predictor()
+except IOError, e:
+    print "Loading classifier failed: ", e
+    print "Training classifier..."
+    ref.train_model()
+    ref_predict = ref.build_predictor()
 
-# reshape single digits
-S = tcfg.X.reshape((tcfg.X.shape[0], img_width, img_height))
-SZ = tcfg.Z
+print "Calculating classifier performance on single digits..."
+ref_Z = common.util.map(gp.as_numpy_array(tcfg.X), map_batch, ref_predict)
+ref_TZ = common.util.map(gp.as_numpy_array(tcfg.TX), map_batch, ref_predict)
+ref_acc = 1 - common.util.classification_error(ref_Z, tcfg.Z)
+ref_tacc = 1 - common.util.classification_error(ref_TZ, tcfg.TZ)
+print "Classification error on whole training set:  %g" % (1-ref_acc)
+print "Classification error on whole test set:      %g" % (1-ref_tacc)
+
+
+# single digits (use test set)
+S = tcfg.TX.reshape((tcfg.TX.shape[0], img_width, img_height))
+SZ = tcfg.TZ
 
 # sample indices for ORed data generation
 sample_indices = rbm.orrbm.generate_sample_indices_for_or_dataset(S, cfg.n_samples)
@@ -75,11 +112,12 @@ sample_indices = rbm.orrbm.generate_sample_indices_for_or_dataset(S, cfg.n_sampl
 orrbm_accs = {}
 direct_accs = {}
 for x_overlap, y_overlap in cfg.overlaps:
+    print
     print "Overlap: x=%02d y=%02d" % (x_overlap, y_overlap)
 
     # calculate shift
-    x_shift = 28 - x_overlap
-    y_shift = 28 - y_overlap
+    x_shift = img_width - x_overlap
+    y_shift = img_height - y_overlap
     
     # generate dataset
     X, XZ, ref_XZ, Y, YZ, ref_YZ, O = \
@@ -88,7 +126,7 @@ for x_overlap, y_overlap in cfg.overlaps:
                                                  sample_indices)   
        
     # calculate accuracy of applying classifier directly onto ORed digits
-    OX = O[:,0:height,0:width]
+    OX = O[:,0:img_height,0:img_width]
     OY = O[:,y_shift:,x_shift:] 
     dacc = rbm.accuracy.calc_separation_accuracy("(%02d, %02d) direct" % (x_overlap, y_overlap), 
                                                  ref_predict, None,
@@ -96,14 +134,29 @@ for x_overlap, y_overlap in cfg.overlaps:
                                                  Y, YZ, ref_YZ,
                                                  O,
                                                  OX, OY)       
+    dacc.clear_stored_samples()
     direct_accs[(x_overlap, y_overlap)] = dacc
-    print "Direct classification accuracy:           %.3f" % dacc.accuracy
+    print "Classification accuracy without separation:  %.4f (corrected: %.4f)" % (dacc.raw_accuracy, dacc.accuracy)
+
+    # plot data for direct classification
+    plt.figure(figsize=(3, 30))
+    plot_or_direct(OX, OY, 10)
+    plt.savefig("ordirect_%02d_%02d.png" % (x_overlap, y_overlap), dpi=300)
+
+    plt.figure()
+    common.util.ipy_plot_samples(O[0:10,:,:], twod=True)
+    plt.savefig("or_%02d_%02d.png" % (x_overlap, y_overlap), dpi=300)
+
+    #continue
 
     # separate digits using ORRBM
     sep_XY = common.util.map(O, map_batch, 
                              lambda o: tuple_to_array(rbm.orrbm.or_infer_with_shift(myrbm, o, x_shift, y_shift, 
-                                                                                    iters, k=k, beta=beta)),
-                             force_output_type='numpy')
+                                                                                    iters=cfg.iters, 
+                                                                                    k=cfg.k, 
+                                                                                    beta=cfg.beta)),
+                             force_output_type='numpy',
+                             caption="Separating digits with ORRBM")
     sep_X = sep_XY[:,:,:,0]
     sep_Y = sep_XY[:,:,:,1] 
     
@@ -114,8 +167,9 @@ for x_overlap, y_overlap in cfg.overlaps:
                                                  Y, YZ, ref_YZ,
                                                  O,
                                                  sep_X, sep_Y)       
+    oacc.clear_stored_samples()
     orrbm_accs[(x_overlap, y_overlap)] = oacc
-    print "Classification accuracy after separation: %.3f" % oacc.accuracy
+    print "Classification accuracy after separation:    %.4f (corrected: %.4f)" % (oacc.raw_accuracy, oacc.accuracy)
     
     # cleanup to save memory
     del sep_X, sep_Y, sep_XY, X, XZ, ref_XZ, Y, YZ, ref_YZ, O, OX, OY

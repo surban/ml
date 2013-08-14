@@ -23,7 +23,7 @@ rbm_cfg = TrainingConfiguration(dataset='mnistv',
                                 seed=1)
 
 # Classifier
-classifier='mlp'
+classifier='deepsvm'
 
 # ORRBM
 n_samples = 10000
@@ -32,7 +32,7 @@ k = 10
 beta = 2
 
 # dataset
-overlaps = [(0, 28), (5, 28), (10, 28), (15,28)]
+overlaps = [(x, 28) for x in range(28+1)]
 
 
 

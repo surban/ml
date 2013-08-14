@@ -116,6 +116,10 @@ def load_mnist(with_verification_set):
                    'rb') as f:
         (X, Z), (VX, VZ), (TX, TZ) = cPickle.load(f)
 
+    #X = np.asarray(X, dtype='float32')
+    #VX = np.asarray(VX, dtype='float32')
+    #TX = np.asarray(TX, dtype='float32')
+
     if with_verification_set:
         if 'mnistv_X' not in loaded_datasets:
             loaded_datasets['mnistv_X'] = gp.as_garray(X)

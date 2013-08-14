@@ -33,7 +33,7 @@ def generate_or_dataset_with_shift(S, SZ, ref_SZ, x_shift, y_shift, n_samples,
     SZ = gp.as_numpy_array(SZ)
 
     if sample_indices is not None:
-        si = samples_indicies
+        si = sample_indices
     else:
         si = generate_sample_indices_for_or_dataset(S, n_samples)
 

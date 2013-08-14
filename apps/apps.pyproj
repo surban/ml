@@ -37,6 +37,7 @@
     <Compile Include="mnist_rbm_pl.py" />
     <Compile Include="mnist_ais.py" />
     <Compile Include="mnist_rbm_config.py" />
+    <Compile Include="mnist_reference_deep_svm.py" />
     <Compile Include="mnist_reference_dropout.py" />
     <Compile Include="mnist_svm.py" />
     <Compile Include="mnist_orrbm.py" />

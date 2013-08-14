@@ -11,7 +11,10 @@ import climin.initialize
 from brummlearn.mlp import Mlp, DropoutMlp
 from brummlearn.data import one_hot
 
-datafile = '../datasets/mnist.pkl.gz'
+from common.util import get_base_dir
+
+savepath = "../mnist_dropout_model.npz"
+datafile = get_base_dir() + "/datasets/mnist.pkl.gz"
 
 # Load data.                                                                                                   
 with gzip.open(datafile,'rb') as f:                                                                        
@@ -66,8 +69,7 @@ def build_model(filename=None):
 def save_model(m, filename):
     np.savez_compressed(filename, parameters=m.parameters.data[...])
 
-def train_model(m):
-
+def do_training(m):
     start = time.time()
     # Set up a nice printout.
     keys = '#', 'loss', 'val loss', 'seconds', 'wd'
@@ -90,7 +92,15 @@ def train_model(m):
         print '   '.join(i.ljust(max_len) for i in row)
 
 
-def build_predictor(m):
+def train_model():
+    m = build_model()
+    do_training(m)
+    save_model(m, savepath)
+
+
+def build_predictor():
+    m = build_model(savepath)
+
     f_predict = m.function(['inpt'], T.argmax(m.exprs['output_in'], axis=1))
-    return f_predict
+    return lambda x: f_predict(np.asarray(x, dtype='float32'))
 

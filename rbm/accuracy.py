@@ -48,9 +48,9 @@ def calc_separation_accuracy(label, ref_predict, myrbm,
 
     # classify generated data
     sep_XZ = common.util.map(common.util.flatten_samples(sep_X), 1000, ref_predict,
-                             caption="Classifying X results with reference predictor")
+                             caption="Classifying X results")
     sep_YZ = common.util.map(common.util.flatten_samples(sep_Y), 1000, ref_predict,
-                             caption="Classifying Y results with reference predictor")
+                             caption="Classifying Y results")
 
     # count correctly classified samples
     diff_X = sep_XZ - tmpl_XZ
@@ -139,6 +139,10 @@ class SeparationAccuracy(object):
     def accuracy(self):
         _, _, mle = self.accuracy_interval()
         return mle
+
+    @property
+    def raw_accuracy(self):
+        return self.n_success / self.n_samples
 
     def output_data_line(self):
         common.util.output_table(("label", "n_samples", "n_success",
