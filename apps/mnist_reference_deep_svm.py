@@ -24,7 +24,7 @@ from brummlearn.data import one_hot
 from climin.mathadapt import scalar
 from common.util import get_base_dir
 
-savepath = "../mnist_deep_svm_model.dat"
+savepath = "../mnist_deep_svm_model.npz"
 datafile = get_base_dir() + "/datasets/mnist.pkl.gz"
 
 # Load data.                                                                                                   
@@ -54,6 +54,14 @@ Z = np.concatenate([Z, VZ], axis=0)
 
 X, Z, TX, TZ = [brummlearn.base.cast_array_to_local_type(i) for i in (X, Z, TX, TZ)]
 
+# parameters
+c_wd = 0.001
+max_passes = 400
+batch_size = 200
+max_iter = max_passes * X.shape[0] / batch_size
+n_report = X.shape[0] / batch_size
+
+
 
 def squared_hinge(target, prediction):
     return (T.maximum(1 - target * prediction, 0) ** 2)
@@ -75,20 +83,9 @@ class TangMlp(Mlp):
         return (((corrupt(x, n), z), k) for n, ((x, z), k) in itertools.izip(self.noise_schedule, args))
 
 
-def train_model():
-    max_passes = 400
-    batch_size = 200
-    max_iter = max_passes * X.shape[0] / batch_size
-    n_report = X.shape[0] / batch_size
-
+def build_model():
     noise_schedule = (1 - float(i) / (max_iter+1) for i in xrange(max_iter)) 
     noise_schedule = itertools.chain(noise_schedule, itertools.repeat(1e-6))
-
-    stop = climin.stops.any_([
-        climin.stops.after_n_iterations(max_iter),
-        ])
-
-    pause = climin.stops.modulo_n_iterations(n_report)
 
     optimizer = 'rmsprop', {'steprate': 0.001, 'momentum': 0.9, 'decay': 0.9, 'step_adapt': 0}
     #optimizer = 'gd', {'steprate': climin.schedule.linear_annealing(0.1, 0, max_iter), 'momentum': 0.5, 'momentum_type': 'nesterov'}
@@ -97,12 +94,22 @@ def train_model():
     climin.initialize.randomize_normal(m.parameters.data, 0, 0.02)
     m.parameters['out_bias'][...] = 0
 
+    return m
+
+
+def train_model():
+    m = build_model()
+
+    stop = climin.stops.any_([
+        climin.stops.after_n_iterations(max_iter),
+        ])
+    pause = climin.stops.modulo_n_iterations(n_report)
+
     weight_decay = ((m.parameters.hidden_to_out ** 2).sum())
     #                + (m.parameters.hidden_to_hidden_0**2).sum()
     #                + (m.parameters.hidden_to_out**2).sum())
     weight_decay /= m.exprs['inpt'].shape[0]
     m.exprs['true_loss'] = m.exprs['loss']
-    c_wd = 0.001
     m.exprs['loss'] = m.exprs['loss'] + c_wd * weight_decay
 
     f_wd = m.function(['inpt'], c_wd * weight_decay)
@@ -112,7 +119,6 @@ def train_model():
     losses = []
     v_losses = []
     print 'max iter', max_iter
-
 
     start = time.time()
     # Set up a nice printout.
@@ -143,16 +149,28 @@ def train_model():
         print row
 
 
-    m.f_loss = None
-    m.f_predict = None
-    with gzip.open(savepath, 'wb') as dumpfile:
-        cPickle.dump(m, dumpfile)
+    np.savez_compressed(savepath, parameters=gp.as_numpy_array(m.parameters.data[...]))
+
+    #m.f_loss = None
+    #m.f_predict = None
+    #with gzip.open(savepath, 'wb') as dumpfile:
+    #    cPickle.dump(m, dumpfile)
 
 
 
 def build_predictor():
-    with gzip.open(savepath, 'rb') as dumpfile:
-        m = cPickle.load(dumpfile)
+    #with gzip.open(savepath, 'rb') as dumpfile:
+    #    m = cPickle.load(dumpfile)
 
-    return lambda x: np.argmax(gp.as_numpy_array(m.predict(np.asarray(x, dtype='float32'))), axis=1)
+    m = build_model()
+    data = np.load(savepath)
+    m.parameters.data[...] = gp.as_garray(data['parameters'])
+
+    def predict(x):
+        x = np.asarray(x, dtype='float32')
+        px = pca.transform(x)
+        probs = gp.as_numpy_array(m.predict(px))
+        return np.argmax(probs, axis=1)
+
+    return predict
 
