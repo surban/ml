@@ -42,9 +42,10 @@ def calc_separation_accuracy(label, ref_predict, myrbm,
     # calculate accuracy of reference classifier
     diff_X = tmpl_XZ - tmpl_ref_XZ
     diff_Y = tmpl_YZ - tmpl_ref_YZ
-    errs = np.count_nonzero(diff_X) + np.count_nonzero(diff_Y)
-    corr = 2*n_samples - errs
-    svc_acc = corr / (2*n_samples)
+    ref_errs = np.count_nonzero(diff_X) + np.count_nonzero(diff_Y)
+    ref_n_samples = diff_X.shape[0] + diff_Y.shape[1]
+    ref_corr = 2*ref_n_samples - ref_errs
+    svc_acc = ref_corr / (2*ref_n_samples)
 
     # classify generated data
     sep_XZ = common.util.map(common.util.flatten_samples(sep_X), 1000, ref_predict,

@@ -155,3 +155,45 @@ def or_infer_with_shift(rbm, vis, x_shift, y_shift,
         xf[:, y_shift:, x_shift:] = xf_by_y
 
     return xs, ys
+
+def cross_entropy(rbm, vis, points, x_shift, y_shift,
+                  iters, k, beta=1):
+
+    n_samples = vis.shape[0]
+    height = vis.shape[1] - y_shift
+    width = vis.shape[2] - x_shift
+          
+    xi = vis.copy()[:,0:height,0:width]
+    xf = 1 - xi
+
+    yi = vis.copy()[:,y_shift:,x_shift:]
+    yf = 1 - yi
+
+    H = 0
+    for n in range(points):
+        for i in range(iters):
+            xs, _ = rbm.gibbs_sample(flatten_samples(xi), 
+                                     k, vis_force=flatten_samples(xf), beta=beta)
+            xs = unflatten_samples_like(xs, xi)
+            xr, xrf = or_rest(vis[:, 0:height, 0:width], xs)
+
+            yi_by_x = xr[:, y_shift:, x_shift:]
+            yf_by_x = xrf[:, y_shift:, x_shift:]
+            yi[:, 0:height-y_shift, 0:width-x_shift] = yi_by_x
+            yf[:, 0:height-y_shift, 0:width-x_shift] = yf_by_x
+
+
+            ys, _ = rbm.gibbs_sample(flatten_samples(yi), 
+                                     k, vis_force=flatten_samples(yf), beta=beta)
+            ys = unflatten_samples_like(ys, yi)
+            yr, yrf = or_rest(vis[:, y_shift:, x_shift:], ys)
+
+            xi_by_y = yr[:, 0:height-y_shift, 0:width-x_shift]
+            xf_by_y = yf[:, 0:height-y_shift, 0:width-x_shift]
+            xi[:, y_shift:, x_shift:] = xi_by_y
+            xf[:, y_shift:, x_shift:] = xf_by_y
+
+        H += (rbm.free_energy(flatten_samples(xs), beta=beta) + 
+              rbm.free_energy(flatten_samples(ys), beta=beta))
+
+    return H
