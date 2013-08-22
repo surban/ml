@@ -43,7 +43,7 @@ def calc_separation_accuracy(label, ref_predict, myrbm,
     diff_X = tmpl_XZ - tmpl_ref_XZ
     diff_Y = tmpl_YZ - tmpl_ref_YZ
     ref_errs = np.count_nonzero(diff_X) + np.count_nonzero(diff_Y)
-    ref_n_samples = diff_X.shape[0] + diff_Y.shape[1]
+    ref_n_samples = diff_X.shape[0] + diff_Y.shape[0]
     ref_corr = 2*ref_n_samples - ref_errs
     svc_acc = ref_corr / (2*ref_n_samples)
 
