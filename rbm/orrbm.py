@@ -170,6 +170,8 @@ def or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=1):
     i_ex = i_sx + i_width
     i_ey = i_sy + i_height
 
+    #print "intersection: ", i_sx, i_sy, i_width, i_height
+    
     xi = vis.copy()[:, x_sy:x_ey, x_sx:x_ex]
     xf = 1 - xi
 
@@ -192,11 +194,14 @@ def or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=1):
                                  k, vis_force=flatten_samples(yf), beta=beta)
         ys = unflatten_samples_like(ys, yi)
 
-        yr, yrf = or_rest(vis[:, y_sy:y_ey, x_sy:x_ey], ys)
+        yr, yrf = or_rest(vis[:, y_sy:y_ey, y_sx:y_ex], ys)
         xi_by_y = yr[:, i_sy-y_sy:i_ey-y_sy, i_sx-y_sx:i_ex-y_sx]
         xf_by_y = yf[:, i_sy-y_sy:i_ey-y_sy, i_sx-y_sx:i_ex-y_sx]
         xi[:, i_sy-x_sy:i_ey-x_sy, i_sx-x_sx:i_ex-x_sx] = xi_by_y
         xf[:, i_sy-x_sy:i_ey-x_sy, i_sx-x_sx:i_ex-x_sx] = xf_by_y
+
+
+        # BUG: yf instead of yrf, but worked anyway????
 
         yield xs, ys
 
