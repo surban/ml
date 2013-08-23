@@ -24,6 +24,7 @@ import pickle, cPickle
 import gzip
 import gc
 import matplotlib.pyplot as plt
+import itertools
 
 #gp.expensive_check_probability = 0
 #gp.track_memory_usage = True
@@ -147,44 +148,85 @@ plt.savefig("or.png", dpi=300)
 
 
 # calculate cross entropies for different shifts
-H = np.zeros((2*rbm.orrbm.base_y, rbm.orrbm.width))
-for x_shift, y_shift in itertools.
+H = np.zeros((n_samples, 2*rbm.orrbm.base_y, rbm.orrbm.width))
+for x_shift, y_shift in itertools.product(cfg.test_x_shifts, cfg.test_y_shifts):
     print
     print "Calculating cross entropy for shift: x=%02d y=%02d" % (x_shift, y_shift)
-
-
     
     # separate digits using ORRBM
-    sep_XY = common.util.map(O, map_batch, 
+    Hshift = common.util.map(O, map_batch, 
+                             lambda o: rbm.orrbm.cross_entropy(myrbm, o, cfg.points, 
+                                                               x_shift, y_shift, 
+                                                               iters=cfg.iters, 
+                                                               k=cfg.k, 
+                                                               beta=cfg.beta),
+                             force_output_type='numpy',
+                             caption="Calculating ORRBM cross-entropy")
+    H[:, y_shift, x_shift] = Hshift
+
+
+# find highest cross-entropy per sample
+best_shifts_x = np.zeros((n_samples,))
+best_shifts_y = np.zeros((n_samples,))
+for s in range(n_samples):
+    best_shift_x, best_shift_y = np.unravel_index(np.argmax(H[s, :, :]), H.shape[1:3])
+    best_shifts_x[s] = best_shift_x
+    best_shifts_y[s] = best_shift_y
+
+
+# do separation using shift with highest cross-entropy
+Ocpu = gp.as_numpy_array(O)
+for x_shift, y_shift in itertools.product(cfg.test_x_shifts, cfg.test_y_shifts):
+    samples = np.nonzero(best_shifts_x == x_shift & best_shifts_y == y_shift)
+
+    if len(samples) == 0:
+        continue
+
+    print
+    print "Separting %4d samples with shift: x=%02d y=%02d" % \
+        (len(samples), x_shift, y_shift)
+
+    Oshift = gp.as_garray(O[samples,:,:])
+    sep_XY = common.util.map(Oshift, map_batch, 
                              lambda o: tuple_to_array(rbm.orrbm.or_infer_with_shift(myrbm, o, x_shift, y_shift, 
                                                                                     iters=cfg.iters, 
                                                                                     k=cfg.k, 
                                                                                     beta=cfg.beta)),
                              force_output_type='numpy',
                              caption="Separating digits with ORRBM")
-    sep_X = sep_XY[:,:,:,0]
-    sep_Y = sep_XY[:,:,:,1] 
+    sep_X[samples,:,:] = gp.as_numpy_array(sep_XY[:,:,:,0])
+    sep_Y[samples,:,:] = gp.as_numpy_array(sep_XY[:,:,:,1])
     
-    # calculate classification accuracy of digits separated by ORRBM
-    oacc = rbm.accuracy.calc_separation_accuracy("(%02d, %02d)" % (x_overlap, y_overlap), 
-                                                 ref_predict, myrbm,
-                                                 X, XZ, ref_XZ,
-                                                 Y, YZ, ref_YZ,
-                                                 O,
-                                                 sep_X, sep_Y)       
-    oacc.clear_stored_samples()
-    orrbm_accs[(x_overlap, y_overlap)] = oacc
-    print "Classification accuracy after separation:    %.4f (corrected: %.4f)" % (oacc.raw_accuracy, oacc.accuracy)
     
-    # cleanup to save memory
-    del sep_X, sep_Y, sep_XY, X, XZ, ref_XZ, Y, YZ, ref_YZ, O, OX, OY
-    gc.collect()
-    gp.free_reuse_cache()
+# calculate classification accuracy of digits separated by ORRBM
+orrbm_acc = rbm.accuracy.calc_separation_accuracy("maxH", 
+                                                  ref_predict, myrbm,
+                                                  X, XZ, ref_XZ,
+                                                  Y, YZ, ref_YZ,
+                                                  O,
+                                                  sep_X, sep_Y)       
+orrbm_acc.clear_stored_samples()
+print "Classification accuracy after separation:    %.4f (corrected: %.4f)" \
+    % (orrbm_acc.raw_accuracy, orrbm_acc.accuracy)
+    
+
       
 # save results
-with open("accuracy.dat", mode='wb') as dump_file:
-    cPickle.dump({'orrbm_accs': orrbm_accs,
-                  'direct_accs': direct_accs}, 
+with open("shiftfind.dat", mode='wb') as dump_file:
+    cPickle.dump({'orrbm_acc': orrbm_acc,
+                  'direct_acc': direct_acc,
+                  'H': H,
+                  'x_shifts': x_shifts,
+                  'y_shifts': y_shifts,
+                  'best_shifts_x': best_shifts_x,
+                  'best_shifts_y': best_shifts_y,
+                  'X': X,
+                  'XZ': XZ,
+                  'Y': Y,
+                  'YZ': YZ,
+                  'O': O,
+                  'sep_X': sep_X,
+                  'sep_Y': sep_Y}, 
                  dump_file, cPickle.HIGHEST_PROTOCOL)   
     
  
