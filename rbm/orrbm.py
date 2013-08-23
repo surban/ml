@@ -89,12 +89,15 @@ def or_rest(z, x):
     ym[(z == 1) & (x == 1)] = 0
     y[(z == 1) & (x == 0)] = 1
     
+    # "no on force":
     # If pixels that are needed to explain the picture are forced on
     # this results in pixels that cannot be turned off by the rbm.
     ym[(z == 1) & (x == 0)] = 0
 
-    # turn off whole force:
+    # "no force":
     #ym = ym * 0
+
+    # best is to have "no force" off and "no on force" on
     
     return gp.as_garray(y), gp.as_garray(ym)   
 
@@ -171,6 +174,7 @@ def or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=1):
     i_ey = i_sy + i_height
 
     #print "intersection: ", i_sx, i_sy, i_width, i_height
+    #print "fixed"
     
     xi = vis.copy()[:, x_sy:x_ey, x_sx:x_ex]
     xf = 1 - xi
@@ -196,7 +200,7 @@ def or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=1):
 
         yr, yrf = or_rest(vis[:, y_sy:y_ey, y_sx:y_ex], ys)
         xi_by_y = yr[:, i_sy-y_sy:i_ey-y_sy, i_sx-y_sx:i_ex-y_sx]
-        xf_by_y = yf[:, i_sy-y_sy:i_ey-y_sy, i_sx-y_sx:i_ex-y_sx]
+        xf_by_y = yrf[:, i_sy-y_sy:i_ey-y_sy, i_sx-y_sx:i_ex-y_sx] #fixed
         xi[:, i_sy-x_sy:i_ey-x_sy, i_sx-x_sx:i_ex-x_sx] = xi_by_y
         xf[:, i_sy-x_sy:i_ey-x_sy, i_sx-x_sx:i_ex-x_sx] = xf_by_y
 
