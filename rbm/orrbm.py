@@ -68,9 +68,9 @@ def or_sample_with_shift(x, y, x_shift, y_shift):
     width = x.shape[2]
     assert 0 <= x_shift <= width and 0 <= y_shift <= height
 
-    o = gp.zeros((n_samples, height + y_shift, width + x_shift))
+    o = gp.zeros((n_samples, 2*height, 2*width))
     o[:,0:height,0:width] = x
-    o[:,y_shift:,x_shift:] = o[:,y_shift:,x_shift:] + y
+    o[:,y_shift:y_shift+height,x_shift:x_shift+width] = o[:,y_shift:y_shift+height,x_shift:x_shift+width] + y
     o = o > 0.5
 
     if one_sample:
@@ -123,36 +123,35 @@ def or_infer_with_shift(rbm, vis, x_shift, y_shift,
                         iters, k, beta=1):
     
     n_samples = vis.shape[0]
-    height = vis.shape[1] - y_shift
-    width = vis.shape[2] - x_shift
+    height = 28
+    width = 28
           
     xi = vis.copy()[:,0:height,0:width]
     xf = 1 - xi
 
-    yi = vis.copy()[:,y_shift:,x_shift:]
+    yi = vis.copy()[:,y_shift:y_shift+height,x_shift:x_shift+width]
     yf = 1 - yi
 
     for i in range(iters):
         xs, _ = rbm.gibbs_sample(flatten_samples(xi), 
-                                 k, vis_force=flatten_samples(xf), beta=beta)
+                                    k, vis_force=flatten_samples(xf), beta=beta)
         xs = unflatten_samples_like(xs, xi)
         xr, xrf = or_rest(vis[:, 0:height, 0:width], xs)
 
-        yi_by_x = xr[:, y_shift:, x_shift:]
-        yf_by_x = xrf[:, y_shift:, x_shift:]
+        yi_by_x = xr[:, y_shift:y_shift+height, x_shift:x_shift+width]
+        yf_by_x = xrf[:, y_shift:y_shift+height, x_shift:x_shift+width]
         yi[:, 0:height-y_shift, 0:width-x_shift] = yi_by_x
         yf[:, 0:height-y_shift, 0:width-x_shift] = yf_by_x
 
 
         ys, _ = rbm.gibbs_sample(flatten_samples(yi), 
-                                 k, vis_force=flatten_samples(yf), beta=beta)
+                                    k, vis_force=flatten_samples(yf), beta=beta)
         ys = unflatten_samples_like(ys, yi)
-        yr, yrf = or_rest(vis[:, y_shift:, x_shift:], ys)
+        yr, yrf = or_rest(vis[:, y_shift:y_shift+height, x_shift:x_shift+width], ys)
 
         xi_by_y = yr[:, 0:height-y_shift, 0:width-x_shift]
         xf_by_y = yf[:, 0:height-y_shift, 0:width-x_shift]
         xi[:, y_shift:, x_shift:] = xi_by_y
-        xf[:, y_shift:, x_shift:] = xf_by_y
 
     return xs, ys
 
@@ -160,13 +159,13 @@ def cross_entropy(rbm, vis, points, x_shift, y_shift,
                   iters, k, beta=1):
 
     n_samples = vis.shape[0]
-    height = vis.shape[1] - y_shift
-    width = vis.shape[2] - x_shift
+    height = 28
+    width = 28
           
     xi = vis.copy()[:,0:height,0:width]
     xf = 1 - xi
 
-    yi = vis.copy()[:,y_shift:,x_shift:]
+    yi = vis.copy()[:,y_shift:y_shift+height,x_shift:x_shift+width]
     yf = 1 - yi
 
     H = 0
@@ -177,8 +176,8 @@ def cross_entropy(rbm, vis, points, x_shift, y_shift,
             xs = unflatten_samples_like(xs, xi)
             xr, xrf = or_rest(vis[:, 0:height, 0:width], xs)
 
-            yi_by_x = xr[:, y_shift:, x_shift:]
-            yf_by_x = xrf[:, y_shift:, x_shift:]
+            yi_by_x = xr[:, y_shift:y_shift+height, x_shift:x_shift+width]
+            yf_by_x = xrf[:, y_shift:y_shift+height, x_shift:x_shift+width]
             yi[:, 0:height-y_shift, 0:width-x_shift] = yi_by_x
             yf[:, 0:height-y_shift, 0:width-x_shift] = yf_by_x
 
@@ -186,7 +185,7 @@ def cross_entropy(rbm, vis, points, x_shift, y_shift,
             ys, _ = rbm.gibbs_sample(flatten_samples(yi), 
                                      k, vis_force=flatten_samples(yf), beta=beta)
             ys = unflatten_samples_like(ys, yi)
-            yr, yrf = or_rest(vis[:, y_shift:, x_shift:], ys)
+            yr, yrf = or_rest(vis[:, y_shift:y_shift+height, x_shift:x_shift+width], ys)
 
             xi_by_y = yr[:, 0:height-y_shift, 0:width-x_shift]
             xf_by_y = yf[:, 0:height-y_shift, 0:width-x_shift]
