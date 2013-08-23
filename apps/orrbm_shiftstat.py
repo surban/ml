@@ -3,7 +3,7 @@ from __future__ import division
 # workaround for Theano bug
 import os
 # turn off for training reference_deep_svm
-#os.environ['BREZE_PARAMETERSET_DEVICE'] = 'cpu'
+os.environ['BREZE_PARAMETERSET_DEVICE'] = 'cpu'
 
 from rbm.rbm import train_rbm, RestrictedBoltzmannMachine
 from rbm.config import TrainingConfiguration
@@ -117,7 +117,7 @@ for x_overlap, y_overlap in cfg.overlaps:
 
     # calculate shift
     x_shift = img_width - x_overlap
-    y_shift = img_height - y_overlap
+    y_shift = rbm.orrbm.base_y - y_overlap
     
     # generate dataset
     X, XZ, ref_XZ, Y, YZ, ref_YZ, O = \
@@ -126,8 +126,8 @@ for x_overlap, y_overlap in cfg.overlaps:
                                                  sample_indices)   
        
     # calculate accuracy of applying classifier directly onto ORed digits
-    OX = O[:,0:img_height,0:img_width]
-    OY = O[:,y_shift:,x_shift:] 
+    OX = O[:,rbm.orrbm.base_y:rbm.orrbm.base_y+img_height,0:img_width]
+    OY = O[:,y_shift:y_shift+img_height,x_shift:x_shift+img_width] 
     dacc = rbm.accuracy.calc_separation_accuracy("(%02d, %02d) direct" % (x_overlap, y_overlap), 
                                                  ref_predict, None,
                                                  X, XZ, ref_XZ,

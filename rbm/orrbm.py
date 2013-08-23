@@ -62,16 +62,17 @@ def or_sample(x, y):
 
 def or_sample_with_shift(x, y, x_shift, y_shift):    
     n_samples = x.shape[0]
-    assert 0 <= x_shift <= width and 0 <= y_shift <= height+2*base_y
 
     o = gp.zeros((n_samples, height+2*base_y, 2*width))
     o[:, base_y:base_y+height, 0:width] = x
 
     if isinstance(x_shift, int) and isinstance(y_shift, int):
+        assert 0 <= x_shift <= width and 0 <= y_shift <= 2*base_y
         o[:, y_shift:y_shift+height, x_shift:x_shift+width] += y
     else:
         assert len(x_shift) == n_samples and len(y_shift) == n_samples
         for s in range(n_samples):
+            assert 0 <= x_shift[s] <= width and 0 <= y_shift[s] <= 2*base_y
             o[s, y_shift[s]:y_shift[s]+height, x_shift[s]:x_shift[s]+width] += y[s]
     o = o > 0.5
 
@@ -132,7 +133,7 @@ def rect_intersection(a_x, a_y, a_width, a_height,
     i_ys = a_ys & b_ys
     
     if len(i_xs) == 0 or len(i_ys) == 0:
-        return None
+        return 0, 0, 0, 0
 
     i_x = min(i_xs)
     i_y = min(i_ys)
@@ -143,8 +144,9 @@ def rect_intersection(a_x, a_y, a_width, a_height,
 
 
 def or_infer_with_shift(rbm, vis, x_shift, y_shift, iters, k, beta=1):
+    assert vis.shape[1] == height+2*base_y and vis.shape[2] == 2*width
+    
     infer = or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=beta)
-
     for i in range(iters):
         xs, ys = infer.next()
 
@@ -201,8 +203,9 @@ def or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=1):
 
 def cross_entropy(rbm, vis, points, x_shift, y_shift,
                   iters, k, beta=1):
-    infer = or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=beta)
+    assert vis.shape[1] == height+2*base_y and vis.shape[2] == 2*width
 
+    infer = or_infer_with_shift_iter(rbm, vis, x_shift, y_shift, k, beta=beta)
     H = gp.zeros((vis.shape[0],))
     for n in range(points):
         for i in range(iters):

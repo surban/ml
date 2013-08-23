@@ -28,16 +28,25 @@ classifier='mlp'
 
 # ORRBM
 n_samples = 10000
+
+# calculate cross-entropy
+H_points = 2
+H_iters = 10
+H_k = 10
+H_beta = 2
+
+# separating
 iters = 20
 k = 10
 beta = 2
 
 # dataset
-shifts = [(x, rbm.orrbm.base_y) for x in range(rbm.orrbm.width)]
+xrng = range(8, rbm.orrbm.width)
+shifts = [(x, rbm.orrbm.base_y) for x in xrng]
 
 # cross entropy calculation
-test_x_shifts = range(rbm.orrbm.width)
-test_y_shifts = [0]
+test_x_shifts = xrng
+test_y_shifts = [rbm.orrbm.base_y]
 
 
 

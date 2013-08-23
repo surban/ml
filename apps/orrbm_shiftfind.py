@@ -19,7 +19,7 @@ import common.util
 import gnumpy as gp
 import numpy as np
 import pylab
-import os
+import os, sys
 import pickle, cPickle
 import gzip
 import gc
@@ -33,6 +33,10 @@ import itertools
 img_width = 28
 img_height = 28
 map_batch = 1000
+
+load_H = False
+if len(sys.argv) > 2 and sys.argv[2] == 'loadh':
+    load_H = True
 
 
 def tuple_to_array(t):
@@ -115,6 +119,7 @@ x_shifts = [cfg.shifts[s][0] for s in shift_indices]
 y_shifts = [cfg.shifts[s][1] for s in shift_indices]
 
 # generate dataset
+print "Generating dataset..."
 X, XZ, ref_XZ, Y, YZ, ref_YZ, O = \
     rbm.orrbm.generate_or_dataset_with_shift(S, SZ, ref_Z,
                                              x_shifts, y_shifts, cfg.n_samples,
@@ -122,8 +127,8 @@ X, XZ, ref_XZ, Y, YZ, ref_YZ, O = \
 
 # calculate accuracy of applying classifier directly onto ORed digits
 # with the assumption that we know the shift (which is a big help and unrealistic)
-OX = gp.zeros((n_samples, img_height, img_width))
-OY = gp.zeros_like(OX)
+OX = gp.zeros((cfg.n_samples, img_height, img_width))
+OY = gp.zeros((cfg.n_samples, img_height, img_width))
 for s in range(cfg.n_samples):
     OX[s,:,:] = O[s,rbm.orrbm.base_y:rbm.orrbm.base_y+img_height, 0:img_width]
     OY[s,:,:] = O[s,y_shifts[s]:y_shifts[s]+img_height, x_shifts[s]:x_shifts[s]+img_width] 
@@ -146,47 +151,65 @@ plt.savefig("or.png", dpi=300)
 
 
 
-
-# calculate cross entropies for different shifts
-H = np.zeros((n_samples, 2*rbm.orrbm.base_y, rbm.orrbm.width))
-for x_shift, y_shift in itertools.product(cfg.test_x_shifts, cfg.test_y_shifts):
-    print
-    print "Calculating cross entropy for shift: x=%02d y=%02d" % (x_shift, y_shift)
+if load_H:
+    print "Loading cross-entropy..."
+    with open("shiftfind_im.dat", mode='rb') as dump_file:
+        data = cPickle.load(dump_file)
+        H = data['H'] 
+else:
+    # calculate cross entropies for different shifts
+    H = -999999 * np.ones((cfg.n_samples, 2*rbm.orrbm.base_y, rbm.orrbm.width))
+    for x_shift, y_shift in itertools.product(cfg.test_x_shifts, cfg.test_y_shifts):
+        print "Calculating cross entropy for shift: x=%02d y=%02d" % (x_shift, y_shift)
     
-    # separate digits using ORRBM
-    Hshift = common.util.map(O, map_batch, 
-                             lambda o: rbm.orrbm.cross_entropy(myrbm, o, cfg.points, 
-                                                               x_shift, y_shift, 
-                                                               iters=cfg.iters, 
-                                                               k=cfg.k, 
-                                                               beta=cfg.beta),
-                             force_output_type='numpy',
-                             caption="Calculating ORRBM cross-entropy")
-    H[:, y_shift, x_shift] = Hshift
+        # calculate cross-entropy for shift
+        Hshift = common.util.map(O, map_batch, 
+                                 lambda o: gp.as_numpy_array(rbm.orrbm.cross_entropy(myrbm, o, cfg.H_points, 
+                                                                                     x_shift, y_shift, 
+                                                                                     iters=cfg.H_iters, 
+                                                                                     k=cfg.H_k, 
+                                                                                     beta=cfg.H_beta)),
+                                 force_output_type='numpy',
+                                 caption="Calculating ORRBM cross-entropy")
+        H[:, y_shift, x_shift] = Hshift
 
+    # save intermediate results
+    with open("shiftfind_im.dat", mode='wb') as dump_file:
+        cPickle.dump({'direct_acc': direct_acc,
+                      'H': H,
+                      'x_shifts': x_shifts,
+                      'y_shifts': y_shifts,
+                      'X': X,
+                      'XZ': XZ,
+                      'Y': Y,
+                      'YZ': YZ,
+                      'O': O},
+                     dump_file, cPickle.HIGHEST_PROTOCOL)   
+    
 
 # find highest cross-entropy per sample
-best_shifts_x = np.zeros((n_samples,))
-best_shifts_y = np.zeros((n_samples,))
-for s in range(n_samples):
-    best_shift_x, best_shift_y = np.unravel_index(np.argmax(H[s, :, :]), H.shape[1:3])
+best_shifts_x = np.zeros((cfg.n_samples,))
+best_shifts_y = np.zeros((cfg.n_samples,))
+for s in range(cfg.n_samples):
+    best_shift_y, best_shift_x = np.unravel_index(np.argmax(H[s, :, :]), H.shape[1:3])
     best_shifts_x[s] = best_shift_x
     best_shifts_y[s] = best_shift_y
 
 
 # do separation using shift with highest cross-entropy
 Ocpu = gp.as_numpy_array(O)
+sep_X = np.zeros((cfg.n_samples, img_height, img_width))
+sep_Y = np.zeros((cfg.n_samples, img_height, img_width))
 for x_shift, y_shift in itertools.product(cfg.test_x_shifts, cfg.test_y_shifts):
-    samples = np.nonzero(best_shifts_x == x_shift & best_shifts_y == y_shift)
+    samples = np.nonzero((best_shifts_x == x_shift) & (best_shifts_y == y_shift))[0]
 
     if len(samples) == 0:
         continue
 
-    print
     print "Separting %4d samples with shift: x=%02d y=%02d" % \
         (len(samples), x_shift, y_shift)
 
-    Oshift = gp.as_garray(O[samples,:,:])
+    Oshift = gp.as_garray(Ocpu[samples,:,:])
     sep_XY = common.util.map(Oshift, map_batch, 
                              lambda o: tuple_to_array(rbm.orrbm.or_infer_with_shift(myrbm, o, x_shift, y_shift, 
                                                                                     iters=cfg.iters, 
@@ -196,6 +219,11 @@ for x_shift, y_shift in itertools.product(cfg.test_x_shifts, cfg.test_y_shifts):
                              caption="Separating digits with ORRBM")
     sep_X[samples,:,:] = gp.as_numpy_array(sep_XY[:,:,:,0])
     sep_Y[samples,:,:] = gp.as_numpy_array(sep_XY[:,:,:,1])
+
+    # free memory
+    del Oshift, sep_XY
+    gc.collect()
+    gp.free_reuse_cache()
     
     
 # calculate classification accuracy of digits separated by ORRBM

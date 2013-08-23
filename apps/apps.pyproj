@@ -42,7 +42,9 @@
     <Compile Include="mnist_svm.py" />
     <Compile Include="mnist_orrbm.py" />
     <Compile Include="orrbm_shiftfind.py" />
+    <Compile Include="orrbm_shiftfind\basic\cfg.py" />
     <Compile Include="orrbm_shiftstat.py" />
+    <Compile Include="orrbm_shiftstat\basic\cfg.py" />
     <Compile Include="RBFonNN-RBF.py" />
     <Compile Include="shiftnet_mb.py" />
     <Compile Include="shiftnet.py" />
@@ -51,6 +53,10 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="debug\" />
+    <Folder Include="orrbm_shiftstat\" />
+    <Folder Include="orrbm_shiftfind\" />
+    <Folder Include="orrbm_shiftfind\basic\" />
+    <Folder Include="orrbm_shiftstat\basic\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="usecpu32.cmd" />

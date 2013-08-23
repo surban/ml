@@ -3,6 +3,8 @@ from __future__ import division
 from rbm.config import TrainingConfiguration
 from math import sqrt
 
+import rbm.orrbm
+
 # RBM configuration
 n_vis=784
 n_hid=5000
@@ -32,7 +34,8 @@ k = 10
 beta = 2
 
 # dataset
-overlaps = [(0, 28), (5, 28), (10, 28), (15,28)]
+by = rbm.orrbm.base_y
+overlaps = [(0, by), (5, by), (10, by), (15, by)]
 
 
 
