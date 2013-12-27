@@ -12,8 +12,7 @@ notebooks/Untitled*.ipynb
 apps/old/
 apps/shiftnet/*/*.pdf
 apps/shiftnet_mb/*/*.pdf
-apps/orrbm_shiftstat/*/*.pdf
-apps/orrbm_shiftstat/*/*.png
+apps/orrbm_shiftstat/*/*
 
 
 

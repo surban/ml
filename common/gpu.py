@@ -11,9 +11,15 @@ if gpu_imported:
 import theano
 #import theano.misc.pycuda_init
 
-import pycuda.autoinit
-import pycuda.gpuarray as gpuarray
-import cudamat
+import_success = False
+try:
+    import pycuda.autoinit
+    import pycuda.gpuarray as gpuarray
+    import cudamat
+    import_success = True
+except ImportError, e:
+    print "common.gpu: GPU imports failed: ", e
+
 import gnumpy
 import theano
 import theano.tensor as T
@@ -26,6 +32,9 @@ import ctypes
 from common.util import floatx
 
 GPU = theano.config.device == 'gpu'
+if not import_success:
+    GPU = False
+print "common.gpu uses GPU: ", GPU
 
 
 def flatten(nested):

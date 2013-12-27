@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-# <nbformat>3.0</nbformat>
-
-# <codecell>
 
 import common.gpu
 
@@ -13,7 +10,7 @@ import breze.util
 import matplotlib.pyplot as plt
 
 import common.util
-import nn.gpushift
+import nn.shift
 from nn.shift import *
 from common.complex import *
 from common.util import floatx
@@ -51,6 +48,7 @@ fsn = FourierShiftNet(**ps.vars)
 f_output = function(inputs=[ps.flat,x,s], outputs=fsn.output(x,s))
 
 loss = T.mean((fsn.output(x,s) - t)**2)
+
 if profile:
     f_loss = function(inputs=[ps.flat,x,s,t], outputs=loss, mode=profmode, name='f_loss')
     f_dloss = function(inputs=[ps.flat,x,s,t], outputs=T.grad(loss, ps.flat), mode=profmode, name='f_dloss')
@@ -64,6 +62,7 @@ f_trn_dloss = lambda p: f_dloss(p, trn_inputs, trn_shifts, trn_targets)
 # generate data
 print "Generating data..."
 if cfg.generate_on_gpu:
+    import nn.gpushift
     trn_inputs, trn_shifts, trn_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
     val_inputs, val_shifts, val_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
     tst_inputs, tst_shifts, tst_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
