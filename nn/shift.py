@@ -59,7 +59,7 @@ class FourierShiftNet(object):
 
         return yhat_re, yhat_im
 
-    def output(self, x, s):
+    def output(self, x, s, output_y_im=False):
         # DFT layer of x: xhat
         xhat_re, xhat_im = cdot(self.x_to_xhat_re, self.x_to_xhat_im,
                                 x, T.zeros_like(x))
@@ -72,6 +72,7 @@ class FourierShiftNet(object):
         Xhat_re, Xhat_im = clog(xhat_re, xhat_im)
 
         # log layer of shat: Shat
+        #Shat_re, Shat_im = shat_re, shat_im
         Shat_re, Shat_im = clog(shat_re, shat_im)
 
         # multiplication of Xhat and Shat in log space: Yhat
@@ -89,8 +90,11 @@ class FourierShiftNet(object):
         y_re, y_im = cdot(self.yhat_to_y_re, self.yhat_to_y_im,
                           yhat_re, yhat_im)
 
-        # output is real part of y
-        return y_re
+        if not output_y_im:
+            # output is real part of y
+            return y_re
+        else:
+            return y_re, y_im
 
     @staticmethod
     def optimal_weights(x_len, s_len):
@@ -130,24 +134,25 @@ def shifted(x, s):
     return y
 
 
-def generate_data(x_len, s_len, n_samples, binary=False):
-    assert s_len <= x_len
-    inputs = np.zeros((x_len, n_samples))
-    shifts = np.zeros((s_len, n_samples))
-    targets = np.zeros((x_len, n_samples))
-
-    for s in range(n_samples):
-        if binary:
-            inputs[:,s] = np.random.randint(0, 2, (x_len,))
-        else:
-            inputs[:,s] = np.random.random((x_len,)) - 0.5
-        if np.sum(inputs[:,s]) == 0:
-            inputs[0,s] = 1
-        shft = np.random.randint(0, s_len)
-        shifts[shft,s] = 1
-        targets[:,s] = shifted(inputs[:,s], shifts[:,s])
-
-    return inputs, shifts, targets
+# use methods from gpushift instead
+# def generate_data(x_len, s_len, n_samples, binary=False):
+#     assert s_len <= x_len
+#     inputs = np.zeros((x_len, n_samples))
+#     shifts = np.zeros((s_len, n_samples))
+#     targets = np.zeros((x_len, n_samples))
+#
+#     for s in range(n_samples):
+#         if binary:
+#             inputs[:,s] = np.random.randint(0, 2, (x_len,))
+#         else:
+#             inputs[:,s] = np.random.random((x_len,)) - 0.5
+#         if np.sum(inputs[:,s]) == 0:
+#             inputs[0,s] = 1
+#         shft = np.random.randint(0, s_len)
+#         shifts[shft,s] = 1
+#         targets[:,s] = shifted(inputs[:,s], shifts[:,s])
+#
+#     return inputs, shifts, targets
 
 
 def shift_amounts(shifts):

@@ -29,7 +29,7 @@ if profile:
                                   linker=theano.gof.OpWiseCLinker())
 
 # hyperparameters
-cfg, plot_dir = common.util.standard_cfg()
+cfg, plot_dir = common.util.standard_cfg(prepend_scriptname=False)
 cfg.steprate = common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val)
 
 # parameters
@@ -61,7 +61,7 @@ f_trn_dloss = lambda p: f_dloss(p, trn_inputs, trn_shifts, trn_targets)
 
 # generate data
 print "Generating data..."
-if cfg.generate_on_gpu:
+if cfg.generate_on_gpu and common.gpu.GPU:
     import nn.gpushift
     trn_inputs, trn_shifts, trn_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
     val_inputs, val_shifts, val_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)

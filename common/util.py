@@ -15,6 +15,7 @@ import time
 import ctypes
 import imp
 import itertools
+import msvcrt
 
 import common.progress as progress
 import __main__ as main
@@ -383,7 +384,7 @@ def in_plot_directory(value=None):
 def multiglob(*patterns):
     return itertools.chain.from_iterable(glob.glob(pattern) for pattern in patterns)
 
-def standard_cfg(clean_plots=False):
+def standard_cfg(clean_plots=False, prepend_scriptname=True):
     """Reads the configuration file cfg.py from the configuration directory
     specified as the first parameter on the command line.
     Returns a tuple consisting of the configuration module and the plot 
@@ -393,7 +394,10 @@ def standard_cfg(clean_plots=False):
         sys.exit(1)
 
     scriptname, _ = os.path.splitext(os.path.basename(main.__file__))
-    cfgdir = os.path.join(scriptname, sys.argv[1])
+    if prepend_scriptname:
+        cfgdir = os.path.join(scriptname, sys.argv[1])
+    else:
+        cfgdir = sys.argv[1]
     cfgname = os.path.join(cfgdir, 'cfg.py')
     if not os.path.exists(cfgname):
         print "Configuration %s not found" % cfgname
@@ -589,12 +593,14 @@ class ParameterHistory(object):
     termination criteria."""
 
     def __init__(self, max_missed_val_improvements=200, show_progress=True,
-                 desired_loss=None, min_improvement=0.00001, max_iters=None):
+                 desired_loss=None, min_improvement=0.00001, max_iters=None,
+                 min_iters=None):
         self.max_missed_val_improvements = max_missed_val_improvements
         self.show_progress = show_progress
         self.desired_loss = desired_loss
         self.min_improvement = min_improvement
         self.max_iters = max_iters
+        self.min_iters = min_iters
 
         self.best_val_loss = float('inf')
         self.history = np.zeros((4,0))
@@ -618,20 +624,31 @@ class ParameterHistory(object):
         if (self.max_missed_val_improvements is not None and 
             iter - self.last_val_improvement > self.max_missed_val_improvements):
             self.should_terminate = True
+        if self.min_iters is not None and iter < self.min_iters:
+            self.should_terminate = False
         if self.desired_loss is not None and val_loss <= self.desired_loss:
             self.should_terminate = True
         if self.max_iters is not None and iter >= self.max_iters:
             self.should_terminate = True
 
+        # store current losses
         self.history = np.hstack((self.history, [[iter],
                                                  [trn_loss], 
                                                  [val_loss], 
                                                  [tst_loss]]))
 
+        # display progress
         if self.show_progress:
             progress.status(iter, caption=\
                 "training: %9.5f  validation: %9.5f (best: %9.5f)  test: %9.5f" % \
                  (trn_loss, val_loss, self.best_val_loss, tst_loss))
+
+        # termination by user
+        if msvcrt.kbhit() and msvcrt.getch() == "q":
+            print
+            print "Termination by user."
+            self.should_terminate = True
+
 
     def plot(self):
         self.end_time = time.time()
@@ -655,6 +672,13 @@ class ParameterHistory(object):
             (self.best_iter, self.best_val_loss, self.best_tst_loss)
         print "training took %.2f s" % (self.end_time - self.start_time)
 
+    @property
+    def performed_iterations(self):
+        return np.max(self.history[0])
+
+    @property
+    def converged(self):
+        return self.best_val_loss <= self.desired_loss + self.min_improvement
 
 
 

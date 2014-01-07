@@ -72,10 +72,10 @@ gpu_rng = gprng.XORWOWRandomNumberGenerator()
 
 
 def generate_random_data(x_len, n_samples, binary=False):
-    data = gpu_rng.gen_uniform((x_len, n_samples), np.float32) - 0.5
+    data = 4.0 * (gpu_rng.gen_uniform((x_len, n_samples), np.float32) - 0.5)
+    #data = gpu_rng.gen_uniform((x_len, n_samples), np.float32) - 0.5
     if binary:
-        onehalf = gp.zeros_like(data) + 0.5
-        data = data >= onehalf
+        data = data >= gp.zeros_like(data)
     return data
 
 
@@ -121,3 +121,7 @@ def generate_data(x_len, s_len, n_samples, binary=False):
             gpuarray_to_garray(shifts_hot), 
             gpuarray_to_garray(shifted))
 
+
+def generate_id_data(x_len, n_samples, binary=False):
+    data = generate_random_data(x_len, n_samples, binary=binary)
+    return gpuarray_to_garray(data), gpuarray_to_garray(data)
