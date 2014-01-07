@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import signal
 
 import common.util
-import nn.gpushift
+#import nn.gpushift
 import nn.shift
 import nn.id
 from common.complex import *
@@ -22,6 +22,27 @@ from apps.shiftnet.shiftnet_plot import plot_all_weights
 from math import floor, isnan  
 
 np.set_printoptions(precision=3, suppress=True)
+
+
+def generate_data(x_len, s_len, n_samples, binary=False):
+    assert s_len <= x_len
+    inputs = np.zeros((x_len, n_samples))
+    shifts = np.zeros((s_len, n_samples))
+    targets = np.zeros((x_len, n_samples))
+
+    for s in range(n_samples):
+        if binary:
+            inputs[:,s] = np.random.randint(0, 2, (x_len,))
+        else:
+            inputs[:,s] = np.random.random((x_len,)) - 0.5
+        if np.sum(inputs[:,s]) == 0:
+            inputs[0,s] = 1
+        shft = np.random.randint(0, s_len)
+        shifts[shft,s] = 1
+        targets[:,s] = nn.shift.shifted(inputs[:,s], shifts[:,s])
+
+    return np.float32(inputs), np.float32(shifts), np.float32(targets)
+
 
 # hyperparameters
 do_weight_plots = True
@@ -89,8 +110,8 @@ if do_weight_plots:
     plt.figure()
 
 print "Generating validation data..."
-val_inputs, val_shifts, val_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples)
-tst_inputs, tst_shifts, tst_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples, binary=True)
+val_inputs, val_shifts, val_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples)
+tst_inputs, tst_shifts, tst_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples, binary=True)
 if use_id_data:
     val_targets = val_inputs.copy()
     tst_targets = tst_inputs.copy()
@@ -101,7 +122,7 @@ def generate_new_data():
     global trn_inputs, trn_shifts, trn_targets
     #print "Generating new data..."
     trn_inputs, trn_shifts, trn_targets = \
-        nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_batch)
+        generate_data(cfg.x_len, cfg.s_len, cfg.n_batch)
     if use_id_data:
         trn_targets = trn_inputs.copy()
 
@@ -269,7 +290,7 @@ his.plot()
 plt.savefig(plot_dir + "/loss.pdf")
 
 # check with simple patterns
-sim_inputs, sim_shifts, sim_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, 3, binary=True)
+sim_inputs, sim_shifts, sim_targets = generate_data(cfg.x_len, cfg.s_len, 3, binary=True)
 if use_id_data:
     sim_targets = sim_inputs.copy()
 sim_results = gather(f_output(ps.data, post(sim_inputs), post(sim_shifts)))

@@ -1,26 +1,14 @@
 # -*- coding: utf-8 -*-
-import sys
 
-import common.gpu
-
-import climin
-import numpy as np
-import gnumpy as gp
-import theano
-import theano.tensor as T
 import breze.util
 import matplotlib.pyplot as plt
-import pdb
 
+import common.gpu
 import common.util
-import nn.gpushift
-import nn.shift
 from nn.shift import FourierShiftNet
 from common.complex import *
 from common.util import floatx
-from common.gpu import gather, post, function
-from math import floor, isnan  
-from scipy.linalg import block_diag
+from common.gpu import gather, post
 
 np.set_printoptions(precision=3, suppress=True)
 

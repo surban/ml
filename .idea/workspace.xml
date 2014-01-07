@@ -2,31 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="588d86d7-85e9-4ced-b5b0-ef684f87b4ec" name="Default" comment="">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/idnet/__init__.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/shiftnet/__init__.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/idnet/batchcfg.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/shiftnet/batchcfg.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/common/bclean.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/common/bexe.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/shiftnet/generate_batchset.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/idnet/generate_testset.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/shiftnet/generate_testset.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/nn/id.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/idnet/idnet.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/idnet/idnet_plot.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/shiftnet/plot_batch.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_extend.py" />
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" />
-      <change type="DELETED" beforePath="H:\dev\ml\apps\shiftnet_mb\rmsprop_reference\cfg.py" afterPath="" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/shiftnet/rmsprop/cfg.py" afterPath="$PROJECT_DIR$/apps/shiftnet/rmsprop/cfg.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/nn/gpushift.py" afterPath="$PROJECT_DIR$/nn/gpushift.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/nn/shift.py" afterPath="$PROJECT_DIR$/nn/shift.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/common/util.py" afterPath="$PROJECT_DIR$/common/util.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MOVED" beforePath="H:\dev\ml\apps\shiftnet.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet.py" />
-      <change type="MOVED" beforePath="H:\dev\ml\apps\shiftnet_gradtest.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_gradtest.py" />
-      <change type="MOVED" beforePath="H:\dev\ml\apps\shiftnet_gradtest_20.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_gradtest_20.py" />
-      <change type="MOVED" beforePath="H:\dev\ml\apps\shiftnet_mb.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
     </list>
     <ignored path="ml.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -37,6 +15,9 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="ChangesViewManager" flattened_view="true" show_ignored="false" />
+  <component name="CoverageDataManager">
+    <SUITE FILE_PATH="coverage/ml$shiftnet_rmsprop_40.coverage" NAME="shiftnet rmsprop_40 Coverage Results" MODIFIED="1389095166978" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/apps/shiftnet" />
+  </component>
   <component name="CreatePatchCommitExecutor">
     <option name="PATCH_PATH" value="" />
   </component>
@@ -49,12 +30,34 @@
   </component>
   <component name="FileEditorManager">
     <leaf>
-      <file leaf-file-name="shiftnet_mb.py" pinned="false" current="true" current-in-tab="true">
+      <file leaf-file-name="shiftnet_mb.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="141" column="32" selection-start="5221" selection-end="5221" vertical-scroll-proportion="0.21283509" vertical-offset="2135" max-vertical-offset="5355">
+            <state line="143" column="54" selection-start="5315" selection-end="5315" vertical-scroll-proportion="0.0" vertical-offset="2135" max-vertical-offset="5304">
               <folding>
                 <element signature="e#24#35#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="shiftnet_mb_cpu.py" pinned="false" current="true" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb_cpu.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state line="43" column="70" selection-start="1175" selection-end="1175" vertical-scroll-proportion="0.53526974" vertical-offset="86" max-vertical-offset="5661">
+              <folding>
+                <element signature="e#24#35#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="shiftnet_plot.py" pinned="false" current="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state line="10" column="35" selection-start="245" selection-end="245" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1088">
+              <folding>
+                <element signature="e#25#42#0" expanded="true" />
               </folding>
             </state>
           </provider>
@@ -63,7 +66,7 @@
       <file leaf-file-name="shiftnet_extend.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_extend.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="65" column="30" selection-start="1774" selection-end="1774" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="3842">
+            <state line="65" column="30" selection-start="1774" selection-end="1774" vertical-scroll-proportion="0.0" vertical-offset="1105" max-vertical-offset="4199">
               <folding />
             </state>
           </provider>
@@ -72,10 +75,8 @@
       <file leaf-file-name="idnet.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/apps/idnet/idnet.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="57" column="0" selection-start="2033" selection-end="2234" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="4216">
-              <folding>
-                <element signature="e#24#35#0" expanded="true" />
-              </folding>
+            <state line="57" column="0" selection-start="2033" selection-end="2234" vertical-scroll-proportion="0.0" vertical-offset="969" max-vertical-offset="4216">
+              <folding />
             </state>
           </provider>
         </entry>
@@ -83,21 +84,8 @@
       <file leaf-file-name="generate_testset.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/apps/idnet/generate_testset.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="14" column="51" selection-start="291" selection-end="291" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="442">
-              <folding>
-                <element signature="e#0#12#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="generate_testset.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apps/shiftnet/generate_testset.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="22" column="0" selection-start="573" selection-end="573" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="561">
-              <folding>
-                <element signature="e#0#17#0" expanded="true" />
-              </folding>
+            <state line="14" column="51" selection-start="291" selection-end="291" vertical-scroll-proportion="0.0" vertical-offset="238" max-vertical-offset="442">
+              <folding />
             </state>
           </provider>
         </entry>
@@ -105,7 +93,7 @@
       <file leaf-file-name="gpushift.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/nn/gpushift.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="115" column="4" selection-start="3486" selection-end="3486" vertical-scroll-proportion="0.0" vertical-offset="1030" max-vertical-offset="2261">
+            <state line="36" column="48" selection-start="929" selection-end="929" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="2261">
               <folding>
                 <element signature="e#0#31#0" expanded="true" />
               </folding>
@@ -116,7 +104,7 @@
       <file leaf-file-name="shift.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/nn/shift.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="104" column="45" selection-start="3754" selection-end="3754" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="2907">
+            <state line="137" column="0" selection-start="4835" selection-end="5492" vertical-scroll-proportion="0.0" vertical-offset="1676" max-vertical-offset="2907">
               <folding />
             </state>
           </provider>
@@ -125,7 +113,7 @@
       <file leaf-file-name="complex.py" pinned="false" current="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/common/complex.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="36" column="4" selection-start="952" selection-end="952" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="935">
+            <state line="36" column="4" selection-start="952" selection-end="952" vertical-scroll-proportion="0.0" vertical-offset="612" max-vertical-offset="952">
               <folding />
             </state>
           </provider>
@@ -136,17 +124,6 @@
           <provider selected="true" editor-type-id="text-editor">
             <state line="0" column="20" selection-start="20" selection-end="20" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="136">
               <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="id.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/nn/id.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="74" column="48" selection-start="2415" selection-end="2415" vertical-scroll-proportion="0.0" vertical-offset="448" max-vertical-offset="1700">
-              <folding>
-                <element signature="e#0#31#0" expanded="true" />
-              </folding>
             </state>
           </provider>
         </entry>
@@ -167,17 +144,15 @@
     </option>
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/nn/shift.py" root0="SKIP_INSPECTION" />
+    <setting file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="IdeDocumentHistory">
     <option name="changedFiles">
       <list>
-        <option value="$PROJECT_DIR$/apps/shiftnet/plot_batch.py" />
         <option value="$PROJECT_DIR$/apps/shiftnet/generate_batchset.py" />
-        <option value="C:/Local/surban/dev/climin/climin/rmsprop.py" />
+        <option value="$PROJECT_DIR$/../climin/climin/rmsprop.py" />
         <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_extend.py" />
-        <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" />
         <option value="$PROJECT_DIR$/apps/idnet/idnet_plot.py" />
         <option value="$PROJECT_DIR$/apps/idnet/batchcfg.py" />
         <option value="$PROJECT_DIR$/nn/gpushift.py" />
@@ -189,6 +164,8 @@
         <option value="$PROJECT_DIR$/apps/shiftnet/batchcfg.py" />
         <option value="$PROJECT_DIR$/apps/idnet/idnet.py" />
         <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
+        <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" />
+        <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb_cpu.py" />
       </list>
     </option>
   </component>
@@ -350,14 +327,14 @@
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth0" value="125" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth1" value="143" />
     <property name="options.splitter.main.proportions" value="0.3" />
-    <property name="FileHistory.git4idea.history.GitHistoryProvider_flatOrder1" value="1" />
-    <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth0" value="147" />
     <property name="recentsLimit" value="5" />
+    <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth0" value="147" />
+    <property name="FileHistory.git4idea.history.GitHistoryProvider_flatOrder1" value="1" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatOrder0" value="0" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../breze" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth2" value="149" />
-    <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth3" value="829" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth3" value="821" />
+    <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth3" value="829" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth2" value="142" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth1" value="136" />
     <property name="WebServerToolWindowFactoryState" value="false" />
@@ -375,24 +352,6 @@
     <property name="restartRequiresConfirmation" value="true" />
     <property name="options.searchVisible" value="true" />
   </component>
-  <component name="PublishConfig">
-    <servers>
-      <server id="5fafbc44-8196-4c07-a13b-bbc7a1c640af">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </server>
-      <server id="f065834d-3b6f-445e-88af-4aa35a5cb16d">
-        <serverdata>
-          <mappings>
-            <mapping local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </server>
-    </servers>
-  </component>
   <component name="PyConsoleOptionsProvider">
     <option name="myPythonConsoleState">
       <console-settings />
@@ -407,7 +366,27 @@
       <recent name="H:\dev\ml\apps\shiftnet" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.shiftnet rmsprop">
+  <component name="RunManager" selected="Python.shiftnet rmsprop_40">
+    <configuration default="true" type="DjangoTestsConfigurationType" factoryName="Django tests">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="ml" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" sample_coverage="true" runner="coverage.py" />
+      <option name="TARGET" value="" />
+      <option name="SETTINGS_FILE" value="" />
+      <option name="CUSTOM_SETTINGS" value="false" />
+      <option name="USE_OPTIONS" value="false" />
+      <option name="OPTIONS" value="" />
+      <method />
+    </configuration>
     <configuration default="true" type="tests" factoryName="py.test">
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -470,6 +449,9 @@
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" sample_coverage="true" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="" />
       <option name="PARAMETERS" value="" />
+      <method />
+    </configuration>
+    <configuration default="true" type="JavascriptDebugType" factoryName="JavaScript Debug" singleton="true">
       <method />
     </configuration>
     <configuration default="true" type="tests" factoryName="Unittests">
@@ -535,25 +517,25 @@
       <option name="USE_PATTERN" value="false" />
       <method />
     </configuration>
-    <configuration default="false" name="shiftnet rmsprop" type="PythonConfigurationType" factoryName="Python">
+    <configuration default="false" name="shiftnet rmsprop_40" type="PythonConfigurationType" factoryName="Python">
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
         <env name="GNUMPY_USE_GPU" value="no" />
         <env name="GNUMPY_CPU_PRECISION" value="32" />
+        <env name="PYTHONUNBUFFERED" value="1" />
         <env name="THEANO_FLAGS" value=" floatX=float32,device=cpu" />
         <env name="PYTHONUNBUFFERED3" value="1" />
       </envs>
       <option name="SDK_HOME" value="C:/Anaconda/python.exe" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/apps" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/apps/shiftnet" />
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <module name="ml" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" sample_coverage="true" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="H:\dev\ml\apps\shiftnet\shiftnet.py" />
-      <option name="PARAMETERS" value="rmsprop" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
+      <option name="PARAMETERS" value="rmsprop_40" />
       <RunnerSettings RunnerId="PyDebugRunner" />
       <RunnerSettings RunnerId="PythonRunner" />
       <ConfigurationWrapper RunnerId="PyDebugRunner" />
@@ -561,7 +543,7 @@
       <method />
     </configuration>
     <list size="1">
-      <item index="0" class="java.lang.String" itemvalue="Python.shiftnet rmsprop" />
+      <item index="0" class="java.lang.String" itemvalue="Python.shiftnet rmsprop_40" />
     </list>
   </component>
   <component name="ShelveChangesManager" show_recycled="false" />
@@ -597,18 +579,18 @@
       <window_info id="Changes" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.3279743" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
-      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.32942098" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" weight="0.24542429" sideWeight="0.670579" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" weight="0.24542429" sideWeight="0.672144" order="0" side_tool="false" content_ui="combo" />
       <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.39389068" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.28456593" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.3279743" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.32785603" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.3279743" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.32942098" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="SLIDING" type="SLIDING" visible="false" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
       <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
@@ -631,34 +613,16 @@
           <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
-      <option name="time" value="4" />
+      <option name="time" value="5" />
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://C:/Local/surban/dev/climin/climin/rmsprop.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="82" column="8" selection-start="3161" selection-end="3161" vertical-scroll-proportion="0.0" vertical-offset="2675" max-vertical-offset="3400">
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="33" column="4" selection-start="0" selection-end="1807" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="935">
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/apps/idnet/idnet_plot.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="60" column="0" selection-start="1467" selection-end="1467" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1122">
-          <folding>
-            <element signature="e#24#34#0" expanded="true" />
-          </folding>
-        </state>
+        <state line="60" column="0" selection-start="1467" selection-end="1467" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1122" />
       </provider>
     </entry>
-    <entry file="file://C:/Local/surban/dev/breze/breze/util.py">
+    <entry file="file://$PROJECT_DIR$/../breze/breze/util.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="277" column="8" selection-start="8629" selection-end="8629" vertical-scroll-proportion="0.0" vertical-offset="4180" max-vertical-offset="10183">
           <folding />
@@ -667,53 +631,32 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/apps/idnet/batchcfg.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="0" column="16" selection-start="16" selection-end="16" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1252">
-          <folding />
-        </state>
+        <state line="0" column="16" selection-start="16" selection-end="16" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1252" />
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/common/util.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="680" column="77" selection-start="20937" selection-end="20937" vertical-scroll-proportion="0.0" vertical-offset="10472" max-vertical-offset="12614">
-          <folding>
-            <element signature="e#25#34#0" expanded="true" />
-          </folding>
-        </state>
+        <state line="680" column="77" selection-start="20937" selection-end="20937" vertical-scroll-proportion="0.0" vertical-offset="10472" max-vertical-offset="12614" />
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/nn/id.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="74" column="48" selection-start="2415" selection-end="2415" vertical-scroll-proportion="0.0" vertical-offset="448" max-vertical-offset="1700">
-          <folding>
-            <element signature="e#0#31#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/nn/gpushift.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="115" column="4" selection-start="3486" selection-end="3486" vertical-scroll-proportion="0.0" vertical-offset="1030" max-vertical-offset="2261">
-          <folding>
-            <element signature="e#0#31#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/apps/shiftnet/generate_testset.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="22" column="0" selection-start="573" selection-end="573" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="561">
-          <folding>
-            <element signature="e#0#17#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/apps/idnet/generate_testset.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="14" column="51" selection-start="291" selection-end="291" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="442">
-          <folding>
-            <element signature="e#0#12#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -731,19 +674,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/nn/shift.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="104" column="45" selection-start="3754" selection-end="3754" vertical-scroll-proportion="0.0" vertical-offset="975" max-vertical-offset="2907">
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/apps/idnet/idnet.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="57" column="0" selection-start="2033" selection-end="2234" vertical-scroll-proportion="0.0" vertical-offset="542" max-vertical-offset="4216">
-          <folding>
-            <element signature="e#24#35#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -754,9 +688,43 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/nn/gpushift.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="36" column="48" selection-start="929" selection-end="929" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="2261">
+          <folding>
+            <element signature="e#0#31#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="141" column="32" selection-start="5221" selection-end="5221" vertical-scroll-proportion="0.21283509" vertical-offset="2135" max-vertical-offset="5355">
+        <state line="143" column="54" selection-start="5315" selection-end="5315" vertical-scroll-proportion="0.0" vertical-offset="2135" max-vertical-offset="5304">
+          <folding>
+            <element signature="e#24#35#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/nn/shift.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="137" column="0" selection-start="4835" selection-end="5492" vertical-scroll-proportion="0.0" vertical-offset="1676" max-vertical-offset="2907">
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="10" column="35" selection-start="245" selection-end="245" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1088">
+          <folding>
+            <element signature="e#25#42#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb_cpu.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="43" column="70" selection-start="1175" selection-end="1175" vertical-scroll-proportion="0.53526974" vertical-offset="86" max-vertical-offset="5661">
           <folding>
             <element signature="e#24#35#0" expanded="true" />
           </folding>
