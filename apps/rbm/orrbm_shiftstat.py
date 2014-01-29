@@ -1,15 +1,10 @@
 from __future__ import division
 
 # workaround for Theano bug
-import os
 # turn off for training reference_deep_svm
 os.environ['BREZE_PARAMETERSET_DEVICE'] = 'cpu'
 
 from rbm.rbm import train_rbm, RestrictedBoltzmannMachine
-from rbm.config import TrainingConfiguration
-from rbm.ais import AnnealedImportanceSampler
-from common.util import flatten_samples, unflatten_samples_like
-import apps.generate_letters
 import rbm.util
 import rbm.sampling
 import rbm.accuracy
@@ -18,10 +13,8 @@ import common
 import common.util
 import gnumpy as gp
 import numpy as np
-import pylab
 import os
-import pickle, cPickle
-import gzip
+import cPickle
 import gc
 import matplotlib.pyplot as plt
 
@@ -78,9 +71,9 @@ except IOError, e:
 
 print "Loading classifier..."
 if cfg.classifier == 'mlp':
-    import apps.mnist_reference_dropout as ref
+    import apps.rbm.mnist_reference_dropout as ref
 elif cfg.classifier == 'deepsvm':
-    import apps.mnist_reference_deep_svm as ref
+    import apps.rbm.mnist_reference_deep_svm as ref
 else:
     assert False, "unknown classifier"
 

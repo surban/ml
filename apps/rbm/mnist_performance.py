@@ -1,23 +1,15 @@
 # -*- coding: utf-8 -*-
 
-import os
-import sys
-import Image as pil
-import numpy as np
-import gnumpy as gp
-import scipy.io
 import time
 
-import common.util as util
-import common.dlutil as dlutil
-import rbm.util as rbmutil
-import mnist_rbm_config as cfg
-import mnist_rbm
+import numpy as np
 
-from rbm.rbm import RestrictedBoltzmannMachine 
+import gnumpy as gp
+from apps.rbm import mnist_rbm_config as cfg
+import rbm.util as rbmutil
+import mnist_rbm
 from rbm.ais import AnnealedImportanceSampler
-from rbm.util import sample_binomial
-from common.util import myrand as mr
+
 
 # parameters
 n_iterations = 100

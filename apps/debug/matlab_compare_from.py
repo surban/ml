@@ -1,21 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import os
-import sys
-import Image as pil
-import numpy as np
-import gnumpy as gp
-import scipy.io
 import gc
 
-import common.util as util
-import common.dlutil as dlutil
-import rbm.util as rbmutil
-import mnist_rbm_config as cfg
+import numpy as np
+import scipy.io
 
-from rbm.rbm import RestrictedBoltzmannMachine 
-from rbm.util import sample_binomial
-from common.util import myrand as mr
+import gnumpy as gp
+from apps.rbm import mnist_rbm_config as cfg
+import rbm.util as rbmutil
 
 
 from_epoch = 1

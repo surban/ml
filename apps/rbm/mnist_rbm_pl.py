@@ -1,14 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import os
-import Image as pil
-import numpy as np
 import gnumpy as gp
+from apps.rbm import mnist_rbm_config as cfg
 
 import common.util as util
-import common.dlutil as dlutil
 import rbm.util as rbmutil
-import mnist_rbm_config as cfg
 
 from rbm.rbm import RestrictedBoltzmannMachine 
 

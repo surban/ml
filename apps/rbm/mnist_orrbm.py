@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import gnumpy as gp
-import numpy as np
-import pickle
-import sys
-import apps.mnist_svm
-import rbm.orrbm
 import math
+
+import numpy as np
+
+import gnumpy as gp
+import rbm.orrbm
 
 
 def or_performance(myrbm, svc, OX, OZ, iters, gibbs_steps, beta):

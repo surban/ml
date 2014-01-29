@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
 
-import os
 import sys
-import Image as pil
+
 import numpy as np
-import gnumpy as gp
 import scipy.io
 
+import gnumpy as gp
+from apps.rbm import mnist_rbm_config as cfg
 import common.util as util
-import common.dlutil as dlutil
 import rbm.util as rbmutil
-import mnist_rbm_config as cfg
-
-from rbm.rbm import RestrictedBoltzmannMachine 
+from rbm.rbm import RestrictedBoltzmannMachine
 from rbm.util import sample_binomial
 from common.util import myrand as mr
+
 
 # parameters
 plot_samples = False

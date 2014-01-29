@@ -2,8 +2,33 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="588d86d7-85e9-4ced-b5b0-ef684f87b4ec" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" afterPath="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/apps/rbm/__init__.py" />
+      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/setpath.ps1" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\RBFonNN-RBF.py" afterPath="$PROJECT_DIR$/apps/rbm/RBFonNN-RBF.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\generate_letters.py" afterPath="$PROJECT_DIR$/apps/rbm/generate_letters.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\generate_or_dataset.py" afterPath="$PROJECT_DIR$/apps/rbm/generate_or_dataset.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_ais.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_ais.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_orrbm.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_orrbm.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_performance.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_performance.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_prob.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_prob.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_rbm_config.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_rbm_config.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_rbm_pf.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_rbm_pf.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_rbm_pl.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_rbm_pl.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_reference_deep_svm.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_reference_deep_svm.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_reference_dropout.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_reference_dropout.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_svm.dat" afterPath="$PROJECT_DIR$/apps/rbm/mnist_svm.dat" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\mnist_svm.py" afterPath="$PROJECT_DIR$/apps/rbm/mnist_svm.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\orrbm_shiftfind.py" afterPath="$PROJECT_DIR$/apps/rbm/orrbm_shiftfind.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\orrbm_shiftstat.py" afterPath="$PROJECT_DIR$/apps/rbm/orrbm_shiftstat.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\test_gpu.py" afterPath="$PROJECT_DIR$/apps/rbm/test_gpu.py" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\usecpu32.cmd" afterPath="$PROJECT_DIR$/usecpu32.cmd" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\usecpu64.cmd" afterPath="$PROJECT_DIR$/usecpu64.cmd" />
+      <change type="MOVED" beforePath="C:\Skin\dev\ml\apps\usegpu.cmd" afterPath="$PROJECT_DIR$/usegpu.cmd" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/debug/matlab_compare.py" afterPath="$PROJECT_DIR$/apps/debug/matlab_compare.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/debug/matlab_compare_from.py" afterPath="$PROJECT_DIR$/apps/debug/matlab_compare_from.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/debug/mnist_base_rbm.py" afterPath="$PROJECT_DIR$/apps/debug/mnist_base_rbm.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/debug/mnist_rbm_from.py" afterPath="$PROJECT_DIR$/apps/debug/mnist_rbm_from.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/apps/debug/mnist_sample.py" afterPath="$PROJECT_DIR$/apps/debug/mnist_sample.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
     </list>
     <ignored path="ml.iws" />
@@ -29,106 +54,7 @@
     <favorites_list name="ml" />
   </component>
   <component name="FileEditorManager">
-    <leaf>
-      <file leaf-file-name="shiftnet_mb.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="143" column="54" selection-start="5315" selection-end="5315" vertical-scroll-proportion="0.0" vertical-offset="2135" max-vertical-offset="5304">
-              <folding>
-                <element signature="e#24#35#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="shiftnet_mb_cpu.py" pinned="false" current="true" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb_cpu.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="43" column="70" selection-start="1175" selection-end="1175" vertical-scroll-proportion="0.53526974" vertical-offset="86" max-vertical-offset="5661">
-              <folding>
-                <element signature="e#24#35#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="shiftnet_plot.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="10" column="35" selection-start="245" selection-end="245" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1088">
-              <folding>
-                <element signature="e#25#42#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="shiftnet_extend.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_extend.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="65" column="30" selection-start="1774" selection-end="1774" vertical-scroll-proportion="0.0" vertical-offset="1105" max-vertical-offset="4199">
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="idnet.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apps/idnet/idnet.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="57" column="0" selection-start="2033" selection-end="2234" vertical-scroll-proportion="0.0" vertical-offset="969" max-vertical-offset="4216">
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="generate_testset.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apps/idnet/generate_testset.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="14" column="51" selection-start="291" selection-end="291" vertical-scroll-proportion="0.0" vertical-offset="238" max-vertical-offset="442">
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="gpushift.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/nn/gpushift.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="36" column="48" selection-start="929" selection-end="929" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="2261">
-              <folding>
-                <element signature="e#0#31#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="shift.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/nn/shift.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="137" column="0" selection-start="4835" selection-end="5492" vertical-scroll-proportion="0.0" vertical-offset="1676" max-vertical-offset="2907">
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="complex.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/common/complex.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="36" column="4" selection-start="952" selection-end="952" vertical-scroll-proportion="0.0" vertical-offset="612" max-vertical-offset="952">
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="batchcfg.py" pinned="false" current="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/apps/shiftnet/batchcfg.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state line="0" column="20" selection-start="20" selection-end="20" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="136">
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
-    </leaf>
+    <leaf />
   </component>
   <component name="FindManager">
     <FindUsagesManager>
@@ -144,13 +70,12 @@
     </option>
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="file://$PROJECT_DIR$/nn/shift.py" root0="SKIP_INSPECTION" />
     <setting file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/nn/shift.py" root0="SKIP_INSPECTION" />
   </component>
   <component name="IdeDocumentHistory">
     <option name="changedFiles">
       <list>
-        <option value="$PROJECT_DIR$/apps/shiftnet/generate_batchset.py" />
         <option value="$PROJECT_DIR$/../climin/climin/rmsprop.py" />
         <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_extend.py" />
         <option value="$PROJECT_DIR$/apps/idnet/idnet_plot.py" />
@@ -166,13 +91,15 @@
         <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
         <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py" />
         <option value="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb_cpu.py" />
+        <option value="$PROJECT_DIR$/apps/rbm/__init__.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="-6" />
-    <option name="width" value="1218" />
-    <option name="height" value="1410" />
+    <option name="x" value="4" />
+    <option name="y" value="4" />
+    <option name="width" value="1159" />
+    <option name="height" value="1006" />
   </component>
   <component name="ProjectInspectionProfilesVisibleTreeState">
     <entry key="Project Default">
@@ -251,34 +178,6 @@
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
             <PATH_ELEMENT>
-              <option name="myItemId" value="nn" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-          </PATH>
-          <PATH>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="ml" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="ml" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="common" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-          </PATH>
-          <PATH>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="ml" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="ml" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
               <option name="myItemId" value="apps" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
@@ -297,25 +196,7 @@
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
             <PATH_ELEMENT>
-              <option name="myItemId" value="shiftnet" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-          </PATH>
-          <PATH>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="ml" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="ml" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="apps" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="idnet" />
+              <option name="myItemId" value="rbm" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
           </PATH>
@@ -327,14 +208,14 @@
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth0" value="125" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth1" value="143" />
     <property name="options.splitter.main.proportions" value="0.3" />
-    <property name="recentsLimit" value="5" />
-    <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth0" value="147" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatOrder1" value="1" />
+    <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth0" value="147" />
+    <property name="recentsLimit" value="5" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatOrder0" value="0" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth2" value="149" />
-    <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth3" value="821" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_flatWidth3" value="829" />
+    <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth3" value="821" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth2" value="142" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeWidth1" value="136" />
     <property name="WebServerToolWindowFactoryState" value="false" />
@@ -348,7 +229,7 @@
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeOrder3" value="3" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeOrder1" value="1" />
     <property name="FileHistory.git4idea.history.GitHistoryProvider_treeOrder2" value="2" />
-    <property name="options.lastSelected" value="preferences.general" />
+    <property name="options.lastSelected" value="com.jetbrains.python.configuration.PythonSdkConfigurable" />
     <property name="restartRequiresConfirmation" value="true" />
     <property name="options.searchVisible" value="true" />
   </component>
@@ -361,32 +242,17 @@
     <option name="mySaveCallSignatures" value="true" />
   </component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Skin\dev\ml" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Skin\dev\ml" />
+      <recent name="C:\Skin\dev\ml\apps\rbm" />
       <recent name="H:\dev\ml\apps\shiftnet\" />
       <recent name="H:\dev\ml\apps\shiftnet" />
     </key>
   </component>
   <component name="RunManager" selected="Python.shiftnet rmsprop_40">
-    <configuration default="true" type="DjangoTestsConfigurationType" factoryName="Django tests">
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="ml" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" sample_coverage="true" runner="coverage.py" />
-      <option name="TARGET" value="" />
-      <option name="SETTINGS_FILE" value="" />
-      <option name="CUSTOM_SETTINGS" value="false" />
-      <option name="USE_OPTIONS" value="false" />
-      <option name="OPTIONS" value="" />
-      <method />
-    </configuration>
     <configuration default="true" type="tests" factoryName="py.test">
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -449,9 +315,6 @@
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" sample_coverage="true" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="" />
       <option name="PARAMETERS" value="" />
-      <method />
-    </configuration>
-    <configuration default="true" type="JavascriptDebugType" factoryName="JavaScript Debug" singleton="true">
       <method />
     </configuration>
     <configuration default="true" type="tests" factoryName="Unittests">
@@ -521,9 +384,9 @@
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
         <env name="GNUMPY_USE_GPU" value="no" />
         <env name="GNUMPY_CPU_PRECISION" value="32" />
-        <env name="PYTHONUNBUFFERED" value="1" />
         <env name="THEANO_FLAGS" value=" floatX=float32,device=cpu" />
         <env name="PYTHONUNBUFFERED3" value="1" />
       </envs>
@@ -573,15 +436,14 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-6" y="0" width="1218" height="1410" extended-state="0" />
-    <editor active="true" />
+    <frame x="4" y="4" width="1159" height="1006" extended-state="0" />
+    <editor active="false" />
     <layout>
       <window_info id="Changes" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.3279743" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
-      <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" weight="0.24542429" sideWeight="0.672144" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" weight="0.25809273" sideWeight="0.672144" order="0" side_tool="false" content_ui="combo" />
       <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.39389068" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.28456593" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
@@ -589,6 +451,7 @@
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.3279743" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+      <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.32942098" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="SLIDING" type="SLIDING" visible="false" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
@@ -617,40 +480,14 @@
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/apps/idnet/idnet_plot.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="60" column="0" selection-start="1467" selection-end="1467" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1122" />
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/../breze/breze/util.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="277" column="8" selection-start="8629" selection-end="8629" vertical-scroll-proportion="0.0" vertical-offset="4180" max-vertical-offset="10183">
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/apps/idnet/batchcfg.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="0" column="16" selection-start="16" selection-end="16" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1252" />
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/common/util.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state line="680" column="77" selection-start="20937" selection-end="20937" vertical-scroll-proportion="0.0" vertical-offset="10472" max-vertical-offset="12614" />
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/nn/id.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="74" column="48" selection-start="2415" selection-end="2415" vertical-scroll-proportion="0.0" vertical-offset="448" max-vertical-offset="1700">
-          <folding />
-        </state>
+        <state line="74" column="48" selection-start="2415" selection-end="2415" vertical-scroll-proportion="0.0" vertical-offset="448" max-vertical-offset="1700" />
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/apps/shiftnet/generate_testset.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="22" column="0" selection-start="573" selection-end="573" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="561">
-          <folding />
-        </state>
+        <state line="22" column="0" selection-start="573" selection-end="573" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="561" />
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/apps/idnet/generate_testset.py">
@@ -691,24 +528,20 @@
     <entry file="file://$PROJECT_DIR$/nn/gpushift.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="36" column="48" selection-start="929" selection-end="929" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="2261">
-          <folding>
-            <element signature="e#0#31#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="143" column="54" selection-start="5315" selection-end="5315" vertical-scroll-proportion="0.0" vertical-offset="2135" max-vertical-offset="5304">
-          <folding>
-            <element signature="e#24#35#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/nn/shift.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="137" column="0" selection-start="4835" selection-end="5492" vertical-scroll-proportion="0.0" vertical-offset="1676" max-vertical-offset="2907">
+        <state line="137" column="0" selection-start="4835" selection-end="5492" vertical-scroll-proportion="0.1981132" vertical-offset="2161" max-vertical-offset="3009">
           <folding />
         </state>
       </provider>
@@ -716,18 +549,44 @@
     <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_plot.py">
       <provider selected="true" editor-type-id="text-editor">
         <state line="10" column="35" selection-start="245" selection-end="245" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="1088">
-          <folding>
-            <element signature="e#25#42#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/apps/shiftnet/shiftnet_mb_cpu.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="43" column="70" selection-start="1175" selection-end="1175" vertical-scroll-proportion="0.53526974" vertical-offset="86" max-vertical-offset="5661">
+        <state line="43" column="70" selection-start="1175" selection-end="1175" vertical-scroll-proportion="0.0" vertical-offset="204" max-vertical-offset="5661">
           <folding>
             <element signature="e#24#35#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/setpath.cmd">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="0" column="0" selection-start="0" selection-end="0" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="827">
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/notebook.cmd">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="0" column="0" selection-start="0" selection-end="0" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="827">
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/setpath.ps1">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="0" column="0" selection-start="0" selection-end="0" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="827">
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/apps/rbm/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state line="0" column="0" selection-start="0" selection-end="0" vertical-scroll-proportion="0.0" vertical-offset="0" max-vertical-offset="100">
+          <folding />
         </state>
       </provider>
     </entry>

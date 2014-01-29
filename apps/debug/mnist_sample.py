@@ -1,20 +1,14 @@
 # -*- coding: utf-8 -*-
 
-import os
-import sys
 import time
-import Image as pil
-import numpy as np
-import gnumpy as gp
+
 import scipy.io
 
-import common.util as util
-import common.dlutil as dlutil
+import gnumpy as gp
+from apps.rbm import mnist_rbm_config as cfg
 import rbm.util as rbmutil
-import mnist_rbm_config as cfg
+from rbm.rbm import RestrictedBoltzmannMachine
 
-from rbm.rbm import RestrictedBoltzmannMachine 
-from rbm.ais import AnnealedImportanceSampler
 
 # numeric overflow handling
 #np.seterr(all='raise')
