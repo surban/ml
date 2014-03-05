@@ -15,12 +15,15 @@ import time
 import ctypes
 import imp
 import itertools
-import msvcrt
 
 import common.progress as progress
 import __main__ as main
 
 from operator import mul
+
+if sys.platform == 'nt':
+    import msvcrt
+
 
 try:    
     import IPython.core.display
@@ -644,7 +647,7 @@ class ParameterHistory(object):
                  (trn_loss, val_loss, self.best_val_loss, tst_loss))
 
         # termination by user
-        if msvcrt.kbhit() and msvcrt.getch() == "q":
+        if get_key() == "q":
             print
             print "Termination by user."
             self.should_terminate = True
@@ -733,4 +736,14 @@ class ValueIter(object):
 
     def __getitem__(self, key):
         return self.value_for_iter(key)
+
+
+def get_key():
+    if sys.platform == 'nt':
+        if msvcrt.kbhit():
+            return msvcrt.getch()
+        else:
+            return None
+    else:
+        return None
 

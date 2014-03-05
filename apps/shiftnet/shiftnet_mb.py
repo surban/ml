@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import time
 
 import common.gpu
 
@@ -10,6 +9,7 @@ import theano.tensor as T
 import breze.util
 import matplotlib.pyplot as plt
 import signal
+import time
 
 import common.util
 import nn.gpushift

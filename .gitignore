@@ -13,6 +13,7 @@ apps/old/
 apps/shiftnet/*/*.pdf
 apps/shiftnet_mb/*/*.pdf
 apps/orrbm_shiftstat/*/*
+.idea/workspace.xml
 
 
 
