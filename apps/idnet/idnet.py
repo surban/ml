@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
-import time
 
+import gpuinterop
+
+import common.plot
 import common.gpu
-
-import climin
-import numpy as np
-import theano
-import theano.tensor as T
-import breze.util
-import matplotlib.pyplot as plt
-
 import common.util
 import nn.gpushift
 import nn.id
@@ -17,9 +11,16 @@ from common.complex import *
 from common.util import floatx
 from common.gpu import gather, post, function
 from apps.idnet.idnet_plot import plot_all_weights
-from math import floor, isnan  
 
-np.set_printoptions(precision=3, suppress=True)
+import time
+import climin
+import numpy as np
+import theano
+import theano.tensor as T
+import breze.util
+import matplotlib.pyplot as plt
+from math import floor, isnan
+
 
 # hyperparameters
 do_weight_plots = True
@@ -197,7 +198,11 @@ for iter, sts in enumerate(opt):
             plot_all_weights(ps)
             plt.title("iter=%d" % iter)
             plt.draw()
-            plt.pause(0.05)
+
+            if common.plot.headless:
+                plt.savefig(plot_dir + "/weights_%d.pdf" % iter)
+            else:
+                plt.pause(0.05)
 
         if isnan(val_loss) or isnan(tst_loss):
             print "Encountered NaN, restoring parameters."

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import common.gpu
 import os
 import sys
 import glob
@@ -7,7 +8,6 @@ import math
 import fractions
 import numpy as np
 import gnumpy as gp
-import matplotlib.pyplot as plt
 import gc
 import theano
 import scipy.io
@@ -15,8 +15,9 @@ import time
 import ctypes
 import imp
 import itertools
-
 import common.progress as progress
+import matplotlib.pyplot as plt
+
 import __main__ as main
 
 from operator import mul
@@ -24,12 +25,15 @@ from operator import mul
 if sys.platform == 'nt':
     import msvcrt
 
-
 try:    
     import IPython.core.display
     have_notebook = True
 except ImportError:
     have_notebook = False
+
+
+np.set_printoptions(precision=3, suppress=True)
+
 
 def print_total_garray_size():
     gp.free_reuse_cache()

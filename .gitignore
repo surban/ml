@@ -1,8 +1,8 @@
-ml.sln
+*~
 *.pyc
-*.suo
 apps/*/*.png
 #apps/*/*.npz
+.idea/workspace.xml
 apps/mnist-rbm-pcd
 apps/mnist-rbm-pcd-myupdaterule
 apps/mnist-rbm-???-cd??
@@ -13,7 +13,10 @@ apps/old/
 apps/shiftnet/*/*.pdf
 apps/shiftnet_mb/*/*.pdf
 apps/orrbm_shiftstat/*/*
-.idea/workspace.xml
+apps/shiftnet/cfg_*
+apps/shiftnet/testsets
+apps/idnet/cfg_*
+
 
 
 
