@@ -1,8 +1,15 @@
 # mostly copied from Breze
 
 import gpuinterop
+
+import theano
+import theano.sandbox.cuda
+import gnumpy
 import numpy as np
 import ctypes
+import theano.misc.gnumpy_utils as gput
+import pycuda.gpuarray as gpuarray
+import cudamat
 
 from common.util import floatx
 
