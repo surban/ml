@@ -1,25 +1,20 @@
 # -*- coding: utf-8 -*-
 
-import gpuinterop
-
 import common.plot
 import common.gpu
 import common.util
-import nn.gpushift
 import nn.id
-from common.complex import *
 from common.util import floatx
 from common.gpu import gather, post, function
 from apps.idnet.idnet_plot import plot_all_weights
+from datasets.shift import generate_id_data
 
-import time
 import climin
 import numpy as np
-import theano
 import theano.tensor as T
 import breze.util
 import matplotlib.pyplot as plt
-from math import floor, isnan
+from math import isnan
 
 
 # hyperparameters
@@ -75,8 +70,8 @@ if do_weight_plots:
     plt.figure()
 
 print "Generating validation data..."
-val_inputs, val_targets = nn.gpushift.generate_id_data(cfg.x_len, cfg.n_val_samples)
-tst_inputs, tst_targets = nn.gpushift.generate_id_data(cfg.x_len, cfg.n_val_samples)
+val_inputs, val_targets = generate_id_data(cfg.x_len, cfg.n_val_samples)
+tst_inputs, tst_targets = generate_id_data(cfg.x_len, cfg.n_val_samples)
 print "Done."
                                     
 # optimizer
@@ -84,7 +79,7 @@ def generate_new_data():
     global trn_inputs, trn_targets
     #print "Generating new data..."
     trn_inputs, trn_targets = \
-        nn.gpushift.generate_id_data(cfg.x_len, cfg.n_batch)
+        generate_id_data(cfg.x_len, cfg.n_batch)
 
 def f_trn_loss(p):
     global trn_inputs, trn_targets
@@ -219,7 +214,7 @@ his.plot()
 plt.savefig(plot_dir + "/loss.pdf")
 
 # check with simple patterns
-sim_inputs, sim_targets = nn.gpushift.generate_id_data(cfg.x_len, 3, binary=True)
+sim_inputs, sim_targets = generate_id_data(cfg.x_len, 3, binary=True)
 sim_results = gather(f_output(ps.data, post(sim_inputs)))
 print "input:   "
 print sim_inputs.T

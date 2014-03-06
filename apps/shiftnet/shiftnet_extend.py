@@ -1,26 +1,20 @@
 # -*- coding: utf-8 -*-
-import sys
 
 import common.gpu
-
-import climin
-import numpy as np
-import gnumpy as gp
-import theano
-import theano.tensor as T
-import breze.util
-import matplotlib.pyplot as plt
-import pdb
-
 import common.util
-import nn.gpushift
 import nn.shift
 from nn.shift import FourierShiftNet
 from common.complex import *
 from common.util import floatx
 from common.gpu import gather, post, function
-from math import floor, isnan  
+from datasets.shift import generate_data
+
+import climin
+import gnumpy as gp
+import breze.util
+import matplotlib.pyplot as plt
 from scipy.linalg import block_diag
+from math import isnan
 
 np.set_printoptions(precision=3, suppress=True)
 
@@ -76,11 +70,11 @@ def generate_data(n_samples):
     if use_base_data:
         inputs, shifts, targets = generate_base_data(n_samples)
     else:
-        inputs, shifts, targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, n_samples)
+        inputs, shifts, targets = generate_data(cfg.x_len, cfg.s_len, n_samples)
     return inputs, shifts, targets
 
 def generate_base_data(n_samples):
-    inputs, shifts, targets = nn.gpushift.generate_data(base_x_len, base_s_len, n_samples)
+    inputs, shifts, targets = generate_data(base_x_len, base_s_len, n_samples)
     inputs = gp.dot(doubling_matrix(base_x_len).T, inputs)
     targets = gp.dot(doubling_matrix(base_x_len).T, targets)
     shifts = gp.dot(shift_doubling_matrix(base_s_len).T, shifts)
@@ -220,7 +214,7 @@ his.plot()
 plt.savefig(plot_dir + "/loss.pdf")
 
 # check with simple patterns
-sim_inputs, sim_shifts, sim_targets = nn.shift.generate_data(cfg.x_len, cfg.s_len, 3, binary=True)
+sim_inputs, sim_shifts, sim_targets = generate_data(cfg.x_len, cfg.s_len, 3, binary=True)
 sim_results = gather(f_output(ps.data, post(sim_inputs), post(sim_shifts)))
 print "input:   "
 print sim_inputs.T

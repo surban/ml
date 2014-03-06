@@ -13,8 +13,8 @@ apps/old/
 apps/shiftnet/*/*.pdf
 apps/shiftnet_mb/*/*.pdf
 apps/orrbm_shiftstat/*/*
-apps/shiftnet/cfg_*
-apps/shiftnet/testsets
+apps/shiftnet/cfgs/
+apps/shiftnet/testsets/
 apps/idnet/cfg_*
 
 

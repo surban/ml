@@ -7,14 +7,15 @@ import theano.sandbox.cuda
 import gnumpy
 import numpy as np
 import ctypes
-import theano.misc.gnumpy_utils as gput
-import pycuda.gpuarray as gpuarray
-import cudamat
-
 from common.util import floatx
 
 GPU = gpuinterop.using_gpu
 print "common.gpu uses GPU: ", GPU
+
+if GPU:
+    import theano.misc.gnumpy_utils as gput
+    import pycuda.gpuarray as gpuarray
+    import cudamat
 
 
 def flatten(nested):

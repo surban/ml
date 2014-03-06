@@ -1,12 +1,8 @@
-import common.gpu
-import pycuda.gpuarray as gpuarray
-import pycuda.curandom as curnd
 import numpy as np
 
 import nn.shift
-import nn.gpushift
-
-from common.gpu import gather, post
+import datasets.shift_gpu
+from common.gpu import gather
 
 
 def verify_shift_dataset(inputs, shifts, targets):
@@ -35,7 +31,7 @@ def verify_shift_dataset(inputs, shifts, targets):
 
 def test_generate_data():
     x_len = 20
-    inputs, shifts, targets = nn.gpushift.generate_data(x_len, x_len, 10000)
+    inputs, shifts, targets = datasets.shift_gpu.generate_data(x_len, x_len, 10000)
     inputs = gather(inputs)
     shifts = gather(shifts)
     targets = gather(targets)
@@ -50,17 +46,17 @@ def test_gpu_shift():
     n_samples = 500000
 
     print "random data:"
-    data = nn.gpushift.generate_random_data(x_len, n_samples, binary=True) 
+    data = datasets.shift_gpu.generate_random_data(x_len, n_samples, binary=True)
     print data
 
-    shifts, shifts_hot = nn.gpushift.generate_shifts(x_len, n_samples)
+    shifts, shifts_hot = datasets.shift_gpu.generate_shifts(x_len, n_samples)
     print "shifts:"
     print shifts
     print "shifts_hot:"
     print shifts_hot
 
     print "shifted:"
-    shifted = nn.gpushift.generate_shifted(data, shifts)
+    shifted = datasets.shift_gpu.generate_shifted(data, shifts)
     print shifted
 
 

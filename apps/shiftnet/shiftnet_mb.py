@@ -1,27 +1,22 @@
 # -*- coding: utf-8 -*-
+import os
 
+import common.plot
 import common.gpu
-
-import climin
-import numpy as np
-import theano
-import theano.tensor as T
-import breze.util
-import matplotlib.pyplot as plt
-import signal
-import time
-
 import common.util
-import nn.gpushift
 import nn.shift
 import nn.id
 from common.complex import *
 from common.util import floatx
 from common.gpu import gather, post, function
 from apps.shiftnet.shiftnet_plot import plot_all_weights
-from math import floor, isnan  
+from datasets.shift import generate_data
 
-np.set_printoptions(precision=3, suppress=True)
+import climin
+import breze.util
+import matplotlib.pyplot as plt
+from math import isnan
+
 
 # hyperparameters
 do_weight_plots = True
@@ -89,8 +84,8 @@ if do_weight_plots:
     plt.figure()
 
 print "Generating validation data..."
-val_inputs, val_shifts, val_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples)
-tst_inputs, tst_shifts, tst_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples, binary=True)
+val_inputs, val_shifts, val_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples)
+tst_inputs, tst_shifts, tst_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples, binary=True)
 if use_id_data:
     val_targets = val_inputs.copy()
     tst_targets = tst_inputs.copy()
@@ -101,7 +96,7 @@ def generate_new_data():
     global trn_inputs, trn_shifts, trn_targets
     #print "Generating new data..."
     trn_inputs, trn_shifts, trn_targets = \
-        nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_batch)
+        generate_data(cfg.x_len, cfg.s_len, cfg.n_batch)
     if use_id_data:
         trn_targets = trn_inputs.copy()
 
@@ -252,7 +247,10 @@ for iter, sts in enumerate(opt):
             plot_all_weights(ps)
             plt.title("iter=%d" % iter)
             plt.draw()
-            plt.pause(0.05)
+            if common.plot.headless:
+                plt.savefig(plot_dir + "/weights_%d.pdf" % iter)
+            else:
+                plt.pause(0.05)
 
         if isnan(val_loss) or isnan(tst_loss):
             print "Encountered NaN, restoring parameters."
@@ -269,7 +267,7 @@ his.plot()
 plt.savefig(plot_dir + "/loss.pdf")
 
 # check with simple patterns
-sim_inputs, sim_shifts, sim_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, 3, binary=True)
+sim_inputs, sim_shifts, sim_targets = generate_data(cfg.x_len, cfg.s_len, 3, binary=True)
 if use_id_data:
     sim_targets = sim_inputs.copy()
 sim_results = gather(f_output(ps.data, post(sim_inputs), post(sim_shifts)))
@@ -283,17 +281,23 @@ print "results: "
 print sim_results.T
 
 # test on global test set
-global_ts = np.load("testsets/%d.npz" % cfg.x_len)
-global_loss = gather(f_pure_loss(ps.data,
-                                 post(global_ts['inputs']),
-                                 post(global_ts['shifts']),
-                                 post(global_ts['targets'])))
-global_binary_loss = gather(f_binary_loss(ps.data,
-                                          post(global_ts['inputs'] > 0.5),
-                                          post(global_ts['shifts']),
-                                          post(global_ts['targets'] > 0.5))) / global_ts['inputs'].shape[1]
-print "Loss on global test set after %d iterations: %g" % (his.performed_iterations, global_loss)
-print "Binary loss on global test set:              %d" % global_binary_loss
+ts_filename = os.path.abspath(__file__) + "testsets/%d.npz" % cfg.x_len
+if os.path.exists(ts_filename):
+    global_ts = np.load(ts_filename)
+    global_loss = gather(f_pure_loss(ps.data,
+                                     post(global_ts['inputs']),
+                                     post(global_ts['shifts']),
+                                     post(global_ts['targets'])))
+    global_binary_loss = gather(f_binary_loss(ps.data,
+                                              post(global_ts['inputs'] > 0.5),
+                                              post(global_ts['shifts']),
+                                              post(global_ts['targets'] > 0.5))) / global_ts['inputs'].shape[1]
+    print "Loss on global test set after %d iterations: %g" % (his.performed_iterations, global_loss)
+    print "Binary loss on global test set:              %d" % global_binary_loss
+else:
+    print "Global testset %s does not exist" % ts_filename
+    global_loss = float("nan")
+
 print "Converged: ", his.converged
 
 # save results
