@@ -19,16 +19,19 @@ from math import isnan
 
 
 # hyperparameters
-do_weight_plots = True
 check_nans = False
 show_gradient = False
-cfg, plot_dir = common.util.standard_cfg(prepend_scriptname=False)
+cfg, plot_dir, cp_handler, checkpoint = common.util.standard_cfg(prepend_scriptname=False, with_checkpoint=True)
 cfg.steprate = common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val,
                                      transition='linear', transition_length=1000)
 if 'use_id_data' in dir(cfg):
     use_id_data = cfg.use_id_data
 else:
     use_id_data = False
+if 'do_weight_plots' in dir(cfg):
+    do_weight_plots = cfg.do_weight_plots
+else:
+    do_weight_plots = True
 
 # parameters
 ps = breze.util.ParameterSet(**nn.shift.FourierShiftNet.parameter_shapes(cfg.x_len, cfg.s_len))
@@ -83,14 +86,6 @@ if show_gradient:
 if do_weight_plots:
     plt.figure()
 
-print "Generating validation data..."
-val_inputs, val_shifts, val_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples)
-tst_inputs, tst_shifts, tst_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples, binary=True)
-if use_id_data:
-    val_targets = val_inputs.copy()
-    tst_targets = tst_inputs.copy()
-print "Done."
-                                    
 # optimizer
 def generate_new_data():
     global trn_inputs, trn_shifts, trn_targets
@@ -117,20 +112,6 @@ def f_trn_dloss(p):
             import pdb; pdb.set_trace()  
     return dloss
 
-if cfg.optimizer == 'rprop':
-    opt = climin.Rprop(ps.data, f_trn_dloss, 
-                       step_shrink=cfg.step_shrink, max_step=cfg.max_step)
-elif cfg.optimizer == 'rmsprop':
-    opt = climin.RmsProp(ps.data, f_trn_dloss, 
-                         steprate=cfg.steprate[0], 
-                         momentum=cfg.momentum)
-elif cfg.optimizer == 'gradientdescent':
-    opt = climin.GradientDescent(ps.data, f_trn_dloss, 
-                                 steprate=cfg.steprate[0],
-                                 momentum=cfg.momentum)
-else:
-    assert False, "unknown optimizer"
-
 def doubling_matrix(pos, n_double, n_total):
     k = [[1]]
     d = [[1, 1]]
@@ -144,83 +125,137 @@ def shift_doubling_matrix(n):
     nd = [d for _ in range(n)]
     return np.block_diag(*nd)
 
-
-# initialize parameters
-if 'continue_training' in dir(cfg) and cfg.continue_training:
-    print "Loading weights..."
-    ps.data[:] = post(np.load(plot_dir + "/base.npz")['ps'])
-elif 'start_with_idnet_weights' in dir(cfg):
-    weightfile = "../idnet/%s/result.npz" % cfg.start_with_idnet_weights
-    print "Loading idnet weights from %s" % weightfile
-    idps = breze.util.ParameterSet(**nn.id.FourierIdNet.parameter_shapes(cfg.x_len))
-    idps.data[:] = post(np.load(weightfile)['ps'])
-    for wname in ['x_to_xhat_re', 'x_to_xhat_im',
-                  'Xhat_to_Yhat_re', 'Xhat_to_Yhat_im',
-                  'yhat_to_y_re', 'yhat_to_y_im']:
-        ps[wname] = idps[wname]
-elif 'extend_network' in dir(cfg) and cfg.extend_network:
-    bps = breze.util.ParameterSet(**nn.shift.FourierShiftNet.parameter_shapes(cfg.prev_x_len, cfg.prev_s_len))
-    bps.data[:] = post(np.load(plot_dir + "/result_%d_%d.npz" % (cfg.prev_x_len, cfg.prev_s_len))['ps'])
-    insert_pos = cfg.prev_x_len - cfg.base_x_len
-
-    for wn in ps.views.iterkeys():
-        in_extended = 0.5 * np.dot(bps[wn], doubling_matrix(insert_pos, cfg.extend_count, cfg.prev_x_len))
-        inout_extended = np.dot(doubling_matrix(insert_pos, cfg.extend_count, cfg.prev_x_len).T, in_extended)
-        ps[wn] = inout_extended
-
-elif 'start_with_optimal_weights' in dir(cfg) and cfg.start_with_optimal_weights:
-    print "Initializing weights optimally..."
-    res = nn.shift.FourierShiftNet.optimal_weights(cfg.x_len, cfg.s_len)
-    res = [post(x) for x in res]
-    (ps['x_to_xhat_re'], ps['x_to_xhat_im'],
-     ps['s_to_shat_re'], ps['s_to_shat_im'],
-     ps['Xhat_to_Yhat_re'], ps['Xhat_to_Yhat_im'],
-     ps['Shat_to_Yhat_re'], ps['Shat_to_Yhat_im'],
-     ps['yhat_to_y_re'], ps['yhat_to_y_im']) = res
+# select optimizer
+if cfg.optimizer == 'rprop':
+    opt = climin.Rprop(ps.data, f_trn_dloss,
+                       step_shrink=cfg.step_shrink, max_step=cfg.max_step)
+elif cfg.optimizer == 'rmsprop':
+    opt = climin.RmsProp(ps.data, f_trn_dloss,
+                         steprate=cfg.steprate[0],
+                         momentum=cfg.momentum)
+elif cfg.optimizer == 'gradientdescent':
+    opt = climin.GradientDescent(ps.data, f_trn_dloss,
+                                 steprate=cfg.steprate[0],
+                                 momentum=cfg.momentum)
 else:
-    print "Initializing weights randomly..."
-    ps.data[:] = cfg.init * (np.random.random(ps.data.shape) - 0.5)
+    assert False, "unknown optimizer"
 
-if 'perturb_weights' in dir(cfg):
-    for wname, scale in cfg.perturb_weights.iteritems():
-        if scale > 0:
-            print "Perturbing %s with sigma=%.3f" % (wname, scale)
-            ps[wname] += np.random.normal(scale=scale, size=ps[wname].shape)
 
-if 'randomize_weights' in dir(cfg):
-    for wname in cfg.randomize_weights:
-        print "Randomizing %s" % wname
-        ps[wname] = cfg.init * (np.random.random(ps[wname].shape) - 0.5)
+# initialize or load state
+if checkpoint is not None:
+    ps.data[:] = post(checkpoint['ps_data'])
+    opt.state = checkpoint['opt_state']
+    iteration = checkpoint['iteration']
+    trn_inputs = post(checkpoint['trn_inputs'])
+    trn_shifts = post(checkpoint['trn_shifts'])
+    trn_targets = post(checkpoint['trn_targets'])
+    val_inputs = post(checkpoint['val_inputs'])
+    val_shifts = post(checkpoint['val_shifts'])
+    val_targets = post(checkpoint['val_targets'])
+    tst_inputs = post(checkpoint['tst_inputs'])
+    tst_shifts = post(checkpoint['tst_shifts'])
+    tst_targets = post(checkpoint['tst_targets'])
+    his = checkpoint['his']
+else:
+    # initialize parameters
+    if 'continue_training' in dir(cfg) and cfg.continue_training:
+        print "Loading weights..."
+        ps.data[:] = post(np.load(plot_dir + "/base.npz")['ps'])
+    elif 'start_with_idnet_weights' in dir(cfg):
+        weightfile = "../idnet/%s/result.npz" % cfg.start_with_idnet_weights
+        print "Loading idnet weights from %s" % weightfile
+        idps = breze.util.ParameterSet(**nn.id.FourierIdNet.parameter_shapes(cfg.x_len))
+        idps.data[:] = post(np.load(weightfile)['ps'])
+        for wname in ['x_to_xhat_re', 'x_to_xhat_im',
+                      'Xhat_to_Yhat_re', 'Xhat_to_Yhat_im',
+                      'yhat_to_y_re', 'yhat_to_y_im']:
+            ps[wname] = idps[wname]
+    elif 'extend_network' in dir(cfg) and cfg.extend_network:
+        bps = breze.util.ParameterSet(**nn.shift.FourierShiftNet.parameter_shapes(cfg.prev_x_len, cfg.prev_s_len))
+        bps.data[:] = post(np.load(plot_dir + "/result_%d_%d.npz" % (cfg.prev_x_len, cfg.prev_s_len))['ps'])
+        insert_pos = cfg.prev_x_len - cfg.base_x_len
 
-if 'zero_weights' in dir(cfg):
-    for wname in cfg.zero_weights:
-        print "Zeroing %s" % wname
-        ps[wname] = 0
+        for wn in ps.views.iterkeys():
+            in_extended = 0.5 * np.dot(bps[wn], doubling_matrix(insert_pos, cfg.extend_count, cfg.prev_x_len))
+            inout_extended = np.dot(doubling_matrix(insert_pos, cfg.extend_count, cfg.prev_x_len).T, in_extended)
+            ps[wn] = inout_extended
+    elif 'start_with_optimal_weights' in dir(cfg) and cfg.start_with_optimal_weights:
+        print "Initializing weights optimally..."
+        res = nn.shift.FourierShiftNet.optimal_weights(cfg.x_len, cfg.s_len)
+        res = [post(x) for x in res]
+        (ps['x_to_xhat_re'], ps['x_to_xhat_im'],
+         ps['s_to_shat_re'], ps['s_to_shat_im'],
+         ps['Xhat_to_Yhat_re'], ps['Xhat_to_Yhat_im'],
+         ps['Shat_to_Yhat_re'], ps['Shat_to_Yhat_im'],
+         ps['yhat_to_y_re'], ps['yhat_to_y_im']) = res
+    else:
+        print "Initializing weights randomly..."
+        ps.data[:] = cfg.init * (np.random.random(ps.data.shape) - 0.5)
+
+    # mutate parameters
+    if 'perturb_weights' in dir(cfg):
+        for wname, scale in cfg.perturb_weights.iteritems():
+            if scale > 0:
+                print "Perturbing %s with sigma=%.3f" % (wname, scale)
+                ps[wname] += np.random.normal(scale=scale, size=ps[wname].shape)
+    if 'randomize_weights' in dir(cfg):
+        for wname in cfg.randomize_weights:
+            print "Randomizing %s" % wname
+            ps[wname] = cfg.init * (np.random.random(ps[wname].shape) - 0.5)
+    if 'zero_weights' in dir(cfg):
+        for wname in cfg.zero_weights:
+            print "Zeroing %s" % wname
+            ps[wname] = 0
+
+    print "Generating validation data..."
+    val_inputs, val_shifts, val_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples)
+    tst_inputs, tst_shifts, tst_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_val_samples, binary=True)
+    if use_id_data:
+        val_targets = val_inputs.copy()
+        tst_targets = tst_inputs.copy()
+    print "Done."
+
+    # initialize iteration counter
+    iteration = 0
+
+    # initial data
+    generate_new_data()
+
+    # parameter and loss history
+    his = common.util.ParameterHistory(max_missed_val_improvements=1000,
+                                       desired_loss=0.0001,
+                                       max_iters=cfg.max_iters,
+                                       min_iters=cfg.min_iters)
+
+
 
 print "initial validation loss: ", f_loss(ps.data, val_inputs, val_shifts, val_targets)
 
-# initial data
-generate_new_data()
-
 # optimize
-his = common.util.ParameterHistory(max_missed_val_improvements=1000,
-                                   desired_loss=0.0001,
-                                   max_iters=cfg.max_iters,
-                                   min_iters=cfg.min_iters)
-for iter, sts in enumerate(opt):
+for sts in enumerate(opt):
+
+    explicit_cp = iteration % 1000 == 0
+    if cp_handler.requested or explicit_cp:
+        cp_handler.save(ps_data=gather(ps.data), opt_state=opt.state, iteration=iteration,
+                        trn_inputs=gather(trn_inputs), trn_shifts=gather(trn_shifts), trn_targets=gather(trn_targets),
+                        val_inputs=gather(val_inputs), val_shifts=gather(val_shifts), val_targets=gather(val_targets),
+                        tst_inputs=gather(tst_inputs), tst_shifts=gather(tst_shifts), tst_targets=gather(tst_targets),
+                        his=his,
+                        explicit=explicit_cp)
+
     if check_nans:
         assert np.all(np.isfinite(gather(sts['step']))), 'NaN in step'
         assert np.all(np.isfinite(gather(sts['moving_mean_squared']))), 'NaN in moving_mean_squared'
         assert np.all(np.isfinite(gather(ps.data))), 'NaN in ps.data'
 
-    if iter % cfg.new_data_iters == 0:
+    if iteration % cfg.new_data_iters == 0:
         generate_new_data()
 
     #if iter % 1000 == 0:
     #    opt.reset()
 
-    if iter % 10 == 0:
-        opt.steprate = cfg.steprate[iter]
+    if iteration % 10 == 0:
+        opt.steprate = cfg.steprate[iteration]
         #print "steprate: ", cfg.steprate[iter]
 
         trn_loss = gather(f_trn_loss(ps.data))
@@ -242,15 +277,20 @@ for iter, sts in enumerate(opt):
                 #plt.savefig(plot_dir + "/grad_%04d.pdf" % iter)
 
         # plot weights
-        if iter % 500 == 0 and do_weight_plots:
+        if iteration % 500 == 0 and do_weight_plots:
             plt.clf()
             plot_all_weights(ps)
-            plt.title("iter=%d" % iter)
+            plt.title("iter=%d" % iteration)
             plt.draw()
             if common.plot.headless:
-                plt.savefig(plot_dir + "/weights_%d.pdf" % iter)
+                plt.savefig(plot_dir + "/weights_%d.pdf" % iteration)
             else:
                 plt.pause(0.05)
+
+        # plot loss
+        if iteration % 1000 == 0:
+            his.plot(final=False)
+            plt.savefig(plot_dir + "/loss.pdf")
 
         if isnan(val_loss) or isnan(tst_loss):
             print "Encountered NaN, restoring parameters."
@@ -258,9 +298,11 @@ for iter, sts in enumerate(opt):
             ps.data[:] = his.best_pars
             continue
 
-        his.add(iter, ps.data, trn_loss, val_loss, tst_loss)
+        his.add(iteration, ps.data, trn_loss, val_loss, tst_loss)
         if his.should_terminate:
             break
+
+    iteration += 1
                       
 ps.data[:] = his.best_pars
 his.plot()
@@ -305,6 +347,7 @@ np.savez_compressed(plot_dir + "/result.npz",
                     ps=gather(ps.data), global_loss=global_loss, history=his.history,
                     performed_iterations=his.performed_iterations)
 
+cp_handler.remove()
 
 
 
