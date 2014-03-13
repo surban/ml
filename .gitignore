@@ -15,7 +15,8 @@ apps/shiftnet_mb/*/*.pdf
 apps/orrbm_shiftstat/*/*
 apps/shiftnet/cfgs/
 apps/shiftnet/testsets/
-apps/idnet/cfg_*
+apps/idnet/cfgs/
+
 
 
 
