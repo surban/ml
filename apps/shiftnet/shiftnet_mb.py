@@ -162,7 +162,7 @@ else:
         print "Loading weights..."
         ps.data[:] = post(np.load(plot_dir + "/base.npz")['ps'])
     elif 'start_with_idnet_weights' in dir(cfg):
-        weightfile = "../idnet/%s/result.npz" % cfg.start_with_idnet_weights
+        weightfile = os.path.join(plot_dir, cfg.start_with_idnet_weights, "result.npz")
         print "Loading idnet weights from %s" % weightfile
         idps = breze.util.ParameterSet(**nn.id.FourierIdNet.parameter_shapes(cfg.x_len))
         idps.data[:] = post(np.load(weightfile)['ps'])

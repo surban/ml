@@ -419,13 +419,14 @@ def standard_cfg(clean_plots=False, prepend_scriptname=True, with_checkpoint=Fal
     cfg = imp.load_source('cfg', cfgname)
 
     # load checkpoint if requested
-    cp_handler = CheckpointHandler(cfgdir)
-    if with_checkpoint and len(sys.argv) >= 3 and sys.argv[2].startswith("cont"):
-        checkpoint = cp_handler.load()
-    else:
-        print "Using no checkpoint"
-        cp_handler.remove()
-        checkpoint = None
+    checkpoint = None
+    if with_checkpoint:
+        cp_handler = CheckpointHandler(cfgdir)
+        if len(sys.argv) >= 3 and sys.argv[2].startswith("cont"):
+            checkpoint = cp_handler.load()
+        else:
+            print "Using no checkpoint"
+            cp_handler.remove()
 
     # clean plot directory
     if clean_plots and checkpoint is None:

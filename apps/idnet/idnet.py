@@ -18,12 +18,15 @@ from math import isnan
 
 
 # hyperparameters
-do_weight_plots = True
 check_nans = False
 show_gradient = False
 cfg, plot_dir = common.util.standard_cfg(prepend_scriptname=False)
 cfg.steprate = common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val,
                                      transition='linear', transition_length=1000)
+if 'do_weight_plots' in dir(cfg):
+    do_weight_plots = cfg.do_weight_plots
+else:
+    do_weight_plots = True
 
 # parameters
 ps = breze.util.ParameterSet(**nn.id.FourierIdNet.parameter_shapes(cfg.x_len))
