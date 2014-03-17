@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import common.gpu
 import os
 import sys
 import glob
@@ -7,7 +8,6 @@ import math
 import fractions
 import numpy as np
 import gnumpy as gp
-import matplotlib.pyplot as plt
 import gc
 import theano
 import scipy.io
@@ -15,18 +15,27 @@ import time
 import ctypes
 import imp
 import itertools
-import msvcrt
-
 import common.progress as progress
+import matplotlib.pyplot as plt
+import pickle
+import signal
+
 import __main__ as main
 
 from operator import mul
+
+if sys.platform == 'nt':
+    import msvcrt
 
 try:    
     import IPython.core.display
     have_notebook = True
 except ImportError:
     have_notebook = False
+
+
+np.set_printoptions(precision=3, suppress=True)
+
 
 def print_total_garray_size():
     gp.free_reuse_cache()
@@ -384,13 +393,16 @@ def in_plot_directory(value=None):
 def multiglob(*patterns):
     return itertools.chain.from_iterable(glob.glob(pattern) for pattern in patterns)
 
-def standard_cfg(clean_plots=False, prepend_scriptname=True):
+def standard_cfg(clean_plots=False, prepend_scriptname=True, with_checkpoint=False):
     """Reads the configuration file cfg.py from the configuration directory
     specified as the first parameter on the command line.
     Returns a tuple consisting of the configuration module and the plot 
     directory."""
     if len(sys.argv) < 2:
-        print "Usage: %s <config>" % sys.argv[0]
+        if with_checkpoint:
+            print "Usage: %s <config> [continue]" % sys.argv[0]
+        else:
+            print "Usage: %s <config>" % sys.argv[0]
         sys.exit(1)
 
     scriptname, _ = os.path.splitext(os.path.basename(main.__file__))
@@ -406,15 +418,28 @@ def standard_cfg(clean_plots=False, prepend_scriptname=True):
     sys.dont_write_bytecode = True
     cfg = imp.load_source('cfg', cfgname)
 
+    # load checkpoint if requested
+    checkpoint = None
+    if with_checkpoint:
+        cp_handler = CheckpointHandler(cfgdir)
+        if len(sys.argv) >= 3 and sys.argv[2].startswith("cont"):
+            checkpoint = cp_handler.load()
+        else:
+            print "Using no checkpoint"
+            cp_handler.remove()
+
     # clean plot directory
-    if clean_plots:
+    if clean_plots and checkpoint is None:
         curdir = os.path.abspath(os.curdir)
         os.chdir(cfgdir)
         for file in multiglob('*.png', '*.pdf'):
             os.remove(file)
         os.chdir(curdir)
-    
-    return cfg, cfgdir
+
+    if with_checkpoint:
+        return cfg, cfgdir, cp_handler, checkpoint
+    else:
+        return cfg, cfgdir
 
 def enter_plot_directory(dirname, clean=False):
     """Creates and chdirs into given dirname. 
@@ -607,6 +632,7 @@ class ParameterHistory(object):
         self.last_val_improvement = 0
         self.should_terminate = False
         self.start_time = time.time()
+        self.best_iter = None
 
     def add(self, iter, pars, trn_loss, val_loss, tst_loss):
         # keep track of best results so far
@@ -639,18 +665,17 @@ class ParameterHistory(object):
 
         # display progress
         if self.show_progress:
-            progress.status(iter, caption=\
-                "training: %9.5f  validation: %9.5f (best: %9.5f)  test: %9.5f" % \
-                 (trn_loss, val_loss, self.best_val_loss, tst_loss))
+            progress.status(iter, caption=
+                            "training: %9.5f  validation: %9.5f (best: %9.5f)  test: %9.5f" %
+                            (trn_loss, val_loss, self.best_val_loss, tst_loss))
 
         # termination by user
-        if msvcrt.kbhit() and msvcrt.getch() == "q":
+        if get_key() == "q":
             print
             print "Termination by user."
             self.should_terminate = True
 
-
-    def plot(self):
+    def plot(self, final=True):
         self.end_time = time.time()
 
         if 'figsize' in dir(plt):
@@ -663,14 +688,16 @@ class ParameterHistory(object):
         plt.plot(self.history[0], self.history[2], 'c')
         plt.plot(self.history[0], self.history[3], 'r')
         yl = plt.ylim()
-        plt.vlines(self.best_iter, yl[0], yl[1])
+        if self.best_iter is not None:
+            plt.vlines(self.best_iter, yl[0], yl[1])
         plt.xlabel('iteration')
         plt.ylabel('loss')
         plt.legend(['training', 'validation', 'test'])
 
-        print "best iteration: %5d  best validation test loss: %9.5f  best test loss: %9.5f" % \
-            (self.best_iter, self.best_val_loss, self.best_tst_loss)
-        print "training took %.2f s" % (self.end_time - self.start_time)
+        if final and self.best_iter is not None:
+            print "best iteration: %5d  best validation test loss: %9.5f  best test loss: %9.5f" % \
+                (self.best_iter, self.best_val_loss, self.best_tst_loss)
+            print "training took %.2f s" % (self.end_time - self.start_time)
 
     @property
     def performed_iterations(self):
@@ -710,7 +737,6 @@ class ValueIter(object):
                 return i-1
         return len(self.iters)-1
 
-
     def value_for_iter(self, current_iter):
         """Returns value[i] where i is the smallest i so that iters[0], ...,
         iters[i] are all smaller than or equal to current_iter.
@@ -729,8 +755,63 @@ class ValueIter(object):
                 return f*self.values[cn] + (1-f)*self.values[cn-1]
             else:
                 return self.values[cn]
-                
 
     def __getitem__(self, key):
         return self.value_for_iter(key)
 
+
+def get_key():
+    if sys.platform == 'nt':
+        if msvcrt.kbhit():
+            return msvcrt.getch()
+        else:
+            return None
+    else:
+        return None
+
+
+class CheckpointHandler(object):
+    def __init__(self, directory, filename="checkpoint.dat"):
+        self._path = os.path.join(directory, filename)
+        self._directory = directory
+        self._requested = False
+
+        signal.signal(signal.SIGINT, self._signal_handler)
+
+    def _signal_handler(self, signum, frame):
+        self._requested = True
+
+    @staticmethod
+    def _replace_file(src, dest):
+        if sys.platform == 'nt':
+            if os.path.exists(dest):
+                os.remove(dest)
+        os.rename(src, dest)
+
+    @property
+    def requested(self):
+        return self._requested
+
+    def save(self, **kwargs):
+        explicit = False
+        if 'explicit' in kwargs:
+            explicit = kwargs['explicit']
+
+        if self._requested:
+            print "Saving checkpoint %s" % self._path
+        if self._requested or explicit:
+            with open(self._path + ".tmp", 'wb') as f:
+                pickle.dump(kwargs, f, -1)
+            self._replace_file(self._path + ".tmp", self._path)
+        if self._requested:
+            print "Checkpoint saved. Exiting."
+            sys.exit(9)
+
+    def load(self):
+        print "Loading checkpoint %s" % self._path
+        with open(self._path, 'rb') as f:
+            return pickle.load(f)
+
+    def remove(self):
+        if os.path.exists(self._path):
+            os.remove(self._path)

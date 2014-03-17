@@ -1,33 +1,32 @@
 # -*- coding: utf-8 -*-
-import time
 
+import common.plot
 import common.gpu
-
-import climin
-import numpy as np
-import theano
-import theano.tensor as T
-import breze.util
-import matplotlib.pyplot as plt
-
 import common.util
-import nn.gpushift
 import nn.id
-from common.complex import *
 from common.util import floatx
 from common.gpu import gather, post, function
 from apps.idnet.idnet_plot import plot_all_weights
-from math import floor, isnan  
+from datasets.shift import generate_id_data
 
-np.set_printoptions(precision=3, suppress=True)
+import climin
+import numpy as np
+import theano.tensor as T
+import breze.util
+import matplotlib.pyplot as plt
+from math import isnan
+
 
 # hyperparameters
-do_weight_plots = True
 check_nans = False
 show_gradient = False
 cfg, plot_dir = common.util.standard_cfg(prepend_scriptname=False)
 cfg.steprate = common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val,
                                      transition='linear', transition_length=1000)
+if 'do_weight_plots' in dir(cfg):
+    do_weight_plots = cfg.do_weight_plots
+else:
+    do_weight_plots = True
 
 # parameters
 ps = breze.util.ParameterSet(**nn.id.FourierIdNet.parameter_shapes(cfg.x_len))
@@ -74,8 +73,8 @@ if do_weight_plots:
     plt.figure()
 
 print "Generating validation data..."
-val_inputs, val_targets = nn.gpushift.generate_id_data(cfg.x_len, cfg.n_val_samples)
-tst_inputs, tst_targets = nn.gpushift.generate_id_data(cfg.x_len, cfg.n_val_samples)
+val_inputs, val_targets = generate_id_data(cfg.x_len, cfg.n_val_samples)
+tst_inputs, tst_targets = generate_id_data(cfg.x_len, cfg.n_val_samples)
 print "Done."
                                     
 # optimizer
@@ -83,7 +82,7 @@ def generate_new_data():
     global trn_inputs, trn_targets
     #print "Generating new data..."
     trn_inputs, trn_targets = \
-        nn.gpushift.generate_id_data(cfg.x_len, cfg.n_batch)
+        generate_id_data(cfg.x_len, cfg.n_batch)
 
 def f_trn_loss(p):
     global trn_inputs, trn_targets
@@ -197,7 +196,11 @@ for iter, sts in enumerate(opt):
             plot_all_weights(ps)
             plt.title("iter=%d" % iter)
             plt.draw()
-            plt.pause(0.05)
+
+            if common.plot.headless:
+                plt.savefig(plot_dir + "/weights_%d.pdf" % iter)
+            else:
+                plt.pause(0.05)
 
         if isnan(val_loss) or isnan(tst_loss):
             print "Encountered NaN, restoring parameters."
@@ -214,7 +217,7 @@ his.plot()
 plt.savefig(plot_dir + "/loss.pdf")
 
 # check with simple patterns
-sim_inputs, sim_targets = nn.gpushift.generate_id_data(cfg.x_len, 3, binary=True)
+sim_inputs, sim_targets = generate_id_data(cfg.x_len, 3, binary=True)
 sim_results = gather(f_output(ps.data, post(sim_inputs)))
 print "input:   "
 print sim_inputs.T

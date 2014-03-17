@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
 
-import common.gpu
-
 import climin
-import numpy as np
-import theano
-import theano.tensor as T
 import breze.util
 import matplotlib.pyplot as plt
 
+import common.gpu
 import common.util
-import nn.shift
 from nn.shift import *
 from common.complex import *
 from common.util import floatx
 from common.gpu import gather, post, function
-from math import floor
+from datasets.shift import generate_data
 
 if theano.config.device != 'gpu':
     theano.config.compute_test_value = 'ignore'
@@ -24,8 +19,7 @@ np.set_printoptions(precision=3, suppress=True)
 profile = False
 
 if profile:
-    from theano import ProfileMode
-    profmode = theano.ProfileMode(optimizer='fast_run', 
+    profmode = theano.ProfileMode(optimizer='fast_run',
                                   linker=theano.gof.OpWiseCLinker())
 
 # hyperparameters
@@ -61,26 +55,10 @@ f_trn_dloss = lambda p: f_dloss(p, trn_inputs, trn_shifts, trn_targets)
 
 # generate data
 print "Generating data..."
-if cfg.generate_on_gpu and common.gpu.GPU:
-    import nn.gpushift
-    trn_inputs, trn_shifts, trn_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
-    val_inputs, val_shifts, val_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
-    tst_inputs, tst_shifts, tst_targets = nn.gpushift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
-else:
-    trn_inputs, trn_shifts, trn_targets = nn.shift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
-    val_inputs, val_shifts, val_targets = nn.shift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
-    tst_inputs, tst_shifts, tst_targets = nn.shift.generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
-
-    trn_inputs = post(trn_inputs)
-    trn_shifts = post(trn_shifts)
-    trn_targets = post(trn_targets)
-    val_inputs = post(val_inputs)
-    val_shifts = post(val_shifts)
-    val_targets = post(val_targets)
-    tst_inputs = post(tst_inputs)
-    tst_shifts = post(tst_shifts)
-    tst_targets = post(tst_targets)
-print "Done."                                 
+trn_inputs, trn_shifts, trn_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
+val_inputs, val_shifts, val_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
+tst_inputs, tst_shifts, tst_targets = generate_data(cfg.x_len, cfg.s_len, cfg.n_samples)
+print "Done."
 
 # optimizer
 if cfg.optimizer == 'lbfgs':

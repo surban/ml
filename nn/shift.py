@@ -123,15 +123,7 @@ class FourierShiftNet(object):
                 yhat_to_y_re, yhat_to_y_im)
 
 
-def shifted(x, s):
-    assert x.ndim == 1 and s.ndim == 1, "x and s must be vectors"
-    assert len(s) <= len(x), "x must be at least as long as s"
-    spos = np.nonzero(s)[0]
-    assert len(spos) == 1, "exactly one entry of s must be one"
-    assert s[spos[0]] == 1, "entries of s must be either 0 or 1"
-    shift = spos[0]
-    y = np.roll(x, shift)
-    return y
+
 
 
 # use methods from gpushift instead
