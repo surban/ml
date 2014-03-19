@@ -4,6 +4,7 @@
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../climin" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../submit" vcs="Git" />
+    <mapping directory="Z:/dev/indentor" vcs="Git" />
   </component>
 </project>
 
