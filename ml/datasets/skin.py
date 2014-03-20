@@ -1,3 +1,4 @@
+
 from itertools import repeat
 import numpy as np
 import os
@@ -5,7 +6,9 @@ import h5py
 import glob
 import math
 import sys
+import warnings
 
+default_directory = r"Z:\dev\indentor\indentor\apps\out"
 
 class SkinDataset(object):
 
@@ -20,18 +23,19 @@ class SkinDataset(object):
         if filename:
             if "." not in filename:
                 filename += self.extenstion
+            if not os.path.exists(filename):
+                filename = os.path.join(default_directory, filename)
             self._storage = h5py.File(filename, 'r')
         elif directory:
             directory = os.path.abspath(directory)
-            _, name = os.path.split(directory)
-            filename = os.path.join(directory, name + self.extenstion)
+            parent, name = os.path.split(directory)
+            filename = os.path.join(parent, name + self.extenstion)
             self._storage = h5py.File(filename, 'w')
             self._build(directory)
 
     def _group_path(self, purpose, taxel):
         assert purpose in ['train', 'validation', 'test']
         path = '%s/%d,%d' % (purpose, taxel[0], taxel[1])
-        self._storage.require_group(path)
         return path
 
     def group(self, purpose, taxel):
@@ -39,6 +43,9 @@ class SkinDataset(object):
 
     def _record_path(self, purpose, taxel, record):
         return self._group_path(purpose, taxel) + '/' + str(record)
+
+    def record(self, purpose, taxel, record):
+        return self._storage[self._record_path(purpose, taxel, record)]
 
     def available_taxels(self):
         grp = self._storage['train']
@@ -48,9 +55,10 @@ class SkinDataset(object):
             taxels.append((int(x), int(y)))
         return taxels
 
-    def _build(self, directory):
-        n_curves = None
+    def record_count(self, purpose, taxel):
+        return len(self.group(purpose, taxel))
 
+    def _build(self, directory):
         for x in range(self.num_taxels):
             for y in range(self.num_taxels):
                 taxel = (x,y)
@@ -60,16 +68,16 @@ class SkinDataset(object):
                     continue
 
                 forces, skins, interval = self._load_directory(data_dir)
-                if not n_curves:
-                    n_curves = len(forces)
-                else:
-                    assert n_curves == len(forces)
+                n_curves = len(forces)
 
-                testset_size = math.floor(n_curves * self.testset_ratio)
-                valiset_size = math.floor(n_curves * self.valiset_ratio)
+                testset_size = int(n_curves * self.testset_ratio)
+                valiset_size = int(n_curves * self.valiset_ratio)
                 trngset_size = n_curves - testset_size - valiset_size
 
-                dest = []
+                self._storage.create_group(self._group_path('train', taxel))
+                self._storage.create_group(self._group_path('validation', taxel))
+                self._storage.create_group(self._group_path('test', taxel))
+
                 j = 0
                 for i in range(trngset_size):
                     ds = self._storage.create_dataset(self._record_path('train', taxel, i),
@@ -84,7 +92,7 @@ class SkinDataset(object):
                     ds[1, :] = skins[j]
                     j += 1
                 for i in range(testset_size):
-                    ds = self._storage.create_dataset(self._record_path('train', taxel, i),
+                    ds = self._storage.create_dataset(self._record_path('test', taxel, i),
                                                       shape=(2, forces[j].shape[0]), dtype='f')
                     ds[0, :] = forces[j]
                     ds[1, :] = skins[j]
@@ -98,25 +106,46 @@ class SkinDataset(object):
         files = glob.glob(os.path.join(directory, "*.fsd.npz"))
         files = sorted(files)
         for filename in files:
-            d = np.load(filename)
-            forces.append(d['force'])
-            skins.append(d['skin'])
+            try:
+                d = np.load(filename)
+                forces.append(d['force'])
+                skins.append(d['skin'])
+                dt = np.diff(d['time'])
+            except Exception as e:
+                print "Error loading %s: %s" % (filename, str(e))
+                continue
 
-            dt = np.diff(d['time'])
-            assert np.all(dt == dt[0])
+            if not np.all(abs(dt - dt[0]) < 0.0001):
+                print "Curve %s has non-constant time step, using deltat=%g s" % \
+                    (filename, dt[0])
             if not deltat:
-                deltat = dt
+                deltat = dt[0]
             else:
-                assert deltat == dt
+                if not abs(deltat - dt[0]) < 0.0001:
+                    print "Curve %s has time step (%g s) that is different from other curvers (%g s)" % \
+                        (filename, dt[0], deltat)
 
         return forces, skins, deltat
 
+    def print_statistics(self):
+        print "Dataset %s:" % self._storage.filename
+        print "     taxel          train   validation   test"
+        for taxel in self.available_taxels():
+            trng_smpls = self.record_count('train', taxel)
+            vali_smpls = self.record_count('validation', taxel)
+            test_smpls = self.record_count('test', taxel)
+            print "     %d,%d           %4d    %4d         %4d" % (taxel[0], taxel[1],
+                                                                trng_smpls, vali_smpls, test_smpls)
+        print
 
 
 if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print "Usage: %s <dataset directory>" % sys.argv[0]
+        sys.exit(1)
     directory = sys.argv[1]
     print "Building dataset from %s" % directory
     ds = SkinDataset(directory=directory)
-    print "Dataset contains taxels: ", ds.available_taxels()
-
+    print
+    ds.print_statistics()
 
