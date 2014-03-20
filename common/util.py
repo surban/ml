@@ -422,7 +422,8 @@ def standard_cfg(clean_plots=False, prepend_scriptname=True, with_checkpoint=Fal
     checkpoint = None
     if with_checkpoint:
         cp_handler = CheckpointHandler(cfgdir)
-        if len(sys.argv) >= 3 and sys.argv[2].startswith("cont"):
+        if (('JOB_REQUEUED' in os.environ and os.environ['JOB_REQUEUED'] == 'yes') or
+                (len(sys.argv) >= 3 and sys.argv[2].startswith("cont"))):
             checkpoint = cp_handler.load()
         else:
             print "Using no checkpoint"

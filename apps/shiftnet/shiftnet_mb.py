@@ -234,7 +234,7 @@ print "initial validation loss: ", f_loss(ps.data, val_inputs, val_shifts, val_t
 # optimize
 for sts in enumerate(opt):
 
-    explicit_cp = iteration % 1000 == 0
+    explicit_cp = iteration % 10000 == 0
     if cp_handler.requested or explicit_cp:
         cp_handler.save(ps_data=gather(ps.data), opt_state=opt.state, iteration=iteration,
                         trn_inputs=gather(trn_inputs), trn_shifts=gather(trn_shifts), trn_targets=gather(trn_targets),
