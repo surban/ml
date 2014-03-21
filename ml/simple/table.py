@@ -5,73 +5,65 @@ import itertools
 
 class TableRegression(object):
 
-    def __init__(self, mins, maxs, steps):
+    def __init__(self, mins, steps, maxs):
         if not (len(mins) == len(maxs) == len(steps)):
             raise ValueError("arguments must have same dimensions")
         self.mins = np.asarray(mins)
-        self.maxs = np.asarray(maxs)
         self.steps = np.asarray(steps)
+        self.elems = ((maxs - self.mins) / self.steps).astype('int')
+        self.maxs = self.mins + self.elems * self.steps
         self.dims = len(self.mins)
 
-        low_high = [0, 1]
-        self.low_high_selector = np.array(list(itertools.product(*itertools.repeat(low_high, self.dims)))).T
+        self.strides = np.ones((self.dims,), dtype='int')
+        for d in range(1, self.dims):
+            self.strides[d] = self.strides[d-1] * self.elems[d-1]
+        self.fv_size = int(np.product(self.elems))
 
-    def pos_for(self, x):
-        if np.any(x < self.mins[:, np.newaxis]) or np.any(x >= self.maxs[:, np.newaxis]):
-            raise ValueError("supplied value is out of table range")
+        self.low_high_selector = \
+            np.array(list(itertools.product(*itertools.repeat([0, 1], self.dims))), dtype='int').T[:, np.newaxis, :]
+
+        self.weights = np.zeros((self.fv_size,))
+
+    def table_fvec(self, x):
+        x = np.asarray(x)
+        viol = (x < self.mins[:, np.newaxis]) | (x >= self.maxs[:, np.newaxis])
+        if np.any(viol):
+            raise ValueError("supplied value(s) are out of table range at " +
+                             str(np.transpose(np.nonzero(viol))))
+
         rel = x - self.mins[:, np.newaxis]
         rel_steps = rel / self.steps[:, np.newaxis]
-        low = np.int(rel_steps)
-        high = low + 1
-        high_fac = rel_steps - low
-        low_fac = 1 - high_fac
+        low = rel_steps.astype('int')
 
-        low_high = np.concatenate((low[:, :, np.newaxis], high[:, :, np.newaxis]), axis=2)
+        #print "low: ", low
 
+        lh = low[:, :, np.newaxis] + self.low_high_selector
+        lh_idx = np.sum(lh * self.strides[:, np.newaxis, np.newaxis], axis=0)
+        lh_idx_flat = np.reshape(lh_idx, (-1,))
 
+        #print "lh: ", lh
+        #print "lh_idx: ", lh_idx
+        #print "lh_idx_flat: ", lh_idx_flat
 
+        smpl_idx = np.repeat(np.arange(lh_idx.shape[0])[:, np.newaxis], lh_idx.shape[1], axis=1)
+        smpl_idx_flat = np.reshape(smpl_idx, (-1,))
 
+        #print "smpl_idx: ", smpl_idx
+        #print "smpl_idx_flat: ", smpl_idx_flat
 
-class TwoDimensionalTable(object):
+        dists = rel_steps[:, :, np.newaxis] - lh
+        fac_comp = 1 - np.abs(dists)
+        fac = np.product(fac_comp, axis=0)
+        fac_flat = np.reshape(fac, (-1,))
 
-    def __init__(self, x_range, x_step, y_range, y_step):
-        self.x_support = np.arange(x_range[0], x_range[1] + 0.1*x_step, x_step)
-        self.y_support = np.arange(y_range[0], y_range[1] + 0.1*y_step, y_step)
-        self.table = np.zeros((self.y_support.shape[0], self.x_support.shape[0]))
+        x = np.zeros((self.fv_size, x.shape[1]))
+        x[lh_idx_flat, smpl_idx_flat] = fac_flat
 
-    def selection_vector(self, x, support):
-        """
-        :type x: np.ndarray
-        :rtype: np.ndarray
-        """
-        sv = np.zeros(support.shape)
+        return x
 
-        i = np.searchsorted(support, x)
-        if i == 0 or i >= len(support):
-            raise ValueError("Value %g out of support [%g, %g]." % (x, support[0], support[-1]))
-        low = support[i-1]
-        high = support[i]
-        pos = (x-low) / (high-low)
+    def predict(self, x):
+        return np.dot(self.weights, self.table_fvec(x))
 
-        sv[i-1] = 1-pos
-        sv[i] = pos
-        return sv
-
-    def selection_matrix(self, xs, support):
-        sv = np.zeros((support.size, xs.size))
-        for j in range(xs.size):
-            sv[:, j] = self.selection_vector(xs[j], support)
-        return sv
-
-    def predict(self, xs, ys):
-        xsel = self.selection_matrix(xs, self.x_support)
-        ysel = self.selection_matrix(ys, self.y_support)
-        return np.dot(ysel.T, np.dot(self.table, xsel))
-
-    def train(self, xs, ys, targets):
-        xsel = self.selection_matrix(xs, self.x_support)
-        xsel_inv = np.linalg.pinv(xsel)
-        ysel = self.selection_matrix(ys, self.y_support)
-        ysel_inv = np.linalg.pinv(ysel)
-        self.table = np.dot(ysel_inv.T, np.dot(targets[np.newaxis, :], xsel_inv))
+    def train(self, x, t):
+        self.weights = np.dot(t, np.linalg.pinv(self.table_fvec(x)))
 
