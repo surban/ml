@@ -52,7 +52,7 @@ class TableRegression(object):
         #print "smpl_idx_flat: ", smpl_idx_flat
 
         dists = rel_steps[:, :, np.newaxis] - lh
-        fac_comp = 1 - np.abs(dists)
+        fac_comp = 1 - np.fabs(dists)
         fac = np.product(fac_comp, axis=0)
         fac_flat = np.reshape(fac, (-1,))
 
@@ -67,3 +67,25 @@ class TableRegression(object):
     def train(self, x, t):
         self.weights = np.dot(t, np.linalg.pinv(self.table_fvec(x)))
 
+    @property
+    def weight_matrix(self):
+        return np.reshape(self.weights, tuple(self.elems), 'F')
+
+    def plot2d(self, rng=None):
+        import matplotlib.pyplot as plt
+
+        if self.dims != 2:
+            raise ValueError("plot2d() can only be used on TableRegressions with two dimensions")
+
+        if not rng:
+            rng = np.amax(np.fabs(self.weight_matrix))
+
+        img = plt.imshow(self.weight_matrix.T, origin='lower', interpolation='nearest', cmap='PuOr',
+                         extent=(self.mins[0], self.maxs[0], self.mins[1], self.maxs[1]),
+                         aspect='auto')
+        img.set_clim(-rng, rng)
+        plt.colorbar()
+        plt.xlabel("dim 0")
+        plt.ylabel("dim 1")
+
+        return img
