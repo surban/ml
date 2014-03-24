@@ -424,7 +424,11 @@ def standard_cfg(clean_plots=False, prepend_scriptname=True, with_checkpoint=Fal
         cp_handler = CheckpointHandler(cfgdir)
         if (('JOB_REQUEUED' in os.environ and os.environ['JOB_REQUEUED'] == 'yes') or
                 (len(sys.argv) >= 3 and sys.argv[2].startswith("cont"))):
-            checkpoint = cp_handler.load()
+            try:
+                checkpoint = cp_handler.load()
+            except Exception as e:
+                print "Loading of checkpoint failed: ", str(e)
+                cp_handler.remove()
         else:
             print "Using no checkpoint"
             cp_handler.remove()
@@ -780,6 +784,7 @@ class CheckpointHandler(object):
         signal.signal(signal.SIGINT, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
+        print "Received signal ", signum
         self._requested = True
 
     @staticmethod
