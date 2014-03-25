@@ -8,7 +8,11 @@ import math
 import sys
 import warnings
 
-default_directory = r"Z:\dev\indentor\indentor\apps\out"
+if os.name == 'nt':
+    default_directory = r"Z:\dev\indentor\indentor\apps\out"
+else:
+    default_directory = r"/nthome/surban/dev/indentor/indentor/apps/out"
+
 
 class SkinDataset(object):
 
@@ -58,7 +62,12 @@ class SkinDataset(object):
     def record_count(self, purpose, taxel):
         return len(self.group(purpose, taxel))
 
+    @property
+    def interval(self):
+        return self._storage['metadata'].attrs['interval']
+
     def _build(self, directory):
+        interval = None
         for x in range(self.num_taxels):
             for y in range(self.num_taxels):
                 taxel = (x,y)
@@ -67,8 +76,15 @@ class SkinDataset(object):
                 if not os.path.isdir(data_dir):
                     continue
 
-                forces, skins, interval = self._load_directory(data_dir)
+                forces, skins, my_interval = self._load_directory(data_dir)
                 n_curves = len(forces)
+
+                if not interval:
+                    interval = my_interval
+                else:
+                    if not abs(my_interval - interval) < 0.0001:
+                        print "Taxel %s has time step (%g s) that is different from other taxels (%g s)" % \
+                            (str(taxel), my_interval, interval)
 
                 testset_size = int(n_curves * self.testset_ratio)
                 valiset_size = int(n_curves * self.valiset_ratio)
@@ -97,6 +113,9 @@ class SkinDataset(object):
                     ds[0, :] = forces[j]
                     ds[1, :] = skins[j]
                     j += 1
+
+        metadata = self._storage.create_group('metadata')
+        metadata.attrs['interval'] = interval
 
     def _load_directory(self, directory):
         forces = []
@@ -135,7 +154,17 @@ class SkinDataset(object):
             vali_smpls = self.record_count('validation', taxel)
             test_smpls = self.record_count('test', taxel)
             print "     %d,%d           %4d    %4d         %4d" % (taxel[0], taxel[1],
-                                                                trng_smpls, vali_smpls, test_smpls)
+                                                                   trng_smpls, vali_smpls, test_smpls)
+
+        n_points = 0
+        n_records = 0
+        for taxel in self.available_taxels():
+            for i in range(self.record_count('train', taxel)):
+                n_records += 1
+                n_points += self.record('train', taxel, i).shape[1]
+        points_per_record = n_points / n_records
+        print "Avg. datapoints per record: %d" % points_per_record
+        print "Sampling interval:          %g s" % self.interval
         print
 
 
