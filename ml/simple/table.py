@@ -8,13 +8,17 @@ import scipy.sparse.linalg
 
 class TableRegression(object):
 
-    def __init__(self, mins, steps, maxs):
+    def __init__(self, mins, steps, maxs, smooth=False):
         if not (len(mins) == len(maxs) == len(steps)):
             raise ValueError("arguments must have same dimensions")
+
+        self.smooth = smooth
         self._mins = np.asarray(mins)
         self._steps = np.asarray(steps)
-        self._elems = ((maxs - self._mins) / self._steps).astype('int')
+        self._elems = ((maxs - self._mins) / self._steps + 2).astype('int')
         self._maxs = self._mins + self._elems * self._steps
+        self._min_vals = self._mins + self._steps
+        self._max_vals = self._mins + (self._elems - 2) * self._steps
         self._dims = len(self._mins)
 
         self._strides = np.ones((self._dims,), dtype='int')
@@ -25,11 +29,25 @@ class TableRegression(object):
         self._low_high_selector = \
             np.array(list(itertools.product(*itertools.repeat([0, 1], self._dims))), dtype='int').T[:, np.newaxis, :]
 
+        self._low_high_smooth_selector = \
+            np.array(list(itertools.product(*itertools.repeat([-1, 0, 1, 2], self._dims))), dtype='int').T[:, np.newaxis, :]
+
         self._weights = np.zeros((self._n_weights,))
 
+
+    @property
+    def max_values(self):
+        return self._max_vals[:]
+
     def _table_idx(self, x):
+        if self.smooth:
+            return self._table_idx_smooth(x)
+        else:
+            return self._table_idx_nearest(x)
+
+    def _table_idx_nearest(self, x):
         x = np.asarray(x)
-        viol = (x < self._mins[:, np.newaxis]) | (x >= self._maxs[:, np.newaxis])
+        viol = (x < self._mins[:, np.newaxis]) | (x > self._max_vals[:, np.newaxis])
         if np.any(viol):
             raise ValueError("supplied value(s) are out of table range at " +
                              str(np.transpose(np.nonzero(viol))))
@@ -56,6 +74,41 @@ class TableRegression(object):
 
         dists = rel_steps[:, :, np.newaxis] - lh
         fac_comp = 1 - np.fabs(dists)
+        fac = np.product(fac_comp, axis=0)
+        fac_flat = np.reshape(fac, (-1,))
+
+        return lh_idx_flat, smpl_idx_flat, fac_flat
+
+    def _table_idx_smooth(self, x):
+        x = np.asarray(x)
+        viol = (x < self._min_vals[:, np.newaxis]) | (x > self._max_vals[:, np.newaxis])
+        if np.any(viol):
+            raise ValueError("supplied value(s) are out of table range at " +
+                             str(np.transpose(np.nonzero(viol))))
+
+        rel = x - self._mins[:, np.newaxis]
+        rel_steps = rel / self._steps[:, np.newaxis]
+        low = rel_steps.astype('int')
+
+        #print "low: ", low
+
+        lh = low[:, :, np.newaxis] + self._low_high_smooth_selector
+        lh_idx = np.sum(lh * self._strides[:, np.newaxis, np.newaxis], axis=0)
+        lh_idx_flat = np.reshape(lh_idx, (-1,))
+
+        #print "lh: ", lh
+        #print "lh_idx: ", lh_idx
+        #print "lh_idx_flat: ", lh_idx_flat
+
+        smpl_idx = np.repeat(np.arange(lh_idx.shape[0])[:, np.newaxis], lh_idx.shape[1], axis=1)
+        smpl_idx_flat = np.reshape(smpl_idx, (-1,))
+
+        #print "smpl_idx: ", smpl_idx
+        #print "smpl_idx_flat: ", smpl_idx_flat
+
+        lh_fac = lh + 2
+        lh_fac[lh_fac > 2] -= 4
+        fac_comp = np.fabs(rel_steps[:, :, np.newaxis] - lh_fac) / 4.0
         fac = np.product(fac_comp, axis=0)
         fac_flat = np.reshape(fac, (-1,))
 

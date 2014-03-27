@@ -49,7 +49,10 @@ class SkinDataset(object):
         return self._group_path(purpose, taxel) + '/' + str(record)
 
     def record(self, purpose, taxel, record):
-        return self._storage[self._record_path(purpose, taxel, record)]
+        if isinstance(record, list):
+            return [self._storage[self._record_path(purpose, taxel, r)] for r in record]
+        else:
+            return self._storage[self._record_path(purpose, taxel, record)]
 
     def available_taxels(self):
         grp = self._storage['train']
@@ -63,7 +66,7 @@ class SkinDataset(object):
         return len(self.group(purpose, taxel))
 
     @property
-    def interval(self):
+    def timestep(self):
         return self._storage['metadata'].attrs['interval']
 
     def _build(self, directory):
@@ -164,7 +167,7 @@ class SkinDataset(object):
                 n_points += self.record('train', taxel, i).shape[1]
         points_per_record = n_points / n_records
         print "Avg. datapoints per record: %d" % points_per_record
-        print "Sampling interval:          %g s" % self.interval
+        print "Sampling interval:          %g s" % self.timestep
         print
 
 

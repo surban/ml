@@ -2,8 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../climin/.idea/climin.iml" filepath="$PROJECT_DIR$/../climin/.idea/climin.iml" />
-      <module fileurl="file://Z:/dev/indentor/.idea/indentor.iml" filepath="Z:/dev/indentor/.idea/indentor.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../indentor/.idea/indentor.iml" filepath="$PROJECT_DIR$/../indentor/.idea/indentor.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/ml.iml" filepath="$PROJECT_DIR$/.idea/ml.iml" />
     </modules>
   </component>

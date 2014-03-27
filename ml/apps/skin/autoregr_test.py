@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ml.apps.skin.autoregr_table import build_nextstep_data
+from ml.apps.skin.timeseries import build_nextstep_data
 from ml.simple.table import TableRegression
 from ml.datasets.skin import SkinDataset
 
