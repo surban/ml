@@ -11,16 +11,17 @@ class TableRegression(object):
     def __init__(self, mins, steps, maxs, smooth=False):
         if not (len(mins) == len(maxs) == len(steps)):
             raise ValueError("arguments must have same dimensions")
-
         self.smooth = smooth
-        self._mins = np.asarray(mins)
-        self._steps = np.asarray(steps)
-        self._elems = ((maxs - self._mins) / self._steps + 2).astype('int')
-        self._maxs = self._mins + self._elems * self._steps
-        self._min_vals = self._mins + self._steps
-        self._max_vals = self._mins + (self._elems - 2) * self._steps
-        self._dims = len(self._mins)
 
+        self._steps = np.asarray(steps)
+        self._mins = np.asarray(mins) - self._steps
+        self._elems = ((maxs - self._mins) / self._steps + 3).astype('int')
+        self._maxs = self._mins + self._elems * self._steps
+
+        self._min_limits = self._mins + self._steps
+        self._max_limits = self._mins + (self._elems - 2) * self._steps
+
+        self._dims = len(self._mins)
         self._strides = np.ones((self._dims,), dtype='int')
         for d in range(1, self._dims):
             self._strides[d] = self._strides[d-1] * self._elems[d-1]
@@ -31,13 +32,16 @@ class TableRegression(object):
 
         self._low_high_smooth_selector = \
             np.array(list(itertools.product(*itertools.repeat([-1, 0, 1, 2], self._dims))), dtype='int').T[:, np.newaxis, :]
+        self._low_high_fac_selector = self._low_high_smooth_selector + 2
+        self._low_high_fac_selector[self._low_high_fac_selector > 2] -= 4
+
+        #print "_low_high_fac_selector: ", self._low_high_fac_selector
 
         self._weights = np.zeros((self._n_weights,))
 
-
     @property
     def max_values(self):
-        return self._max_vals[:]
+        return self._max_limits[:]
 
     def _table_idx(self, x):
         if self.smooth:
@@ -47,7 +51,7 @@ class TableRegression(object):
 
     def _table_idx_nearest(self, x):
         x = np.asarray(x)
-        viol = (x < self._mins[:, np.newaxis]) | (x > self._max_vals[:, np.newaxis])
+        viol = (x < self._min_limits[:, np.newaxis]) | (x > self._max_limits[:, np.newaxis])
         if np.any(viol):
             raise ValueError("supplied value(s) are out of table range at " +
                              str(np.transpose(np.nonzero(viol))))
@@ -81,34 +85,34 @@ class TableRegression(object):
 
     def _table_idx_smooth(self, x):
         x = np.asarray(x)
-        viol = (x < self._min_vals[:, np.newaxis]) | (x > self._max_vals[:, np.newaxis])
+        viol = (x < self._min_limits[:, np.newaxis]) | (x > self._max_limits[:, np.newaxis])
         if np.any(viol):
-            raise ValueError("supplied value(s) are out of table range at " +
-                             str(np.transpose(np.nonzero(viol))))
+            raise ValueError("supplied value(s) are out of table range (min: %s, max: %s) at %s" %
+                             (str(self._min_limits), str(self._max_limits), str(np.transpose(np.nonzero(viol)))))
 
         rel = x - self._mins[:, np.newaxis]
         rel_steps = rel / self._steps[:, np.newaxis]
         low = rel_steps.astype('int')
+        base_dists = rel_steps - low
 
-        #print "low: ", low
+        # print "low: ", low
+        # print "base_dists: ", base_dists
 
         lh = low[:, :, np.newaxis] + self._low_high_smooth_selector
         lh_idx = np.sum(lh * self._strides[:, np.newaxis, np.newaxis], axis=0)
         lh_idx_flat = np.reshape(lh_idx, (-1,))
 
-        #print "lh: ", lh
-        #print "lh_idx: ", lh_idx
-        #print "lh_idx_flat: ", lh_idx_flat
+        # print "lh: ", lh
+        # print "lh_idx: ", lh_idx
+        # print "lh_idx_flat: ", lh_idx_flat
 
         smpl_idx = np.repeat(np.arange(lh_idx.shape[0])[:, np.newaxis], lh_idx.shape[1], axis=1)
         smpl_idx_flat = np.reshape(smpl_idx, (-1,))
 
-        #print "smpl_idx: ", smpl_idx
-        #print "smpl_idx_flat: ", smpl_idx_flat
+        # print "smpl_idx: ", smpl_idx
+        # print "smpl_idx_flat: ", smpl_idx_flat
 
-        lh_fac = lh + 2
-        lh_fac[lh_fac > 2] -= 4
-        fac_comp = np.fabs(rel_steps[:, :, np.newaxis] - lh_fac) / 4.0
+        fac_comp = np.fabs(base_dists[:, :, np.newaxis] - self._low_high_fac_selector) / 4.0
         fac = np.product(fac_comp, axis=0)
         fac_flat = np.reshape(fac, (-1,))
 
@@ -195,10 +199,27 @@ class TableRegression(object):
 
 
 if __name__ == '__main__':
+    print "nonsmooth:"
     tr = TableRegression([0,    0],
                          [0.1,  0.1],
                          [1,    1])
-    fv = tr._table_fvec_dense([[0.23, 0.46],
-                        [0.11, 0.09]])
+    fv = tr._table_fvec_dense(np.asarray([[0.23, 0.46],
+                                          [0.11, 0.09]]))
     print np.sum(fv, axis=0)
+
+    print "smooth:"
+    tr = TableRegression([0], [0.1], [0.5], smooth=True)
+    fv = tr._table_fvec_dense(np.asarray([[0.21, 0.49]]))
+    print fv
+    print "sum: ", np.sum(fv, axis=0)
+
+    print "smooth:"
+    tr = TableRegression([0,    0],
+                         [0.1,  0.1],
+                         [0.4,  0.4],
+                         smooth=True)
+    fv = tr._table_fvec_dense(np.asarray([[0.21],
+                                          [0.29]]))
+    print fv.reshape(tr._elems)
+    print "sum: ", np.sum(fv, axis=0)
 
