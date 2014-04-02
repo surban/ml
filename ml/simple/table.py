@@ -195,8 +195,9 @@ class SmoothTableRegression(TableRegression):
         x_grad_fac_val = np.tile(fac_comp[np.newaxis, :, :, :], (self._dims, 1, 1, 1))
         x_grad_fac = np.fabs(x_grad_fac_val)
         for d in range(self._dims):
-            # FIXME: sign(0) should be 1
-            x_grad_fac[d, d, :, :] = np.sign(x_grad_fac_val[d, d, :, :]) / 4.0 / self._steps[d]
+            tmp = np.sign(x_grad_fac_val[d, d, :, :])
+            tmp[tmp == 0] = 1
+            x_grad_fac[d, d, :, :] = tmp / 4.0 / self._steps[d]
         x_grad_fac_prod = np.product(x_grad_fac, axis=1)
 
         x_grad_weights = np.reshape(self._weights[lh_idx_flat], lh_idx.shape)
@@ -240,8 +241,8 @@ def test_gradients():
     #     for j in range(tr._elems[1]):
     #         tr._weights[i*tr._strides[0] + j*tr._strides[1]] = i*10 + j
     #tr._weights = np.ones(tr._weights.shape)
-    x = np.asarray([[0.21, 0.18, 0.02],
-                    [0.23, 0.34, 0.11]])
+    x = np.asarray([[0.21, 0.18, 0.10],
+                    [0.23, 0.30, 0.11]])
     check_gradient(tr.predict, tr.gradient, x)
                    #direction=np.asarray([[0], [1]]))
 
