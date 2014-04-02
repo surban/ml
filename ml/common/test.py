@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def check_gradient(func, grad_func, x, direction=None):
+def check_gradient(func, grad_func, x, direction=None, always_output=False):
     epsilon = 0.0001
     tolerance = 0.01
 
@@ -13,10 +13,13 @@ def check_gradient(func, grad_func, x, direction=None):
     assert direction.shape == x.shape
     dx = epsilon * direction
 
+    # print "dx:", dx, dx.shape
+    # print "grad_func:", grad_func(x), grad_func(x).shape
+
     num_grad = (func(x + dx) - func(x)) / epsilon
     sym_grad = np.sum(dx * grad_func(x), axis=0) / epsilon
 
-    if not np.all(np.abs(num_grad - sym_grad) < tolerance):
+    if always_output or not np.all(np.abs(num_grad - sym_grad) < tolerance):
         gfx = grad_func(x)
 
         print "checking gradient failed at x="
@@ -36,5 +39,5 @@ def check_gradient(func, grad_func, x, direction=None):
         print "symbolic gradient:"
         print sym_grad
 
-        assert False
+    assert np.all(np.abs(num_grad - sym_grad) < tolerance)
 

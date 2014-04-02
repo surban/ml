@@ -169,7 +169,7 @@ class SmoothTableRegression(TableRegression):
 
         # print "_low_high_fac_selector: ", self._low_high_fac_selector
 
-    def _weight_idx_and_fac(self, x):
+    def _intermidiates(self, x):
         low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat = self._lh_idx(x)
 
         base_dists = rel_steps - low
@@ -178,6 +178,10 @@ class SmoothTableRegression(TableRegression):
         fac = np.product(np.fabs(fac_comp), axis=0)
         fac_flat = np.reshape(fac, (-1,))
 
+        return low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat
+
+    def _weight_idx_and_fac(self, x):
+        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
         return lh_idx_flat, smpl_idx_flat, fac_flat
 
     def gradient(self, x):
@@ -187,10 +191,11 @@ class SmoothTableRegression(TableRegression):
         # x_grad_fac     [dim of derivative, distance factor product dim, sample, weight number]
         # x_grad_fac_prod[dim of derivative, sample, weight number]
 
-        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat = self._lh_idx(x)
+        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
 
-        base_dists = rel_steps - low
-        fac_comp = (base_dists[:, :, np.newaxis] - self._low_high_fac_selector) / 4.0
+        w_grad = scipy.sparse.lil_matrix((self._n_weights, x.shape[1]))
+        w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
+        w_grad = w_grad.tocsc()
 
         x_grad_fac_val = np.tile(fac_comp[np.newaxis, :, :, :], (self._dims, 1, 1, 1))
         x_grad_fac = np.fabs(x_grad_fac_val)
@@ -208,9 +213,26 @@ class SmoothTableRegression(TableRegression):
         # print "x_grad_fac: ", x_grad_fac
         # print "x_grad_prod: ", x_grad_prod
         # print "grad_weights: ", x_grad_weights[np.newaxis, :, :]
+        # print "w_grad: ", w_grad
         # print
 
-        return x_grad
+        return x_grad, w_grad
+
+
+########################################################################################################################
+#                                             TEST CODE                                                                #
+########################################################################################################################
+
+
+def w_func_wrapper(tr, x, w):
+    tr._weights = w[:, 0]
+    return tr.predict(x)
+
+
+def w_grad_wrapper(tr, x, w):
+    tr._weights = w[:, 0]
+    _, w_grad = tr.gradient(x)
+    return w_grad.toarray()
 
 
 def test_gradients():
@@ -218,20 +240,23 @@ def test_gradients():
     tr = SmoothTableRegression([0], [0.1], [0.5])
     tr._weights = np.random.random(size=tr._weights.shape)
     x = np.asarray([[0.22]])
-    # fv = tr._table_fvec_dense(x)
-    # print fv
-    # print "sum: ", np.sum(fv, axis=0)
-    print "grad: "
-    print tr.gradient(x)
+    x_grad, w_grad = tr.gradient(x)
+    print "x grad: "
+    print x_grad
+    print "w grad: "
+    print w_grad.toarray()
 
-    print "smooth gradient check 1d"
+    print "smooth gradient check x 1d"
     tr = SmoothTableRegression([0], [0.1], [0.4])
     tr._weights = np.random.random(size=tr._weights.shape)
     # tr._weights = np.arange(tr._weights.size)
     x = np.asarray([[0.23, 0.17]])
-    check_gradient(tr.predict, tr.gradient, x)
+    # check_gradient(tr.predict, lambda x: tr.gradient(x)[0], x)
+    print "smooth gradient check w 1d"
+    check_gradient(lambda w: w_func_wrapper(tr, x, w), lambda w: w_grad_wrapper(tr, x, w),
+                   tr._weights[:, np.newaxis])
 
-    print "smooth gradient check 2d"
+    print "smooth gradient check x 2d"
     tr = SmoothTableRegression([0,    0],
                                [0.1,  0.1],
                                [0.4,  0.4])
@@ -243,8 +268,11 @@ def test_gradients():
     #tr._weights = np.ones(tr._weights.shape)
     x = np.asarray([[0.21, 0.18, 0.10],
                     [0.23, 0.30, 0.11]])
-    check_gradient(tr.predict, tr.gradient, x)
+    check_gradient(tr.predict, lambda x: tr.gradient(x)[0], x)
                    #direction=np.asarray([[0], [1]]))
+    print "smooth gradient check w 2d"
+    check_gradient(lambda w: w_func_wrapper(tr, x, w), lambda w: w_grad_wrapper(tr, x, w),
+                   tr._weights[:, np.newaxis])
 
 
 def test_fvec():
@@ -254,13 +282,13 @@ def test_fvec():
                                 [1,    1])
     fv = tr._fvec(np.asarray([[0.23, 0.46],
                               [0.11, 0.09]]))
-    fv = fv.todense()
+    fv = fv.toarray()
     print np.sum(fv, axis=0)
 
     print "smooth 1d fvec:"
     tr = SmoothTableRegression([0], [0.1], [0.5])
     fv = tr._fvec(np.asarray([[0.21, 0.49]]))
-    fv = fv.todense()
+    fv = fv.toarray()
     print fv
     print "sum: ", np.sum(fv, axis=0)
 
@@ -270,7 +298,7 @@ def test_fvec():
                                [0.4,  0.4])
     fv = tr._fvec(np.asarray([[0.21],
                               [0.29]]))
-    fv = fv.todense()
+    fv = fv.toarray()
     print fv.reshape(tr._elems)
     print "sum: ", np.sum(fv, axis=0)
     print
@@ -278,6 +306,8 @@ def test_fvec():
 
 if __name__ == '__main__':
     test_fvec()
+    test_gradients()
+
     for i in range(10):
         test_gradients()
 
