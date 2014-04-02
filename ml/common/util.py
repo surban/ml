@@ -561,10 +561,6 @@ def classification_error(predicted, truth):
     errors = np.count_nonzero(diff)
     return errors / float(len(truth))
 
-def floatx(x):
-    """Converts the numpy array to use Theano's float type"""
-    return np.asarray(x, dtype=theano.config.floatX)
-
 class ParameterMerger(object):
     """Merges and unmerges parameter vectors for optimizers.
     Do not use. Use breze.util.ParameterSet instead."""
@@ -816,5 +812,6 @@ class CheckpointHandler(object):
     def remove(self):
         if os.path.exists(self._path):
             os.remove(self._path)
+
 
 

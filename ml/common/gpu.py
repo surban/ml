@@ -7,7 +7,6 @@ import theano.sandbox.cuda
 import gnumpy
 import numpy as np
 import ctypes
-from ml.common.util import floatx
 
 GPU = gpuinterop.using_gpu
 print "common.gpu uses GPU: ", GPU
@@ -17,6 +16,10 @@ if GPU:
     import pycuda.gpuarray as gpuarray
     import cudamat
 
+
+def floatx(x):
+    """Converts the numpy array to use Theano's float type"""
+    return np.asarray(x, dtype=theano.config.floatX)
 
 def flatten(nested):
     """Flatten nested tuples and/or lists into a flat list."""

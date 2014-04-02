@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import scipy.sparse
 import scipy.sparse.linalg
 
+from ml.common.test import check_gradient
+
 
 class TableRegression(object):
 
@@ -35,7 +37,7 @@ class TableRegression(object):
         self._low_high_fac_selector = self._low_high_smooth_selector + 2
         self._low_high_fac_selector[self._low_high_fac_selector > 2] -= 4
 
-        print "_low_high_fac_selector: ", self._low_high_fac_selector
+        # print "_low_high_fac_selector: ", self._low_high_fac_selector
 
         self._weights = np.zeros((self._n_weights,))
 
@@ -130,44 +132,48 @@ class TableRegression(object):
         low = rel_steps.astype('int')
         base_dists = rel_steps - low
 
-        print "low: ", low
-        print "base_dists: ", base_dists
+        # print "low: ", low
+        # print "base_dists: ", base_dists
 
         lh = low[:, :, np.newaxis] + self._low_high_smooth_selector
         lh_idx = np.sum(lh * self._strides[:, np.newaxis, np.newaxis], axis=0)
         lh_idx_flat = np.reshape(lh_idx, (-1,))
 
-        print "lh: ", lh
-        print lh.shape
-        print "lh_idx: ", lh_idx
-        print lh_idx.shape
-        print "lh_idx_flat: ", lh_idx_flat
+        # print "lh: ", lh
+        # print lh.shape
+        # print "lh_idx: ", lh_idx
+        # print lh_idx.shape
+        # print "lh_idx_flat: ", lh_idx_flat
 
-        smpl_idx = np.repeat(np.arange(lh_idx.shape[0])[:, np.newaxis], lh_idx.shape[1], axis=1)
-        smpl_idx_flat = np.reshape(smpl_idx, (-1,))
-
+        # smpl_idx = np.repeat(np.arange(lh_idx.shape[0])[:, np.newaxis], lh_idx.shape[1], axis=1)
+        # smpl_idx_flat = np.reshape(smpl_idx, (-1,))
         # print "smpl_idx: ", smpl_idx
         # print "smpl_idx_flat: ", smpl_idx_flat
 
+        # fac_comp[distance factor product dim, sample, weight number]
         fac_comp = (base_dists[:, :, np.newaxis] - self._low_high_fac_selector) / 4.0
 
-        print "fac_comp: ", fac_comp
-        print fac_comp.shape
+        # print "fac_comp: ", fac_comp
+        # print fac_comp.shape
 
-        x_grad_fac_not_abs = np.tile(fac_comp[:, :, :, np.newaxis], (1, 1, 1, self._dims))
+        # x_grad_fac_no_abs[dim of derivative, distance factor product dim, sample, weight number]
+        # x_grad_fac[dim of derivative, distance factor product dim, sample, weight number]
+        # x_grad_prod[dim of derivative, sample, weight number]
+
+        x_grad_fac_not_abs = np.tile(fac_comp[np.newaxis, :, :, :], (self._dims, 1, 1, 1))
         x_grad_fac = np.fabs(x_grad_fac_not_abs)
         for d in range(self._dims):
             # FIXME: sign(0) should be 1
-            x_grad_fac[d, :, :, d] = np.sign(x_grad_fac_not_abs[d, :, :, d]) / 4.0 / self._steps[d]
-        x_grad_prod = np.product(x_grad_fac, axis=3)
+            x_grad_fac[d, d, :, :] = np.sign(x_grad_fac_not_abs[d, d, :, :]) / 4.0 / self._steps[d]
+        x_grad_prod = np.product(x_grad_fac, axis=1)
 
-        print "x_grad_fac: ", x_grad_fac
-        print x_grad_fac.shape
-        print "x_grad_prod: ", x_grad_prod
-        print x_grad_prod.shape
+        # print "x_grad_fac: ", x_grad_fac
+        # print x_grad_fac.shape
+        # print "x_grad_prod: ", x_grad_prod
+        # print x_grad_prod.shape
 
         x_grad_weights = np.reshape(self._weights[lh_idx_flat], lh_idx.shape)
-        print "grad_weights: ", x_grad_weights[np.newaxis, :, :]
+        # print "grad_weights: ", x_grad_weights[np.newaxis, :, :]
 
         x_grad = np.sum(x_grad_weights[np.newaxis, :, :] * x_grad_prod, axis=2)
         return x_grad
@@ -253,100 +259,71 @@ class TableRegression(object):
         return img
 
 
-def check_gradient(func, grad_func, x, direction=None):
-    epsilon = 0.0001
-    tolerance = 0.0001
-
-    if direction is None:
-        direction = np.random.random_integers(0, 1, size=x.shape)
-    assert direction.shape == x.shape
-    dx = epsilon * direction
-
-    num_grad = (func(x + dx) - func(x)) / epsilon
-    sym_grad = np.dot(dx.T, grad_func(x)) / epsilon
-    sym_grad = sym_grad[0, :]
-
-    # gfx = grad_func(x)
-
-    print "checking gradient at x="
-    print x
-    # print "grad_func(x)="
-    # print gfx
-    # print "(func(x + dx) - func(x)) / epsilon="
-    # print (func(x + dx) - func(x)) / epsilon
-
-    # print "dx="
-    # print dx
-
-    # print "func(x)=", func(x)
-    # print "func(x + dx)=", func(x + dx)
-
-    # print "x+dx="
-    # print x+dx
-    # print "dx:"
-    # print dx
-    print "numeric gradient:"
-    print num_grad
-    print "symbolic gradient:"
-    print sym_grad
-
-    return np.all(np.abs(num_grad - sym_grad) < tolerance)
-
-
-if __name__ == '__main__':
-    # print "nonsmooth:"
-    # tr = TableRegression([0,    0],
-    #                      [0.1,  0.1],
-    #                      [1,    1])
-    # fv = tr._table_fvec_dense(np.asarray([[0.23, 0.46],
-    #                                       [0.11, 0.09]]))
-    # print np.sum(fv, axis=0)
-    #
-    # print "smooth:"
-    # tr = TableRegression([0], [0.1], [0.5], smooth=True)
-    # fv = tr._table_fvec_dense(np.asarray([[0.21, 0.49]]))
-    # print fv
-    # print "sum: ", np.sum(fv, axis=0)
-    #
-    # print "smooth:"
-    # tr = TableRegression([0,    0],
-    #                      [0.1,  0.1],
-    #                      [0.4,  0.4],
-    #                      smooth=True)
-    # fv = tr._table_fvec_dense(np.asarray([[0.21],
-    #                                       [0.29]]))
-    # print fv.reshape(tr._elems)
-    # print "sum: ", np.sum(fv, axis=0)
-    #
-    # print
-    # print
-    # print "smooth gradient:"
-    # tr = TableRegression([0], [0.1], [0.5], smooth=True)
-    # x = np.asarray([[0.21]])
+def test_gradients():
+    print "smooth gradient:"
+    tr = TableRegression([0], [0.1], [0.5], smooth=True)
+    tr._weights = np.random.random(size=tr._weights.shape)
+    x = np.asarray([[0.22]])
     # fv = tr._table_fvec_dense(x)
     # print fv
     # print "sum: ", np.sum(fv, axis=0)
-    # print "grad: "
-    # print tr.gradient(x)
+    print "grad: "
+    print tr.gradient(x)
 
-
-    # print "smooth gradient 1d:"
-    # tr = TableRegression([0], [0.1], [0.4], smooth=True)
-    # tr._weights = np.random.random(size=tr._weights.shape)
+    print "smooth gradient check 1d"
+    tr = TableRegression([0], [0.1], [0.4], smooth=True)
+    tr._weights = np.random.random(size=tr._weights.shape)
     # tr._weights = np.arange(tr._weights.size)
-    # x = np.asarray([[0.23]])
-    # assert check_gradient(tr.predict, tr.gradient, x)
+    x = np.asarray([[0.23, 0.17]])
+    check_gradient(tr.predict, tr.gradient, x)
 
-    print "smooth gradient 2d:"
+    print "smooth gradient check 2d"
     tr = TableRegression([0,    0],
                          [0.1,  0.1],
                          [0.4,  0.4],
                          smooth=True)
     # np.random.seed(1)
-    # tr._weights = np.random.random(size=tr._weights.shape)
-    for i in range(tr._elems[0]):
-        for j in range(tr._elems[1]):
-            tr._weights[i*tr._strides[0] + j*tr._strides[1]] = i*10 + j
-    x = np.asarray([[0.21], [0.23]])
-    print check_gradient(tr.predict, tr.gradient, x)
+    tr._weights = np.random.random(size=tr._weights.shape)
+    # for i in range(tr._elems[0]):
+    #     for j in range(tr._elems[1]):
+    #         tr._weights[i*tr._strides[0] + j*tr._strides[1]] = i*10 + j
+    #tr._weights = np.ones(tr._weights.shape)
+    x = np.asarray([[0.21, 0.18, 0.02],
+                    [0.23, 0.34, 0.11]])
+    check_gradient(tr.predict, tr.gradient, x)
+                   #direction=np.asarray([[0], [1]]))
+
+
+def test_fvec():
+    print "nonsmooth 1d fvec:"
+    tr = TableRegression([0,    0],
+                         [0.1,  0.1],
+                         [1,    1])
+    fv = tr._table_fvec_dense(np.asarray([[0.23, 0.46],
+                                          [0.11, 0.09]]))
+    print np.sum(fv, axis=0)
+
+    print "smooth 1d fvec:"
+    tr = TableRegression([0], [0.1], [0.5], smooth=True)
+    fv = tr._table_fvec_dense(np.asarray([[0.21, 0.49]]))
+    print fv
+    print "sum: ", np.sum(fv, axis=0)
+
+    print "smooth 2d fvec:"
+    tr = TableRegression([0,    0],
+                         [0.1,  0.1],
+                         [0.4,  0.4],
+                         smooth=True)
+    fv = tr._table_fvec_dense(np.asarray([[0.21],
+                                          [0.29]]))
+    print fv.reshape(tr._elems)
+    print "sum: ", np.sum(fv, axis=0)
+    print
+
+
+if __name__ == '__main__':
+    test_fvec()
+    for i in range(10):
+        test_gradients()
+
 
