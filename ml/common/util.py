@@ -816,3 +816,5 @@ class CheckpointHandler(object):
     def remove(self):
         if os.path.exists(self._path):
             os.remove(self._path)
+
+

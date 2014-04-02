@@ -35,7 +35,7 @@ class TableRegression(object):
         self._low_high_fac_selector = self._low_high_smooth_selector + 2
         self._low_high_fac_selector[self._low_high_fac_selector > 2] -= 4
 
-        #print "_low_high_fac_selector: ", self._low_high_fac_selector
+        print "_low_high_fac_selector: ", self._low_high_fac_selector
 
         self._weights = np.zeros((self._n_weights,))
 
@@ -157,7 +157,8 @@ class TableRegression(object):
         x_grad_fac_not_abs = np.tile(fac_comp[:, :, :, np.newaxis], (1, 1, 1, self._dims))
         x_grad_fac = np.fabs(x_grad_fac_not_abs)
         for d in range(self._dims):
-            x_grad_fac[d, :, :, d] = x_grad_fac_not_abs[d, :, :, d]
+            # FIXME: sign(0) should be 1
+            x_grad_fac[d, :, :, d] = np.sign(x_grad_fac_not_abs[d, :, :, d]) / 4.0 / self._steps[d]
         x_grad_prod = np.product(x_grad_fac, axis=3)
 
         print "x_grad_fac: ", x_grad_fac
@@ -166,7 +167,7 @@ class TableRegression(object):
         print x_grad_prod.shape
 
         x_grad_weights = np.reshape(self._weights[lh_idx_flat], lh_idx.shape)
-        print "grad_weights: ", x_grad_weights
+        print "grad_weights: ", x_grad_weights[np.newaxis, :, :]
 
         x_grad = np.sum(x_grad_weights[np.newaxis, :, :] * x_grad_prod, axis=2)
         return x_grad
@@ -252,6 +253,46 @@ class TableRegression(object):
         return img
 
 
+def check_gradient(func, grad_func, x, direction=None):
+    epsilon = 0.0001
+    tolerance = 0.0001
+
+    if direction is None:
+        direction = np.random.random_integers(0, 1, size=x.shape)
+    assert direction.shape == x.shape
+    dx = epsilon * direction
+
+    num_grad = (func(x + dx) - func(x)) / epsilon
+    sym_grad = np.dot(dx.T, grad_func(x)) / epsilon
+    sym_grad = sym_grad[0, :]
+
+    # gfx = grad_func(x)
+
+    print "checking gradient at x="
+    print x
+    # print "grad_func(x)="
+    # print gfx
+    # print "(func(x + dx) - func(x)) / epsilon="
+    # print (func(x + dx) - func(x)) / epsilon
+
+    # print "dx="
+    # print dx
+
+    # print "func(x)=", func(x)
+    # print "func(x + dx)=", func(x + dx)
+
+    # print "x+dx="
+    # print x+dx
+    # print "dx:"
+    # print dx
+    print "numeric gradient:"
+    print num_grad
+    print "symbolic gradient:"
+    print sym_grad
+
+    return np.all(np.abs(num_grad - sym_grad) < tolerance)
+
+
 if __name__ == '__main__':
     # print "nonsmooth:"
     # tr = TableRegression([0,    0],
@@ -289,16 +330,23 @@ if __name__ == '__main__':
     # print tr.gradient(x)
 
 
-    print
-    print
+    # print "smooth gradient 1d:"
+    # tr = TableRegression([0], [0.1], [0.4], smooth=True)
+    # tr._weights = np.random.random(size=tr._weights.shape)
+    # tr._weights = np.arange(tr._weights.size)
+    # x = np.asarray([[0.23]])
+    # assert check_gradient(tr.predict, tr.gradient, x)
+
     print "smooth gradient 2d:"
     tr = TableRegression([0,    0],
                          [0.1,  0.1],
                          [0.4,  0.4],
                          smooth=True)
-    x = np.asarray([[0.21],
-                    [0.29]])
-    fv = tr._table_fvec_dense(x)
-    print "grad: "
-    print tr.gradient(x)
+    # np.random.seed(1)
+    # tr._weights = np.random.random(size=tr._weights.shape)
+    for i in range(tr._elems[0]):
+        for j in range(tr._elems[1]):
+            tr._weights[i*tr._strides[0] + j*tr._strides[1]] = i*10 + j
+    x = np.asarray([[0.21], [0.23]])
+    print check_gradient(tr.predict, tr.gradient, x)
 
