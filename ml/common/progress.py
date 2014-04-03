@@ -12,6 +12,7 @@ except (ImportError, NameError):
 _start_time = 0
 _progress_interval = 0
 
+
 def status(current_iter, max_iter=0, caption=""):
     """Displays the progress of a loop as a progressbar.
     current_iter is the number of the current iteration and max_iter is the
@@ -64,6 +65,7 @@ def status(current_iter, max_iter=0, caption=""):
         else:
             print "%d: %s                                         \r" \
                 % (current_iter, caption),
+
 
 def done():
     """Removes the progressbar when the loop is done. Calling is optional.

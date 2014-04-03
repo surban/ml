@@ -48,7 +48,10 @@ class SkinDataset(object):
     def _record_path(self, purpose, taxel, record):
         return self._group_path(purpose, taxel) + '/' + str(record)
 
-    def record(self, purpose, taxel, record):
+    def record(self, purpose, taxel, record=None):
+        if record is None:
+            record = range(self.record_count(purpose, taxel))
+
         if isinstance(record, list):
             return [self._storage[self._record_path(purpose, taxel, r)] for r in record]
         else:

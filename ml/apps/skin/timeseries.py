@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import ml.common.progress as progress
 
 
 max_force = 20
@@ -120,25 +121,6 @@ def add_noise_to_nextstep_data(X, Z, ratio, sigma, max_skin):
     return np.hstack((X, noisy_X)), np.hstack((Z, noisy_Z))
 
 
-def predict_multistep(predictor, forces, valid):
-    """Multi-step prediction.
-    Inputs have the form: forces[step, sample], valid[step, sample]
-    Output has the form:  skin[step, sample]
-    """
-    n_steps = forces.shape[0]
-    n_samples = forces.shape[1]
-
-    skin = np.zeros((n_steps, n_samples))
-    for step in range(1, n_steps):
-        x = np.vstack((forces[step, :], skin[step-1, :]))
-        skin[step, :] = predictor(x)
-        skin[step, skin[step, :] < 0] = 0
-        skin[step, skin[step, :] > max_skin] = max_skin
-
-    skin[~valid] = 0
-    return skin
-
-
 def build_multicurve(curves):
     """Combines a list of curves into a single matrix of the form:
     force[step, sample] and skin[step, sample]."""
@@ -155,4 +137,83 @@ def build_multicurve(curves):
         valid[0:c.shape[1], sample] = True
 
     return force, skin, valid
+
+
+def predict_multistep(predictor, forces, valid, skin_start):
+    """Multi-step prediction.
+    Inputs have the form: forces[step, sample], valid[step, sample], skin_start[sample]
+    Output has the form:  skin[step, sample]
+    """
+    n_steps = forces.shape[0]
+    n_samples = forces.shape[1]
+
+    skin = np.zeros((n_steps, n_samples))
+    skin[0, :] = skin_start
+    for step in range(1, n_steps):
+        progress.status(step-1, n_steps, "predict_multistep")
+
+        x = np.vstack((forces[step, :], skin[step-1, :]))
+        skin[step, :] = predictor(x)
+        skin[step, skin[step, :] < 0] = 0
+        skin[step, skin[step, :] > max_skin] = max_skin
+
+    progress.done()
+    skin[~valid] = 0
+    return skin
+
+
+def multistep_gradient(predictor_with_grad, force, skin, valid):
+    """Calculates the gradient over multi-step prediction.
+    Inputs have the form: force[step, sample], skin[step, sample], valid[step, sample]
+    Output has the form:  skin[step, sample]
+    """
+
+    # skin[step, sample]
+    # skin_p[step, sample]
+    # pred_wrt_prev[sample]
+    # pred_wrt_weights[weight, sample]
+    # skin_wrt_weights[weight, sample]
+    # error_wrt_weights[weight, sample]
+    # x[0=force/1=skin, sample]
+
+    n_steps = force.shape[0]
+    n_samples = force.shape[1]
+
+    skin_p = np.zeros((n_steps, n_samples))
+    skin_p[0, :] = skin[0, :]
+    prev_skin_wrt_weights = 0
+    total_error_wrt_weights = None
+
+    for step in range(1, n_steps):
+        progress.status(step-1, n_steps, "multistep_gradient")
+
+        skin_p[step-1, skin[step-1, :] < 0] = 0
+        skin_p[step-1, skin[step-1, :] > max_skin] = max_skin
+
+        x = np.vstack((force[step, :], skin_p[step-1, :]))
+        skin_p[step, :], pred_wrt_prev_all, pred_wrt_weights = predictor_with_grad(x)
+        pred_wrt_prev = pred_wrt_prev_all[1, :]
+        # pred_wrt_weights = pred_wrt_weights.toarray()
+
+        # print "pred_wrt_prev: ", pred_wrt_prev.shape
+        # print "pred_wrt_weights: ", pred_wrt_weights.shape
+
+        skin_wrt_weights = pred_wrt_weights + pred_wrt_prev * prev_skin_wrt_weights
+        error_wrt_weights = (skin_p[step, :] - skin[step, :]) * skin_wrt_weights
+        error_wrt_weights[~valid[step, :]] = 0
+
+        # print "error_wrt_weights: ", error_wrt_weights.shape
+
+        if step == 1:
+            total_error_wrt_weights = error_wrt_weights
+        else:
+            total_error_wrt_weights += error_wrt_weights
+
+        prev_skin_wrt_weights = skin_wrt_weights
+
+    progress.done()
+    grad = np.sum(total_error_wrt_weights, axis=1)
+    return grad
+
+
 
