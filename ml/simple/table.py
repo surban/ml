@@ -9,6 +9,8 @@ from abc import ABCMeta, abstractmethod
 from ml.common.test import check_gradient
 
 
+import time
+
 class TableRegression(object):
     __metaclass__ = ABCMeta
 
@@ -33,6 +35,7 @@ class TableRegression(object):
         self._weights = np.zeros((self._n_weights,))
 
         self._low_high_selector = None
+        self.sparse = True
         self._init_selector()
 
     @abstractmethod
@@ -85,15 +88,24 @@ class TableRegression(object):
         return self._fvec_from_idx(x, lh_idx_flat, smpl_idx_flat, fac_flat)
 
     def _fvec_from_idx(self, x, lh_idx_flat, smpl_idx_flat, fac_flat):
-        sparse = False
-        if sparse:
+        if self.sparse:
             x = scipy.sparse.lil_matrix((self._n_weights, x.shape[1]))
             x[lh_idx_flat, smpl_idx_flat] = fac_flat
-            return x.tocsc()
+            x = x.tocsr()
         else:
             x = np.zeros((self._n_weights, x.shape[1]))
             x[lh_idx_flat, smpl_idx_flat] = fac_flat
-            return x
+        return x
+
+    def _fast_weight_mul(self, idx_flat, fac_flat):
+        wsel = self._weights[idx_flat]
+
+        idxs_per_sample = self._low_high_selector.shape[2]
+        wsel = np.reshape(wsel, (-1, idxs_per_sample))
+        fac = np.reshape(fac_flat, (-1, idxs_per_sample))
+
+        wf = wsel * fac
+        return np.sum(wf, axis=1)
 
     def _predict_from_fvec(self, fvec):
         x = fvec.T.dot(self._weights).T
@@ -101,6 +113,10 @@ class TableRegression(object):
 
     def predict(self, x):
         return self._predict_from_fvec(self._fvec(x))
+
+    def predict_fast(self, x):
+        lh_idx_flat, smpl_idx_flat, fac_flat = self._weight_idx_and_fac(x)
+        return self._fast_weight_mul(lh_idx_flat, fac_flat)
 
     def train(self, x, t):
         fvec = self._fvec(x)
@@ -203,8 +219,7 @@ class SmoothTableRegression(TableRegression):
         # x_grad_fac     [dim of derivative, distance factor product dim, sample, weight number]
         # x_grad_fac_prod[dim of derivative, sample, weight number]
 
-        sparse = False
-        if sparse:
+        if self.sparse:
             w_grad = scipy.sparse.lil_matrix((self._n_weights, x.shape[1]))
             w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
             w_grad = w_grad.tocsc()

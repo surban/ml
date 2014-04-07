@@ -149,23 +149,28 @@ def predict_multistep(predictor, forces, valid, skin_start):
 
     skin = np.zeros((n_steps, n_samples))
     skin[0, :] = skin_start
+    # x = np.zeros((2, n_samples))
+
     for step in range(1, n_steps):
-        progress.status(step-1, n_steps, "predict_multistep")
+        # progress.status(step-1, n_steps, "predict_multistep")
 
         x = np.vstack((forces[step, :], skin[step-1, :]))
+        # x[0, :] = forces[step, :]
+        # x[1, :] = skin[step-1, :]
+
         skin[step, :] = predictor(x)
         skin[step, skin[step, :] < 0] = 0
         skin[step, skin[step, :] > max_skin] = max_skin
 
-    progress.done()
+    # progress.done()
     skin[~valid] = 0
     return skin
 
 
 def multistep_gradient(predictor_with_grad, force, skin, valid):
-    """Calculates the gradient over multi-step prediction.
+    """Calculates the gradient of the error function over multi-step prediction.
     Inputs have the form: force[step, sample], skin[step, sample], valid[step, sample]
-    Output has the form:  skin[step, sample]
+    Output has the form:  grad[weight]
     """
 
     # skin[step, sample]
