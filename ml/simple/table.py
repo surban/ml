@@ -37,6 +37,8 @@ class TableRegression(object):
         self._low_high_selector = None
         self.sparse = True
         self._init_selector()
+        self._idxs_per_sample = self._low_high_selector.shape[2]
+
 
     @abstractmethod
     def _init_selector(self):
@@ -53,6 +55,10 @@ class TableRegression(object):
     @property
     def weight_matrix(self):
         return np.reshape(self._weights, tuple(self._elems), 'F')
+
+    @property
+    def weights_per_sample(self):
+        return self._idxs_per_sample
 
     def _lh_idx(self, x):
         x = np.asarray(x)
@@ -100,9 +106,8 @@ class TableRegression(object):
     def _fast_weight_mul(self, idx_flat, fac_flat):
         wsel = self._weights[idx_flat]
 
-        idxs_per_sample = self._low_high_selector.shape[2]
-        wsel = np.reshape(wsel, (-1, idxs_per_sample))
-        fac = np.reshape(fac_flat, (-1, idxs_per_sample))
+        wsel = np.reshape(wsel, (-1, self._idxs_per_sample))
+        fac = np.reshape(fac_flat, (-1, self._idxs_per_sample))
 
         wf = wsel * fac
         return np.sum(wf, axis=1)
@@ -111,10 +116,10 @@ class TableRegression(object):
         x = fvec.T.dot(self._weights).T
         return x
 
-    def predict(self, x):
+    def predict_slow(self, x):
         return self._predict_from_fvec(self._fvec(x))
 
-    def predict_fast(self, x):
+    def predict(self, x):
         lh_idx_flat, smpl_idx_flat, fac_flat = self._weight_idx_and_fac(x)
         return self._fast_weight_mul(lh_idx_flat, fac_flat)
 
@@ -219,14 +224,6 @@ class SmoothTableRegression(TableRegression):
         # x_grad_fac     [dim of derivative, distance factor product dim, sample, weight number]
         # x_grad_fac_prod[dim of derivative, sample, weight number]
 
-        if self.sparse:
-            w_grad = scipy.sparse.lil_matrix((self._n_weights, x.shape[1]))
-            w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
-            w_grad = w_grad.tocsc()
-        else:
-            w_grad = np.zeros((self._n_weights, x.shape[1]))
-            w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
-
         x_grad_fac_val = np.tile(fac_comp[np.newaxis, :, :, :], (self._dims, 1, 1, 1))
         x_grad_fac = np.fabs(x_grad_fac_val)
         for d in range(self._dims):
@@ -243,10 +240,9 @@ class SmoothTableRegression(TableRegression):
         # print "x_grad_fac: ", x_grad_fac
         # print "x_grad_prod: ", x_grad_prod
         # print "grad_weights: ", x_grad_weights[np.newaxis, :, :]
-        # print "w_grad: ", w_grad
         # print
 
-        return x_grad, w_grad
+        return x_grad
 
     def gradient(self, x):
         low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
@@ -256,12 +252,32 @@ class SmoothTableRegression(TableRegression):
     def predict_and_gradient(self, x):
         low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
 
-        fvec = self._fvec_from_idx(x, lh_idx_flat, smpl_idx_flat, fac_flat)
-        pred = self._predict_from_fvec(fvec)
-        x_grad, w_grad = self._gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
-                                                           fac_comp, fac_flat)
+        pred = self._fast_weight_mul(lh_idx_flat, fac_flat)
+        x_grad = self._gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
+                                                   fac_comp, fac_flat)
+
+        if False:
+            w_grad = scipy.sparse.lil_matrix((self._n_weights, x.shape[1]))
+            w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
+            w_grad = w_grad.tocsc()
+        else:
+            w_grad = np.zeros((self._n_weights, x.shape[1]))
+            w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
 
         return pred, x_grad, w_grad
+
+    def predict_and_gradient_indices(self, x):
+        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
+
+        pred = self._fast_weight_mul(lh_idx_flat, fac_flat)
+        x_grad = self._gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
+                                                   fac_comp, fac_flat)
+
+        w_grad_idx = lh_idx.T
+        w_grad_smpl_idx = np.reshape(smpl_idx_flat, (-1, self._idxs_per_sample)).T
+        w_grad_fac = np.reshape(fac_flat, (-1, self._idxs_per_sample)).T
+
+        return pred, x_grad, w_grad_idx, w_grad_smpl_idx, w_grad_fac
 
 
 ########################################################################################################################
