@@ -163,6 +163,13 @@ def predict_multistep(predictor, forces, valid, skin_start):
     return skin
 
 
+def multistep_error(skin_p, skin, valid):
+    """Calculates the error function of multiple prediction steps."""
+    diff = (skin_p - skin)**2
+    diff[~valid] = 0
+    return 0.5 * np.sum(diff)
+
+
 def multistep_gradient(predictor_with_grad, force, skin, valid):
     """Calculates the gradient of the error function over multi-step prediction.
     Inputs have the form: force[step, sample], skin[step, sample], valid[step, sample]
@@ -188,14 +195,12 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
     for step in range(1, n_steps):
         # progress.status(step-1, n_steps, "multistep_gradient")
 
-        # clamp to range to avoid table under-/overflows
+        # clamp to range to avoid under-/overflows
         skin_p[step-1, skin[step-1, :] < 0] = 0
         skin_p[step-1, skin[step-1, :] > max_skin] = max_skin
 
         x = np.vstack((force[step, :], skin_p[step-1, :]))
-        # stime = time.time()
         skin_p[step, :], pred_wrt_prev_all, pred_wrt_weights = predictor_with_grad(x)
-        # print "predictor_with_grad:", time.time() - stime
         pred_wrt_prev = pred_wrt_prev_all[1, :]
         # pred_wrt_weights = pred_wrt_weights.toarray()
 
@@ -213,6 +218,7 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
             skin_wrt_weights = pred_wrt_weights
         else:
             skin_wrt_weights = pred_wrt_weights + pred_wrt_prev * prev_skin_wrt_weights
+
         error_wrt_weights = (skin_p[step, :] - skin[step, :]) * skin_wrt_weights
         error_wrt_weights[~valid[step, :]] = 0
 
@@ -281,8 +287,10 @@ def multistep_gradient_sparse(predictor_with_grad_idx, weights_per_sample, n_wei
 
         # convert sparse to dense representation
         efac = skin_p[step, :] - skin[step, :]
+        err_wrt_weights_val = wrt_weights_val * efac
         for bstep in range(1, step+1):
-            grad[weight_idx[bstep, :, :].flatten(), smpl_idx.flatten()] += wrt_weights_val[bstep, :, :].flatten()
+            grad[weight_idx[bstep, :, :].flatten(), smpl_idx.flatten()] += err_wrt_weights_val[bstep, :, :].flatten()
+
 
     # sum gradient over all samples
     return np.sum(grad, axis=1)
