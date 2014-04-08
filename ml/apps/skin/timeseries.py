@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse
 import matplotlib.pyplot as plt
 import math
 import ml.common.progress as progress
@@ -140,7 +141,7 @@ def build_multicurve(curves):
     return force, skin, valid
 
 
-def predict_multistep(predictor, forces, valid, skin_start):
+def multistep_predict(predictor, forces, valid, skin_start):
     """Multi-step prediction.
     Inputs have the form: forces[step, sample], valid[step, sample], skin_start[sample]
     Output has the form:  skin[step, sample]
@@ -174,128 +175,65 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
     """Calculates the gradient of the error function over multi-step prediction.
     Inputs have the form: force[step, sample], skin[step, sample], valid[step, sample]
     Output has the form:  grad[weight]
+    predictor_with_grad(skin[step, sample]) should return a tuple of
+    (skin[step+1, sample], dSkin/dPrevious, dSkin/dWeights).
     """
 
+    # x[0=force/1=skin, sample]
     # skin[step, sample]
     # skin_p[step, sample]
-    # pred_wrt_prev[sample]
-    # pred_wrt_weights[weight, sample]
-    # skin_wrt_weights[weight, sample]
-    # error_wrt_weights[weight, sample]
-    # x[0=force/1=skin, sample]
+    # pred_wrt_prev[sample]                     dense
+    # pred_wrt_weights[weight, sample]          sparse
+    # skin_wrt_weights[weight, sample]          sparse
+    # prev_skin_wrt_weights[weight, sample]     sparse
+    # error_wrt_weights[weight, sample]         sparse
 
     n_steps = force.shape[0]
     n_samples = force.shape[1]
 
     skin_p = np.zeros((n_steps, n_samples))
     skin_p[0, :] = skin[0, :]
-    prev_skin_wrt_weights = None
+
+    skin_wrt_weights = None
     total_error_wrt_weights = None
 
     for step in range(1, n_steps):
-        # progress.status(step-1, n_steps, "multistep_gradient")
-
         # clamp to range to avoid under-/overflows
         skin_p[step-1, skin[step-1, :] < 0] = 0
         skin_p[step-1, skin[step-1, :] > max_skin] = max_skin
 
+        # get gradient of prediction
         x = np.vstack((force[step, :], skin_p[step-1, :]))
         skin_p[step, :], pred_wrt_prev_all, pred_wrt_weights = predictor_with_grad(x)
-        pred_wrt_prev = pred_wrt_prev_all[1, :]
-        # pred_wrt_weights = pred_wrt_weights.toarray()
+        pred_wrt_prev = scipy.sparse.csr_matrix(pred_wrt_prev_all[1, :])
+        pred_wrt_weights = pred_wrt_weights.tocsr()
 
         # print "pred_wrt_prev: ", pred_wrt_prev.shape
         # print "pred_wrt_weights: ", pred_wrt_weights.shape
 
-        # if step != 1:
-        #     print pred_wrt_prev.shape
-        #     print prev_skin_wrt_weights.shape
-        #     stime = time.time()
-        #     pred_wrt_prev[np.newaxis, :] * prev_skin_wrt_weights
-        #     print "prev mul:", time.time() - stime
-
+        # backpropagte through time
         if step == 1:
             skin_wrt_weights = pred_wrt_weights
         else:
-            skin_wrt_weights = pred_wrt_weights + pred_wrt_prev * prev_skin_wrt_weights
+            # workaround: scipy throws an error if trying to multiply a sparse matrix with a 1x1 sparse matrix
+            if pred_wrt_prev.shape == (1,1):
+                skin_wrt_weights = pred_wrt_weights + pred_wrt_prev[0,0] * skin_wrt_weights
+            else:
+                skin_wrt_weights = pred_wrt_weights + skin_wrt_weights.multiply(pred_wrt_prev)
 
-        error_wrt_weights = (skin_p[step, :] - skin[step, :]) * skin_wrt_weights
+        # calculate gradient of error function
+        efac = skin_p[step, :] - skin[step, :]
+        efac = scipy.sparse.csr_matrix(efac)
+        error_wrt_weights = skin_wrt_weights.multiply(efac)
         error_wrt_weights[~valid[step, :]] = 0
 
-        # print "error_wrt_weights: ", error_wrt_weights.shape
-
+        # sum error over steps
         if step == 1:
             total_error_wrt_weights = error_wrt_weights
         else:
-            total_error_wrt_weights += error_wrt_weights
+            total_error_wrt_weights = total_error_wrt_weights + error_wrt_weights
 
-        prev_skin_wrt_weights = skin_wrt_weights
-
-    # progress.done()
-    grad = np.sum(total_error_wrt_weights, axis=1)
+    # sum gradient over samples
+    grad = np.sum(total_error_wrt_weights.toarray(), axis=1)
     return grad
-
-
-def multistep_gradient_sparse(predictor_with_grad_idx, weights_per_sample, n_weights, force, skin, valid):
-    """Calculates the gradient of the error function over multi-step prediction.
-    Inputs have the form: force[step, sample], skin[step, sample], valid[step, sample]
-    Output has the form:  grad[weight]
-    """
-
-    # skin[step, sample]
-    # skin_p[step, sample]
-    # weight_idx[step, no, sample]
-    # wrt_weights_val[step, no, sample]
-    # wrt_prev[step, sample]
-    # grad[weight, sample]
-    # x[0=force/1=skin, sample]
-
-    n_steps = force.shape[0]
-    n_samples = force.shape[1]
-
-    skin_p = np.zeros((n_steps, n_samples))
-    skin_p[0, :] = skin[0, :]
-
-    wrt_prev = np.zeros((n_steps, n_samples))
-    weight_idx = np.zeros((n_steps, weights_per_sample, n_samples), dtype='int')
-    wrt_weights_val = np.zeros(weight_idx.shape)
-
-    for step in range(1, n_steps):
-        # progress.status(step-1, n_steps, "multistep_gradient")
-
-        # clamp to range to avoid table under-/overflows
-        skin_p[step-1, skin[step-1, :] < 0] = 0
-        skin_p[step-1, skin[step-1, :] > max_skin] = max_skin
-
-        # predict and obtain table gradient w.r.t. previous skin value and weights
-        x = np.vstack((force[step, :], skin_p[step-1, :]))
-        skin_p[step, :], pred_wrt_prev_all, pred_wrt_weights_idx, pred_wrt_weights_smpl, pred_wrt_weights_fac = \
-            predictor_with_grad_idx(x)
-
-        # store
-        weight_idx[step, :, :] = pred_wrt_weights_idx
-        wrt_weights_val[step, :, :] = pred_wrt_weights_fac
-        wrt_prev[step, :] = pred_wrt_prev_all[1, :]
-
-    grad = np.zeros((n_weights, n_samples))
-    smpl_idx = np.tile(np.arange(n_samples), (weights_per_sample, 1))
-
-    # sum error over all steps
-    for step in range(1, n_steps):
-        # backpropagate error through time
-        wrt_weights_val[0:step, :, :] *= wrt_prev[step]
-
-        # convert sparse to dense representation
-        efac = skin_p[step, :] - skin[step, :]
-        err_wrt_weights_val = wrt_weights_val * efac
-        for bstep in range(1, step+1):
-            grad[weight_idx[bstep, :, :].flatten(), smpl_idx.flatten()] += err_wrt_weights_val[bstep, :, :].flatten()
-
-
-    # sum gradient over all samples
-    return np.sum(grad, axis=1)
-
-
-
-
 

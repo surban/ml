@@ -1,37 +1,35 @@
 import numpy as np
 
-epsilon = 1e-8
-tolerance = 1e-2
+epsilon = 1e-6
+default_tolerance = 1e-2
 
 
-def check_gradient(func, grad_func, x, always_output=False, columns_are_samples=False):
+def check_gradient(func, grad_func, x, always_output=False, columns_are_samples=False, tolerance=default_tolerance):
     assert x.ndim == 1
     n_directions = x.shape[0]
 
     if not columns_are_samples:
         def func_wrapper(f, xi):
-            retvals = [f(xi[:, i]) for i in range(xi.shape[1])]
-            return np.asarray(retvals)
+            if xi.ndim == 2:
+                retvals = [f(xi[:, i]) for i in range(xi.shape[1])]
+                return np.asarray(retvals)
+            else:
+                return f(xi)
         orig_func = func
-        orig_grad_func = grad_func
         func = lambda xi: func_wrapper(orig_func, xi)
-        grad_func = lambda xi: func_wrapper(orig_grad_func, xi)
 
-    xb = np.tile(x, (n_directions, 1))
+    xb = np.tile(x, (n_directions, 1)).T
     xe = xb.copy()
     for d in range(n_directions):
         xe[d, d] += epsilon
 
-    print xe.shape
-    print xb.shape
-
     num_grad = (func(xe) - func(xb)) / epsilon
-    sym_grad = grad_func(xb)
+    sym_grad = grad_func(x)
 
     if always_output or not np.all(np.abs(num_grad - sym_grad) < tolerance):
         print "checking gradient at x="
-        print xb
-        print "func(x)=", func(xb)
+        print x
+        print "func(x)=", func(x)
         print "func(x + dx)=", func(xe)
         print "(func(x + dx) - func(x)) / epsilon="
         print num_grad
@@ -41,7 +39,7 @@ def check_gradient(func, grad_func, x, always_output=False, columns_are_samples=
     assert np.all(np.abs(num_grad - sym_grad) < tolerance)
 
 
-def check_directional_gradient(func, grad_func, x, direction=None, always_output=False):
+def check_directional_gradient(func, grad_func, x, direction=None, always_output=False, tolerance=default_tolerance):
     if direction is None:
         direction = np.random.random_integers(0, 1, size=x.shape)
         for s in range(direction.shape[1]):
@@ -75,5 +73,6 @@ def check_directional_gradient(func, grad_func, x, direction=None, always_output
         print sym_grad
 
     assert np.all(np.abs(num_grad - sym_grad) < tolerance)
+
 
 

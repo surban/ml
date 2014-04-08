@@ -32,7 +32,7 @@ class TableRegression(object):
             self._strides[d] = self._strides[d-1] * self._elems[d-1]
 
         self._n_weights = int(np.product(self._elems))
-        self._weights = np.zeros((self._n_weights,))
+        self.weights = np.zeros((self._n_weights,))
 
         self._low_high_selector = None
         self.sparse = True
@@ -54,11 +54,15 @@ class TableRegression(object):
 
     @property
     def weight_matrix(self):
-        return np.reshape(self._weights, tuple(self._elems), 'F')
+        return np.reshape(self.weights, tuple(self._elems), 'F')
 
     @property
     def weights_per_sample(self):
         return self._idxs_per_sample
+
+    @property
+    def n_weights(self):
+        return self.weights.size
 
     def _lh_idx(self, x):
         x = np.asarray(x)
@@ -104,7 +108,7 @@ class TableRegression(object):
         return x
 
     def _fast_weight_mul(self, idx_flat, fac_flat):
-        wsel = self._weights[idx_flat]
+        wsel = self.weights[idx_flat]
 
         wsel = np.reshape(wsel, (-1, self._idxs_per_sample))
         fac = np.reshape(fac_flat, (-1, self._idxs_per_sample))
@@ -113,7 +117,7 @@ class TableRegression(object):
         return np.sum(wf, axis=1)
 
     def _predict_from_fvec(self, fvec):
-        x = fvec.T.dot(self._weights).T
+        x = fvec.T.dot(self.weights).T
         return x
 
     def predict_slow(self, x):
@@ -127,13 +131,13 @@ class TableRegression(object):
         fvec = self._fvec(x)
         res, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var = scipy.sparse.linalg.lsqr(fvec.T, t.T)
         print "istop: %d   itn: %d" % (istop, itn)
-        self._weights = res.T
+        self.weights = res.T
 
     def train_lsmr(self, x, t):
         fvec = self._fvec(x)
         res, istop, itn, normr, normar, norma, conda, normx = scipy.sparse.linalg.lsmr(fvec.T, t.T)
         print "istop: %d   itn: %d" % (istop, itn)
-        self._weights = res.T
+        self.weights = res.T
 
     def plot2d(self, rng=None):
         if self._dims != 2:
@@ -199,6 +203,7 @@ class SmoothTableRegression(TableRegression):
             np.array(list(itertools.product(*itertools.repeat([-1, 0, 1, 2], self._dims))), dtype='int').T[:, np.newaxis, :]
         self._low_high_fac_selector = self._low_high_selector + 2
         self._low_high_fac_selector[self._low_high_fac_selector > 2] -= 4
+        self.sparse_weight_gradient = True
 
         # print "_low_high_fac_selector: ", self._low_high_fac_selector
 
@@ -232,7 +237,7 @@ class SmoothTableRegression(TableRegression):
             x_grad_fac[d, d, :, :] = tmp / 4.0 / self._steps[d]
         x_grad_fac_prod = np.product(x_grad_fac, axis=1)
 
-        x_grad_weights = np.reshape(self._weights[lh_idx_flat], lh_idx.shape)
+        x_grad_weights = np.reshape(self.weights[lh_idx_flat], lh_idx.shape)
         x_grad = np.sum(x_grad_weights[np.newaxis, :, :] * x_grad_fac_prod, axis=2)
 
         # print "gradient:"
@@ -256,10 +261,9 @@ class SmoothTableRegression(TableRegression):
         x_grad = self._gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
                                                    fac_comp, fac_flat)
 
-        if False:
-            w_grad = scipy.sparse.lil_matrix((self._n_weights, x.shape[1]))
-            w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
-            w_grad = w_grad.tocsc()
+        if self.sparse_weight_gradient:
+            w_grad = scipy.sparse.coo_matrix((fac_flat, (lh_idx_flat, smpl_idx_flat)),
+                                             shape=(self._n_weights, x.shape[1]))
         else:
             w_grad = np.zeros((self._n_weights, x.shape[1]))
             w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
@@ -299,7 +303,7 @@ def w_grad_wrapper(tr, x, w):
 def test_gradients():
     print "smooth gradient:"
     tr = SmoothTableRegression([0], [0.1], [0.5])
-    tr._weights = np.random.random(size=tr._weights.shape)
+    tr.weights = np.random.random(size=tr.weights.shape)
     x = np.asarray([[0.22]])
     x_grad, w_grad = tr.gradient(x)
     print "x grad: "
@@ -309,20 +313,20 @@ def test_gradients():
 
     print "smooth gradient check x 1d"
     tr = SmoothTableRegression([0], [0.1], [0.4])
-    tr._weights = np.random.random(size=tr._weights.shape)
+    tr.weights = np.random.random(size=tr.weights.shape)
     # tr._weights = np.arange(tr._weights.size)
     x = np.asarray([[0.23, 0.17]])
     # check_gradient(tr.predict, lambda x: tr.gradient(x)[0], x)
     print "smooth gradient check w 1d"
     check_gradient(lambda w: w_func_wrapper(tr, x, w), lambda w: w_grad_wrapper(tr, x, w),
-                   tr._weights[:, np.newaxis])
+                   tr.weights[:, np.newaxis])
 
     print "smooth gradient check x 2d"
     tr = SmoothTableRegression([0,    0],
                                [0.1,  0.1],
                                [0.4,  0.4])
     # np.random.seed(1)
-    tr._weights = np.random.random(size=tr._weights.shape)
+    tr.weights = np.random.random(size=tr.weights.shape)
     # for i in range(tr._elems[0]):
     #     for j in range(tr._elems[1]):
     #         tr._weights[i*tr._strides[0] + j*tr._strides[1]] = i*10 + j
@@ -333,7 +337,7 @@ def test_gradients():
                    #direction=np.asarray([[0], [1]]))
     print "smooth gradient check w 2d"
     check_gradient(lambda w: w_func_wrapper(tr, x, w), lambda w: w_grad_wrapper(tr, x, w),
-                   tr._weights[:, np.newaxis])
+                   tr.weights[:, np.newaxis])
 
 
 def test_fvec():
