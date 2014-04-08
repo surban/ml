@@ -204,6 +204,7 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
 
         # get gradient of prediction
         x = np.vstack((force[step, :], skin_p[step-1, :]))
+        x[x < 0] = 0
         skin_p[step, :], pred_wrt_prev_all, pred_wrt_weights = predictor_with_grad(x)
         pred_wrt_prev = scipy.sparse.csr_matrix(pred_wrt_prev_all[1, :])
         pred_wrt_weights = pred_wrt_weights.tocsr()

@@ -222,7 +222,7 @@ class SmoothTableRegression(TableRegression):
         low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
         return lh_idx_flat, smpl_idx_flat, fac_flat
 
-    def _gradient_from_intermidiates(self, x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat):
+    def _x_gradient_from_intermidiates(self, x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat):
         # used variables:
         # fac_comp       [distance factor product dim, sample, weight number]
         # x_grad_fac_val [dim of derivative, distance factor product dim, sample, weight number]
@@ -249,32 +249,38 @@ class SmoothTableRegression(TableRegression):
 
         return x_grad
 
-    def gradient(self, x):
-        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
-        return self._gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
-                                                 fac_comp, fac_flat)
-
-    def predict_and_gradient(self, x):
-        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
-
-        pred = self._fast_weight_mul(lh_idx_flat, fac_flat)
-        x_grad = self._gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
-                                                   fac_comp, fac_flat)
-
+    def _w_gradient_from_intermidiates(self, x, lh_idx_flat, smpl_idx_flat, fac_flat):
         if self.sparse_weight_gradient:
             w_grad = scipy.sparse.coo_matrix((fac_flat, (lh_idx_flat, smpl_idx_flat)),
                                              shape=(self._n_weights, x.shape[1]))
         else:
             w_grad = np.zeros((self._n_weights, x.shape[1]))
             w_grad[lh_idx_flat, smpl_idx_flat] = fac_flat
+        return w_grad
 
+    def gradient(self, x):
+        """Returns (gradient w.r.t input, gradient w.r.t. weights)"""
+        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
+        x_grad = self._x_gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
+                                                     fac_comp, fac_flat)
+        w_grad = self._w_gradient_from_intermidiates(x, lh_idx_flat, smpl_idx_flat, fac_flat)
+        return x_grad, w_grad
+
+    def predict_and_gradient(self, x):
+        """Returns (prediction, gradient w.r.t input, gradient w.r.t. weights)"""
+        low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
+
+        pred = self._fast_weight_mul(lh_idx_flat, fac_flat)
+        x_grad = self._x_gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
+                                                   fac_comp, fac_flat)
+        w_grad = self._w_gradient_from_intermidiates(x, lh_idx_flat, smpl_idx_flat, fac_flat)
         return pred, x_grad, w_grad
 
     def predict_and_gradient_indices(self, x):
         low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat, fac_comp, fac_flat = self._intermidiates(x)
 
         pred = self._fast_weight_mul(lh_idx_flat, fac_flat)
-        x_grad = self._gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
+        x_grad = self._x_gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
                                                    fac_comp, fac_flat)
 
         w_grad_idx = lh_idx.T
