@@ -2,9 +2,8 @@ import numpy as np
 import scipy.sparse
 import matplotlib.pyplot as plt
 import math
+import random
 import ml.common.progress as progress
-
-import time
 
 max_force = 20
 max_skin = 2
@@ -16,6 +15,7 @@ def plot_phase(data, *args):
     plt.ylabel("skin [V]")
     plt.xlim(0, max_force)
     plt.ylim(0, max_skin)
+
 
 def plot_multicurve(force, skin, valid, *args):
     n_curves = force.shape[1]
@@ -38,6 +38,7 @@ def plot_multicurve(force, skin, valid, *args):
         if c / width == height-1:
             plt.xlabel("force [N]")
 
+
 def plot_multicurve_time(force, skin, valid, skin_predicted=None, timestep=None):
     n_curves = force.shape[1]
     assert skin.shape[1] == n_curves
@@ -53,7 +54,10 @@ def plot_multicurve_time(force, skin, valid, skin_predicted=None, timestep=None)
 
     for c in range(n_curves):
         plt.subplot(height, width, c+1)
-        valid_to = np.where(valid[:, c])[0][-1]
+        where_valid = np.where(valid[:, c])[0]
+        if len(where_valid) == 0:
+            continue
+        valid_to = where_valid[-1]
 
         if timestep:
             ts = np.linspace(0, valid_to * timestep, valid_to)
@@ -224,9 +228,9 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
 
         # calculate gradient of error function
         efac = skin_p[step, :] - skin[step, :]
+        efac[~valid[step, :]] = 0
         efac = scipy.sparse.csr_matrix(efac)
         error_wrt_weights = skin_wrt_weights.multiply(efac)
-        error_wrt_weights[~valid[step, :]] = 0
 
         # sum error over steps
         if step == 1:
@@ -238,3 +242,67 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
     grad = np.sum(total_error_wrt_weights.toarray(), axis=1)
     return grad
 
+
+def split_multicurves(o_force, o_skin, o_valid, split_steps):
+    n_curves = o_force.shape[1]
+
+    # pad steps if necessary
+    n_o_steps = o_force.shape[0]
+    n_rest = n_o_steps % split_steps
+    if n_rest != 0:
+        n_fill = split_steps - n_rest
+        n_steps = n_o_steps + n_fill
+
+        force = np.zeros((n_steps, n_curves))
+        force[0:n_o_steps, :] = o_force[0:n_o_steps, :]
+        skin = np.zeros((n_steps, n_curves))
+        skin[0:n_o_steps, :] = o_skin[0:n_o_steps, :]
+        valid = np.zeros((n_steps, n_curves), dtype='bool')
+        valid[0:n_o_steps, :] = o_valid[0:n_o_steps, :]
+    else:
+        n_steps = n_o_steps
+        force = o_force
+        skin = o_skin
+        valid = o_valid
+
+    # calculate number of generated samples
+    assert n_steps % split_steps == 0
+    samples_per_curve = n_steps / split_steps
+    n_samples = n_curves * samples_per_curve
+
+    # assign curves to offsets
+    offset_curves = [[] for _ in range(split_steps)]
+    offset = 0
+    for curve in range(n_curves):
+        offset_curves[offset].append(curve)
+        offset = (offset + 1) % split_steps
+
+    # segment curves in samples
+    l_force = []
+    l_skin = []
+    l_valid = []
+    for offset in range(split_steps):
+        my_curves = offset_curves[offset]
+        for sample in range(samples_per_curve - 1):
+            start_step = offset + sample * split_steps
+            end_step = start_step + split_steps
+
+            l_force.append(force[start_step:end_step, my_curves])
+            l_skin.append(skin[start_step:end_step, my_curves])
+            l_valid.append(valid[start_step:end_step, my_curves])
+
+    # add beginning of all curves (to avoid missing steps due to offset)
+    l_force.append(force[0:split_steps, :])
+    l_skin.append(skin[0:split_steps, :])
+    l_valid.append(valid[0:split_steps, :])
+
+    # shuffle samples
+    perm = range(len(l_force))
+    random.shuffle(perm)
+
+    # build output
+    s_force = np.hstack(l_force)
+    s_skin = np.hstack(l_skin)
+    s_valid = np.hstack(l_valid)
+
+    return s_force, s_skin, s_valid
