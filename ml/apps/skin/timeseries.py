@@ -56,8 +56,9 @@ def plot_multicurve_time(force, skin, valid, skin_predicted=None, timestep=None)
         plt.subplot(height, width, c+1)
         where_valid = np.where(valid[:, c])[0]
         if len(where_valid) == 0:
-            continue
-        valid_to = where_valid[-1]
+            valid_to = 0
+        else:
+            valid_to = where_valid[-1]
 
         if timestep:
             ts = np.linspace(0, valid_to * timestep, valid_to)
@@ -168,11 +169,14 @@ def multistep_predict(predictor, forces, valid, skin_start):
     return skin
 
 
-def multistep_error(skin_p, skin, valid):
+def multistep_error(skin_p, skin, valid, mean_err=False):
     """Calculates the error function of multiple prediction steps."""
     diff = (skin_p - skin)**2
     diff[~valid] = 0
-    return 0.5 * np.sum(diff)
+    if not mean_err:
+        return 0.5 * np.sum(diff)
+    else:
+        return 0.5 * np.mean(diff)
 
 
 def multistep_gradient(predictor_with_grad, force, skin, valid):
@@ -299,10 +303,19 @@ def split_multicurves(o_force, o_skin, o_valid, split_steps):
     # shuffle samples
     perm = range(len(l_force))
     random.shuffle(perm)
+    l_force = [l_force[i] for i in perm]
+    l_skin = [l_skin[i] for i in perm]
+    l_valid = [l_valid[i] for i in perm]
 
     # build output
     s_force = np.hstack(l_force)
     s_skin = np.hstack(l_skin)
     s_valid = np.hstack(l_valid)
+
+    # remove completely invalid samples
+    have_valid = np.any(s_valid, axis=0)
+    s_force = s_force[:, have_valid]
+    s_skin = s_skin[:, have_valid]
+    s_valid = s_valid[:, have_valid]
 
     return s_force, s_skin, s_valid
