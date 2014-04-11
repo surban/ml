@@ -38,6 +38,9 @@ class SkinDataset(object):
             self._build(directory)
 
     def _group_path(self, purpose, taxel):
+        if purpose == 'trn': purpose = 'train'
+        if purpose == 'val': purpose = 'validation'
+        if purpose == 'tst': purpose = 'test'
         assert purpose in ['train', 'validation', 'test']
         path = '%s/%d,%d' % (purpose, taxel[0], taxel[1])
         return path

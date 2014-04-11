@@ -672,15 +672,16 @@ class ParameterHistory(object):
             print "Termination by user."
             self.should_terminate = True
 
-    def plot(self, final=True):
+    def plot(self, final=True, logscale=True):
         self.end_time = time.time()
 
         if 'figsize' in dir(plt):
             plt.figsize(10,5)
         plt.clf()
-        plt.hold(True)        
-        plt.yscale('log')
-        #plt.xscale('log')
+        plt.hold(True)
+        if logscale:
+            plt.yscale('log')
+            #plt.xscale('log')
         plt.plot(self.history[0], self.history[1], 'b')
         plt.plot(self.history[0], self.history[2], 'c')
         plt.plot(self.history[0], self.history[3], 'r')
@@ -703,7 +704,6 @@ class ParameterHistory(object):
     @property
     def converged(self):
         return self.best_val_loss <= self.desired_loss + self.min_improvement
-
 
 
 def load_theano_data(filename):

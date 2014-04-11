@@ -179,7 +179,22 @@ def multistep_error(skin_p, skin, valid, mean_err=False):
         return 0.5 * np.mean(diff)
 
 
-def multistep_gradient(predictor_with_grad, force, skin, valid):
+def multistep_error_per_sample(skin_p, skin, valid):
+    """Calculates the error function of multiple prediction steps."""
+    diff = (skin_p - skin)**2
+    diff[~valid] = 0
+    return 0.5 * np.sum(diff, axis=0)
+
+
+def sparse_multiply(a, b):
+    # workaround: scipy throws an error if trying to multiply a sparse matrix with a 1x1 sparse matrix
+    if b.shape == (1, 1):
+        return b[0, 0] * a
+    else:
+        return a.multiply(b)
+
+
+def multistep_gradient(predictor_with_grad, force, skin, valid, reset_steps=0):
     """Calculates the gradient of the error function over multi-step prediction.
     Inputs have the form: force[step, sample], skin[step, sample], valid[step, sample]
     Output has the form:  grad[weight]
@@ -204,6 +219,7 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
 
     skin_wrt_weights = None
     total_error_wrt_weights = None
+    grad = None
 
     for step in range(1, n_steps):
         # clamp to range to avoid under-/overflows
@@ -214,40 +230,40 @@ def multistep_gradient(predictor_with_grad, force, skin, valid):
         x = np.vstack((force[step, :], skin_p[step-1, :]))
         x[x < 0] = 0
         skin_p[step, :], pred_wrt_prev_all, pred_wrt_weights = predictor_with_grad(x)
-        pred_wrt_prev = scipy.sparse.csr_matrix(pred_wrt_prev_all[1, :])
-        pred_wrt_weights = pred_wrt_weights.tocsr()
+        pred_wrt_prev = scipy.sparse.csc_matrix(pred_wrt_prev_all[1, :])
+        pred_wrt_weights = pred_wrt_weights.tocsc()
 
         # print "pred_wrt_prev: ", pred_wrt_prev.shape
         # print "pred_wrt_weights: ", pred_wrt_weights.shape
 
         # backpropagte through time
-        if step == 1:
+        if step == 1 or (reset_steps != 0 and step % reset_steps == 0):
             skin_wrt_weights = pred_wrt_weights
         else:
-            # workaround: scipy throws an error if trying to multiply a sparse matrix with a 1x1 sparse matrix
-            if pred_wrt_prev.shape == (1,1):
-                skin_wrt_weights = pred_wrt_weights + pred_wrt_prev[0,0] * skin_wrt_weights
-            else:
-                skin_wrt_weights = pred_wrt_weights + skin_wrt_weights.multiply(pred_wrt_prev)
+            skin_wrt_weights = pred_wrt_weights + sparse_multiply(skin_wrt_weights, pred_wrt_prev)
 
         # calculate gradient of error function
         efac = skin_p[step, :] - skin[step, :]
         efac[~valid[step, :]] = 0
-        efac = scipy.sparse.csr_matrix(efac)
-        error_wrt_weights = skin_wrt_weights.multiply(efac)
+        efac = scipy.sparse.csc_matrix(efac)
+        error_wrt_weights = sparse_multiply(skin_wrt_weights, efac)
 
         # sum error over steps
-        if step == 1:
+        if grad is None:
+            grad = np.zeros((error_wrt_weights.shape[0]))
+        if step == 1:  #  or (reset_steps != 0 and step % reset_steps == 0):
+            if total_error_wrt_weights is not None:
+                grad += np.sum(total_error_wrt_weights.toarray(), axis=1)
             total_error_wrt_weights = error_wrt_weights
         else:
             total_error_wrt_weights = total_error_wrt_weights + error_wrt_weights
 
     # sum gradient over samples
-    grad = np.sum(total_error_wrt_weights.toarray(), axis=1)
+    grad += np.sum(total_error_wrt_weights.toarray(), axis=1)
     return grad
 
 
-def split_multicurves(o_force, o_skin, o_valid, split_steps):
+def split_multicurves(o_force, o_skin, o_valid, split_steps, overlap=0):
     n_curves = o_force.shape[1]
 
     # pad steps if necessary
@@ -289,19 +305,23 @@ def split_multicurves(o_force, o_skin, o_valid, split_steps):
         my_curves = offset_curves[offset]
         for sample in range(samples_per_curve - 1):
             start_step = offset + sample * split_steps
-            end_step = start_step + split_steps
+            end_step = start_step + split_steps + overlap
+
+            if end_step > n_steps:
+                continue
 
             l_force.append(force[start_step:end_step, my_curves])
             l_skin.append(skin[start_step:end_step, my_curves])
             l_valid.append(valid[start_step:end_step, my_curves])
 
     # add beginning of all curves (to avoid missing steps due to offset)
-    l_force.append(force[0:split_steps, :])
-    l_skin.append(skin[0:split_steps, :])
-    l_valid.append(valid[0:split_steps, :])
+    l_force.append(force[0:split_steps+overlap, :])
+    l_skin.append(skin[0:split_steps+overlap, :])
+    l_valid.append(valid[0:split_steps+overlap, :])
 
     # shuffle samples
     perm = range(len(l_force))
+    random.seed(100)
     random.shuffle(perm)
     l_force = [l_force[i] for i in perm]
     l_skin = [l_skin[i] for i in perm]
