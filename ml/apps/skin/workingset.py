@@ -58,6 +58,56 @@ class SkinWorkingset(object):
 
         return err
 
+    def print_error(self, err):
+        for prt in ['trn', 'val', 'tst']:
+            print "%s:   next step: %.7f;  all steps: %.5f;  failed curves: %d" % (prt, err['ns_'+prt], err['ms_'+prt],
+                                                                                   len(err['failed_'+prt]))
+
+
+class SkinNextstepWorkingset(object):
+
+    def __init__(self, ws, tr, ns_in, ns_skin, batch_size=None):
+        self.ws = ws
+        self.tr = tr
+        self.batch_size = batch_size
+
+        self.ns_in = ns_in
+        self.ns_skin = ns_skin
+
+        if batch_size is not None:
+            self.n_samples = self.ns_in.shape[1]
+            self.n_batches = int(ceil(self.n_samples / self.batch_size))
+            self.batch = 0
+
+        if batch_size is not None:
+            print "Number of samples:           ", self.n_samples
+            print "Number of batches:           ", self.n_batches
+            print "Batch size:                  ", self.batch_size
+
+    def next_batch(self):
+        self.batch = (self.batch + 1) % self.n_batches
+
+    def get_batch(self, batch=None):
+        if self.batch_size is None:
+            return self.ns_in, self.ns_skin
+        else:
+            if batch is None:
+                batch = self.batch
+            ns_in = self.ns_in[:, batch*self.batch_size:(batch+1)*self.batch_size]
+            ns_skin = self.ns_skin[batch*self.batch_size:(batch+1)*self.batch_size]
+            return ns_in, ns_skin
+
+    def error_wrapper(self, dummy):
+        ns_in, ns_skin = self.get_batch()
+        ns_skin_p = self.tr.predict(ns_in)
+        return 0.5 * np.sum((ns_skin_p - ns_skin)**2)
+
+    def gradient_wrapper(self, dummy):
+        ns_in, ns_skin = self.get_batch()
+        dEdF = self.tr.predict(ns_in) - ns_skin
+        x_grad, w_grad = self.tr.gradient(ns_in)
+        return w_grad.dot(dEdF)
+
 
 class SkinMultistepWorkingset(object):
 
@@ -90,12 +140,12 @@ class SkinMultistepWorkingset(object):
         return f, v, s
 
     def error_wrapper(self, dummy):
-        f,v,s = self.get_fvs()
+        f, v, s = self.get_fvs()
         s_p = multistep_predict(self.tr.predict, f, v, s[0, :])
         return multistep_error(s_p, s, v)
 
     def gradient_wrapper(self, dummy):
-        f,v,s = self.get_fvs()
+        f, v, s = self.get_fvs()
         return multistep_gradient(self.tr.predict_and_gradient, f, s, v)
 
 

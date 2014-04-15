@@ -113,6 +113,26 @@ def build_nextstep_data(ds, purpose, taxel, n_curves=None):
     return X, Z
 
 
+def build_nextstep_data_from_multicurve(force, skin_in, valid, skin_out=None):
+    if skin_out is None:
+        skin_out = skin_in
+
+    n_curves = force.shape[1]
+    ns_in = np.zeros((2, 0))
+    ns_skin = np.zeros((0, ))
+
+    for smpl in range(n_curves):
+        last_valid = np.nonzero(valid[:, smpl])[0][-1]
+        x = np.vstack((force[0:last_valid-1, smpl],
+                       skin_in[0:last_valid-1, smpl]))
+        z = skin_out[1:last_valid, smpl]
+
+        ns_in = np.concatenate((ns_in, x), axis=1)
+        ns_skin = np.concatenate((ns_skin, z), axis=1)
+
+    return ns_in, ns_skin
+
+
 def add_noise_to_nextstep_data(X, Z, ratio, sigma, max_skin):
     n_samples = X.shape[1]
     n_noisy = int(n_samples * ratio)
