@@ -189,6 +189,15 @@ def multistep_predict(predictor, forces, valid, skin_start):
     return skin
 
 
+def restarting_multistep_predict(predictor, forces, valid, skin, restart_steps):
+    s_p = np.zeros(skin.shape)
+    for start_step in range(0, forces.shape[1], restart_steps):
+        end_step = start_step + restart_steps
+        s_p[start_step:end_step, :] = multistep_predict(predictor, forces[start_step:end_step, :],
+                                                        valid[start_step:end_step, :], skin[start_step, :])
+    return s_p
+
+
 def multistep_error(skin_p, skin, valid, mean_err=False):
     """Calculates the error function of multiple prediction steps."""
     diff = (skin_p - skin)**2

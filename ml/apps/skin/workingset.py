@@ -55,10 +55,25 @@ class SkinWorkingset(object):
             err['ms_'+prt] = multistep_error(skin_p, self.skin[prt], self.valid[prt], mean_err=True)
             mseps = multistep_error_per_sample(skin_p, self.skin[prt], self.valid[prt])
             err['failed_'+prt] = np.nonzero(mseps > 100)[0]
+        return err
 
+    def restarting_predict_error(self, tr, restart_steps):
+        err = {}
+        err['restart_steps'] = restart_steps
+        for prt in ['trn', 'val', 'tst']:
+            ns_skin_p = tr.predict(self.ns_in[prt])
+            err['ns_'+prt] = 0.5 * np.mean((self.ns_skin[prt] - ns_skin_p)**2)
+
+            skin_p = restarting_multistep_predict(tr.predict, self.force[prt], self.valid[prt], self.skin[prt],
+                                                  restart_steps)
+            err['ms_'+prt] = multistep_error(skin_p, self.skin[prt], self.valid[prt], mean_err=True)
+            mseps = multistep_error_per_sample(skin_p, self.skin[prt], self.valid[prt])
+            err['failed_'+prt] = np.nonzero(mseps > 100)[0]
         return err
 
     def print_error(self, err):
+        if 'restart_steps' in err:
+            print "restart steps: %d" % err['restart_steps']
         for prt in ['trn', 'val', 'tst']:
             print "%s:   next step: %.7f;  all steps: %.5f;  failed curves: %d" % (prt, err['ns_'+prt], err['ms_'+prt],
                                                                                    len(err['failed_'+prt]))
@@ -164,7 +179,7 @@ class SkinMultistepAlternativeWorkingset(object):
         self.start_step = 0
 
     def next_batch(self):
-        self.start_step = (self.start_step + self.steps + 1) % (self.force.shape[0] - 10)
+        self.start_step = (self.start_step + self.steps / 2) % (self.force.shape[0] - 10)
 
     def get_fvs(self, start_step=None):
         if start_step is None:
@@ -175,12 +190,12 @@ class SkinMultistepAlternativeWorkingset(object):
         return f, v, s
 
     def error_wrapper(self, dummy):
-        f,v,s = self.get_fvs()
+        f, v, s = self.get_fvs()
         s_p = multistep_predict(self.tr.predict, f, v, s[0, :])
         return multistep_error(s_p, s, v)
 
     def gradient_wrapper(self, dummy):
-        f,v,s = self.get_fvs()
+        f, v, s = self.get_fvs()
         return multistep_gradient(self.tr.predict_and_gradient, f, s, v)
 
 
