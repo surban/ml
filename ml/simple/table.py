@@ -274,6 +274,7 @@ class SmoothTableRegression(TableRegression):
         x_grad = self._x_gradient_from_intermidiates(x, low, rel_steps, lh, lh_idx, lh_idx_flat, smpl_idx_flat,
                                                      fac_comp, fac_flat)
         w_grad = self._w_gradient_from_intermidiates(x, lh_idx_flat, smpl_idx_flat, fac_flat)
+
         return pred, x_grad, w_grad
 
     def predict_and_gradient_indices(self, x):

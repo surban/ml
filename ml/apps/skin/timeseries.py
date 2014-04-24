@@ -166,35 +166,39 @@ def build_multicurve(curves):
     return force, skin, valid
 
 
-def multistep_predict(predictor, forces, valid, skin_start):
+def multistep_predict(predictor, forces, valid, skin_start, skin_p=None):
     """Multi-step prediction.
     Inputs have the form: forces[step, sample], valid[step, sample], skin_start[sample]
-    Output has the form:  skin[step, sample]
+    Output has the form:  skin_p[step, sample]
     """
     n_steps = forces.shape[0]
     n_samples = forces.shape[1]
 
-    skin = np.zeros((n_steps, n_samples))
-    skin[0, :] = skin_start
+    if skin_p is None:
+        skin_p = np.zeros((n_steps, n_samples))
+    skin_p[0, :] = skin_start
 
     for step in range(1, n_steps):
         # clamp to range to avoid table under-/overflows
-        skin[step-1, skin[step-1, :] < 0] = 0
-        skin[step-1, skin[step-1, :] > max_skin] = max_skin
+        skin_p[step-1, skin_p[step-1, :] < 0] = 0
+        skin_p[step-1, skin_p[step-1, :] > max_skin] = max_skin
 
-        x = np.vstack((forces[step, :], skin[step-1, :]))
-        skin[step, :] = predictor(x)
+        x = np.vstack((forces[step, :], skin_p[step-1, :]))
+        skin_p[step, :] = predictor(x)
 
-    skin[~valid] = 0
-    return skin
+    skin_p[~valid] = 0
+    return skin_p
 
 
 def restarting_multistep_predict(predictor, forces, valid, skin, restart_steps):
+    if restart_steps == 0:
+        return multistep_predict(predictor, forces, valid, skin[0, :])
+
     s_p = np.zeros(skin.shape)
-    for start_step in range(0, forces.shape[1], restart_steps):
+    for start_step in range(0, forces.shape[0], restart_steps):
         end_step = start_step + restart_steps
-        s_p[start_step:end_step, :] = multistep_predict(predictor, forces[start_step:end_step, :],
-                                                        valid[start_step:end_step, :], skin[start_step, :])
+        multistep_predict(predictor, forces[start_step:end_step, :], valid[start_step:end_step, :], skin[start_step, :],
+                          skin_p=s_p[start_step:end_step, :])
     return s_p
 
 
@@ -252,18 +256,19 @@ def multistep_gradient(predictor_with_grad, force, skin, valid, reset_steps=0):
 
     for step in range(1, n_steps):
         # clamp to range to avoid under-/overflows
-        skin_p[step-1, skin[step-1, :] < 0] = 0
-        skin_p[step-1, skin[step-1, :] > max_skin] = max_skin
+        skin_p[step-1, skin_p[step-1, :] < 0] = 0
+        skin_p[step-1, skin_p[step-1, :] > max_skin] = max_skin
 
         # get gradient of prediction
         x = np.vstack((force[step, :], skin_p[step-1, :]))
-        x[x < 0] = 0
         skin_p[step, :], pred_wrt_prev_all, pred_wrt_weights = predictor_with_grad(x)
         pred_wrt_prev = scipy.sparse.csc_matrix(pred_wrt_prev_all[1, :])
         pred_wrt_weights = pred_wrt_weights.tocsc()
 
-        # print "pred_wrt_prev: ", pred_wrt_prev.shape
-        # print "pred_wrt_weights: ", pred_wrt_weights.shape
+        # assert not np.any(np.isnan(pred_wrt_prev.toarray()))
+        # assert not np.any(np.isnan(pred_wrt_weights.toarray()))
+        # print "pred_wrt_prev:", pred_wrt_prev
+        # print "pred_wrt_weights:", pred_wrt_weights
 
         # backpropagte through time
         if step == 1 or (reset_steps != 0 and step % reset_steps == 0):
@@ -271,24 +276,33 @@ def multistep_gradient(predictor_with_grad, force, skin, valid, reset_steps=0):
         else:
             skin_wrt_weights = pred_wrt_weights + sparse_multiply(skin_wrt_weights, pred_wrt_prev)
 
+        # assert not np.any(np.isnan(skin_wrt_weights.toarray()))
+
         # calculate gradient of error function
         efac = skin_p[step, :] - skin[step, :]
         efac[~valid[step, :]] = 0
         efac = scipy.sparse.csc_matrix(efac)
         error_wrt_weights = sparse_multiply(skin_wrt_weights, efac)
 
+        # print "efac:", efac
+        # assert not np.any(np.isnan(error_wrt_weights.toarray()))
+
         # sum error over steps
         if grad is None:
             grad = np.zeros((error_wrt_weights.shape[0]))
-        if step == 1:  #  or (reset_steps != 0 and step % reset_steps == 0):
+        if step == 1:  # or (reset_steps != 0 and step % reset_steps == 0):
             if total_error_wrt_weights is not None:
                 grad += np.sum(total_error_wrt_weights.toarray(), axis=1)
             total_error_wrt_weights = error_wrt_weights
         else:
             total_error_wrt_weights = total_error_wrt_weights + error_wrt_weights
 
+        # print "total_error_wrt_weights:", total_error_wrt_weights
+        # assert not np.any(np.isnan(total_error_wrt_weights.toarray()))
+
     # sum gradient over samples
     grad += np.sum(total_error_wrt_weights.toarray(), axis=1)
+    # assert not np.any(np.isnan(grad))
     return grad
 
 

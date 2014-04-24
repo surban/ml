@@ -677,7 +677,7 @@ class ParameterHistory(object):
 
         if 'figsize' in dir(plt):
             plt.figsize(10,5)
-        plt.clf()
+        # plt.clf()
         plt.hold(True)
         if logscale:
             plt.yscale('log')

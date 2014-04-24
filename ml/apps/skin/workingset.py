@@ -21,10 +21,11 @@ class SkinWorkingset(object):
     skin_step = 0.02
     skin_max = 2
 
-    def __init__(self, ds_name, taxel):
+    def __init__(self, ds_name, taxel, curve_limit=None):
         self.ds = SkinDataset(ds_name)
         self.ds.print_statistics()
         self.taxel = taxel
+        self.curve_limit = curve_limit
         print "Using taxel ", self.taxel
         print
         self.build_data()
@@ -38,10 +39,13 @@ class SkinWorkingset(object):
         self.valid = {}
 
         for prt in ['trn', 'val', 'tst']:
-            self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self.taxel)
+            self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self.taxel,
+                                                                     n_curves=self.curve_limit)
             print "%s: next step:          %d steps" % (prt, self.ns_in[prt].shape[1])
 
             self.curves[prt] = self.ds.record(prt, self.taxel)
+            if self.curve_limit is not None:
+                self.curves[prt] = self.curves[prt][0:self.curve_limit]
             self.force[prt], self.skin[prt], self.valid[prt] = build_multicurve(self.curves[prt])
             print "%s: curves:             %d" % (prt, len(self.curves[prt]))
 
@@ -136,7 +140,7 @@ class SkinMultistepWorkingset(object):
         self.valid = valid
 
         self.n_samples = self.force.shape[1]
-        self.n_batches = int(ceil(self.n_samples / self.batch_size))
+        self.n_batches = int(ceil(self.n_samples / float(self.batch_size)))
         self.batch = 0
 
         print "Number of multistep samples: ", self.n_samples
@@ -166,14 +170,27 @@ class SkinMultistepWorkingset(object):
 
 class SkinMultistepAlternativeWorkingset(object):
 
-    def __init__(self, ws, tr, force, skin, valid, steps):
+    def __init__(self, ws, tr, force, skin, valid, steps, fallback_gradient_norm=None, random_sample_shift=False):
         self.ws = ws
         self.tr = tr
         self.steps = steps
+        self.current_steps = steps
 
-        self.force = force
-        self.skin = skin
-        self.valid = valid
+        self.fallback_gradient_norm = fallback_gradient_norm
+
+        if random_sample_shift:
+            shifts = np.random.randint(0, force.shape[0], size=force.shape[1])
+            self.force = np.zeros(force.shape)
+            self.skin = np.zeros(skin.shape)
+            self.valid = np.zeros(valid.shape, dtype=valid.dtype)
+            for smpl in range(force.shape[1]):
+                self.force[:, smpl] = np.roll(force[:, smpl], shifts[smpl])
+                self.skin[:, smpl] = np.roll(skin[:, smpl], shifts[smpl])
+                self.valid[:, smpl] = np.roll(valid[:, smpl], shifts[smpl])
+        else:
+            self.force = force
+            self.skin = skin
+            self.valid = valid
 
         print "Steps:                       ", self.steps
         self.start_step = 0
@@ -195,8 +212,27 @@ class SkinMultistepAlternativeWorkingset(object):
         return multistep_error(s_p, s, v)
 
     def gradient_wrapper(self, dummy):
-        f, v, s = self.get_fvs()
-        return multistep_gradient(self.tr.predict_and_gradient, f, s, v)
+        if self.fallback_gradient_norm is None:
+            f, v, s = self.get_fvs()
+            grad = multistep_gradient(self.tr.predict_and_gradient, f, s, v) / float(f.shape[1])
+            return grad
+        else:
+            while True:
+                f, v, s = self.get_fvs()
+                f = f[0:self.current_steps, :]
+                v = v[0:self.current_steps, :]
+                s = s[0:self.current_steps, :]
+                grad = multistep_gradient(self.tr.predict_and_gradient, f, s, v) / float(f.shape[1])
+                if self.current_steps == 1:
+                    break
+                if np.linalg.norm(grad) < self.fallback_gradient_norm:
+                    self.current_steps = min(self.steps, self.current_steps*2)
+                    break
+                else:
+                    self.current_steps = max(1, int(self.current_steps/2))
+                    # print "falling back to %d steps because |grad| = %g > %g" % (self.current_steps, np.linalg.norm(grad),
+                    #                                                              self.fallback_gradient_norm)
+            return grad
 
 
 class SkinMultistepFullWorkingset(object):
