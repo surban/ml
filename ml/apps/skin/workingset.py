@@ -14,21 +14,27 @@ from climin.rmsprop import RmsProp
 
 class SkinWorkingset(object):
 
-    force_min = 0
-    force_step = 0.1
-    force_max = 25
-    skin_min = 0
-    skin_step = 0.02
-    skin_max = 2
+    def __init__(self, ds_name, taxel, curve_limit=None,
+                 force_min=0.0, force_step=0.1, force_max=25.0,
+                 skin_min=-0.1, skin_step=0.02, skin_max=2.0):
 
-    def __init__(self, ds_name, taxel, curve_limit=None):
+        self.force_min = force_min
+        self.force_step = force_step
+        self.force_max = force_max
+
+        self.skin_min = skin_min
+        self.skin_step = skin_step
+        self.skin_max = skin_max
+
         self.ds = SkinDataset(ds_name)
         self.ds.print_statistics()
         self.taxel = taxel
         self.curve_limit = curve_limit
         print "Using taxel ", self.taxel
         print
+
         self.build_data()
+        self.build_discrete_data()
 
     def build_data(self):
         self.ns_in = {}
@@ -48,6 +54,19 @@ class SkinWorkingset(object):
                 self.curves[prt] = self.curves[prt][0:self.curve_limit]
             self.force[prt], self.skin[prt], self.valid[prt] = build_multicurve(self.curves[prt])
             print "%s: curves:             %d" % (prt, len(self.curves[prt]))
+
+    def build_discrete_data(self):
+        self.discrete_force = {}
+        self.discrete_skin = {}
+
+        for prt in ['trn', 'val', 'tst']:
+            self.discrete_force[prt] = np.asarray((self.force[prt] - self.force_min) / float(self.force_step),
+                                                  dtype='int')
+            self.discrete_skin[prt] = np.asarray((self.skin[prt] - self.skin_min) / float(self.skin_step),
+                                                 dtype='int')
+
+        self.discrete_force_states = int((self.force_max - self.force_min) / float(self.force_step)) + 3
+        self.discrete_skin_states = int((self.skin_max - self.skin_min) / float(self.skin_step)) + 3
 
     def error(self, tr):
         err = {}
