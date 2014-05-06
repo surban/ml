@@ -68,6 +68,10 @@ class SkinWorkingset(object):
         self.discrete_force_states = int((self.force_max - self.force_min) / float(self.force_step)) + 3
         self.discrete_skin_states = int((self.skin_max - self.skin_min) / float(self.skin_step)) + 3
 
+        print
+        print "discrete force states:   %d" % self.discrete_force_states
+        print "discrete skin states:    %d" % self.discrete_skin_states
+
     def error(self, tr):
         err = {}
         for prt in ['trn', 'val', 'tst']:
@@ -100,6 +104,16 @@ class SkinWorkingset(object):
         for prt in ['trn', 'val', 'tst']:
             print "%s:   next step: %.7f;  all steps: %.5f;  failed curves: %d" % (prt, err['ns_'+prt], err['ms_'+prt],
                                                                                    len(err['failed_'+prt]))
+
+    def get_discrete_fs_curve(self, prt, smpl):
+        f = self.discrete_force[prt][:, smpl]
+        s = self.discrete_skin[prt][:, smpl]
+
+        v = self.valid[prt][:, smpl]
+        max_v = np.nonzero(v)
+        last_valid = max_v[0][-1]
+
+        return f[0:last_valid-1], s[0:last_valid-1]
 
 
 class SkinNextstepWorkingset(object):
