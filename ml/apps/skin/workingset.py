@@ -72,6 +72,9 @@ class SkinWorkingset(object):
         print "discrete force states:   %d" % self.discrete_force_states
         print "discrete skin states:    %d" % self.discrete_skin_states
 
+    def n_curves(self, prt):
+        return len(self.curves[prt])
+
     def error(self, tr):
         err = {}
         for prt in ['trn', 'val', 'tst']:
