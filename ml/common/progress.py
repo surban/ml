@@ -13,6 +13,13 @@ _start_time = 0
 _progress_interval = 0
 
 
+def _clear_output():
+    try:
+        IPython.core.display.clear_output(stdout=False, stderr=False, other=True)
+    except TypeError:
+        IPython.core.display.clear_output(wait=True)
+
+
 def status(current_iter, max_iter=0, caption=""):
     """Displays the progress of a loop as a progressbar.
     current_iter is the number of the current iteration and max_iter is the
@@ -50,7 +57,7 @@ def status(current_iter, max_iter=0, caption=""):
     else:
         desc = ""
     if have_notebook:
-        IPython.core.display.clear_output(stdout=False, stderr=False, other=True)
+        _clear_output()
         if max_iter > 0:
             IPython.core.display.display_html(
                  '<i>%s</i><meter value="%d" min="0" max="%d">%d / %d</meter> %s' 
@@ -71,7 +78,7 @@ def done():
     """Removes the progressbar when the loop is done. Calling is optional.
     In most cases the progressbar is automatically removed."""
     if have_notebook:
-        IPython.core.display.clear_output(stdout=False, stderr=False, other=True)
+        _clear_output()
     else:
         print "                                                            \r",
 

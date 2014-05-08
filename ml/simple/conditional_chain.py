@@ -3,33 +3,65 @@ from __future__ import division
 import numpy as np
 import scipy.stats
 
+from sklearn.mixture import GMM, VBGMM
+from sklearn.neighbors.kde import KernelDensity
+
 
 def find_evidence(state, state_next, train_states, input=None, train_inputs=None):
     val = (train_states == state) & (np.roll(train_states, -1, axis=0) == state_next)
     if input is not None:
-        val = val & (train_inputs == input)
+        val &= (train_inputs == input)
     smpl_val = np.any(val, axis=0)
     return np.nonzero(smpl_val)[0]
+
+
+def normal_fit(x):
+    # x[var, sample]
+    assert x.ndim == 2
+
+    # TODO: use robust covariance estimator sklearn.covariance.MinCovDet
+    mu = np.mean(x, axis=1)
+    sigma = np.cov(x)
+    if x.shape[0] == 1:
+        if sigma == 0:
+            sigma = 0.01
+        sigma = np.asarray([[sigma]])
+    return mu, sigma
+
+
+def normal_pdf(x, mu, sigma):
+    assert x.ndim == 2
+    assert mu.ndim == 1 and sigma.ndim == 2
+    k = x.shape[0]
+    assert k == mu.shape[0]
+    assert k == sigma.shape[0] == sigma.shape[1]
+
+    nf = (2.0*np.pi)**(-k/2.0) * np.linalg.det(sigma)**(-0.5)
+    prec = np.linalg.inv(sigma)
+    e = -0.5 * np.sum((x - mu[:, np.newaxis]) * np.dot(prec, (x - mu[:, np.newaxis])), axis=0)
+    pdf = nf * np.exp(e)
+
+    return pdf
 
 
 class ConditionalChain(object):
 
     def __init__(self, n_system_states, n_input_values):
         # log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
-        self.p_next_state = np.zeros((n_system_states, n_system_states, n_input_values))
+        self.log_p_next_state = np.zeros((n_system_states, n_system_states, n_input_values))
 
         # log_p_initial_state[s_0] = p(s_0)
-        self.p_initial_state = np.zeros((n_system_states,))
+        self.log_p_initial_state = np.zeros((n_system_states,))
 
     @property
     def n_system_states(self):
-        return self.p_next_state.shape[0]
+        return self.log_p_next_state.shape[0]
 
     @property
     def n_input_values(self):
-        return self.p_next_state.shape[2]
+        return self.log_p_next_state.shape[2]
 
-    def train(self, states, inputs, valid):
+    def train_table(self, states, inputs, valid):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -41,37 +73,100 @@ class ConditionalChain(object):
         assert states.dtype == 'int' and inputs.dtype == 'int'
 
         # initial state probabilities
-        self.p_initial_state[:] = 0
+        self.log_p_initial_state[:] = 0
         for smpl in range(n_samples):
-            self.p_initial_state[states[0, smpl]] += 1
-        self.p_initial_state /= n_samples
+            self.log_p_initial_state[states[0, smpl]] += 1
+        self.log_p_initial_state /= n_samples
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
 
         # state transition probabilities
-        self.p_next_state[:] = 0
+        self.log_p_next_state[:] = 0
         for step in range(1, n_steps):
             for smpl in range(n_samples):
                 if not valid[step, smpl]:
                     continue
-                self.p_next_state[states[step, smpl], states[step-1, smpl], inputs[step, smpl]] += 1
-
-                # print "from state=%d, to state=%d, input=%d" % (states[step-1, smpl], states[step, smpl], inputs[step, smpl])
-                # print self.log_p_next_state[states[step, smpl], states[step-1, smpl], inputs[step, smpl]]
-
-        # identity prior
-        #self.log_p_next_state += np.identity(self.n_system_states)[:, :, np.newaxis]
-
-        # non-informative distribution for unobserved transitions
-        # s = np.sum(self.log_p_next_state, axis=0)
-        # a = np.zeros(s.shape)
-        # a[s == 0] = 1
-        # self.log_p_next_state += a
+                self.log_p_next_state[states[step, smpl], states[step-1, smpl], inputs[step, smpl]] += 1
 
         # normalize
-        # self.log_p_next_state += 1.0 / float(self.n_system_states)
-        sums = np.sum(self.p_next_state, axis=0)
-        # sums += 1
-        self.p_next_state /= sums[np.newaxis, :, :]
-        # self.log_p_next_state[np.isnan(self.log_p_next_state)] = 0
+        sums = np.sum(self.log_p_next_state, axis=0)
+        self.log_p_next_state /= sums[np.newaxis, :, :]
+        self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def train_kde(self, states, inputs, valid, kernel, bandwidth):
+        # states[step, sample]
+        # inputs[step, sample]
+        # valid[step, sample]
+
+        n_steps = states.shape[0]
+        n_samples = states.shape[1]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+        assert states.dtype == 'int' and inputs.dtype == 'int'
+
+        # initial state probabilities
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
+        s = np.arange(self.n_system_states)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
+
+        # state transition probabilities
+        self.log_p_next_state[:] = 0
+        for pstate in range(self.n_system_states):
+            mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
+            if not np.any(mask):
+                continue
+            print pstate
+
+            si = np.vstack((states[mask], inputs[mask]))
+
+            kde = KernelDensity(kernel=kernel, bandwidth=bandwidth, rtol=1e-4)
+            kde.fit(si.T)
+
+            s, i = np.meshgrid(np.arange(self.n_system_states), np.arange(self.n_input_values))
+            si = np.vstack((np.ravel(s.T), np.ravel(i.T)))
+            pdf = np.exp(kde.score_samples(si.T))
+            self.log_p_next_state[:, pstate, :] = np.reshape(pdf, (self.n_system_states, self.n_input_values))
+            self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :], axis=0)[np.newaxis, :]
+        self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def train_gp(self, states, inputs, valid):
+        # states[step, sample]
+        # inputs[step, sample]
+        # valid[step, sample]
+
+        n_steps = states.shape[0]
+        n_samples = states.shape[1]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+        assert states.dtype == 'int' and inputs.dtype == 'int'
+
+        # initial state probabilities
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
+        s = np.arange(self.n_system_states)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
+
+        # state transition probabilities
+        self.log_p_next_state[:] = 0
+        for pstate in range(self.n_system_states):
+            mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
+            if not np.any(mask):
+                continue
+            print pstate
+
+            si = np.vstack((states[mask], inputs[mask]))
+
+            kde = KernelDensity(kernel=kernel, bandwidth=bandwidth, rtol=1e-4)
+            kde.fit(si.T)
+
+            s, i = np.meshgrid(np.arange(self.n_system_states), np.arange(self.n_input_values))
+            si = np.vstack((np.ravel(s.T), np.ravel(i.T)))
+            pdf = np.exp(kde.score_samples(si.T))
+            self.log_p_next_state[:, pstate, :] = np.reshape(pdf, (self.n_system_states, self.n_input_values))
+            self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :], axis=0)[np.newaxis, :]
+        self.log_p_next_state = np.log(self.log_p_next_state)
 
     def most_probable_states(self, inputs):
         # inputs[step]
@@ -86,19 +181,13 @@ class ConditionalChain(object):
         max_track = np.zeros((n_steps, self.n_system_states), dtype='int')
 
         # leaf factor at beginning of chain
-        msg = np.log(self.p_initial_state)
+        msg = self.log_p_initial_state
 
         # pass messages towards end node of chain
         for step in range(n_steps):
-            # print
-            # print self.log_p_next_state[:, :, inputs[step]]
-            # print np.all(np.isnan(self.log_p_next_state[:, :, inputs[step]]))
-            # print msg[np.newaxis, :]
-
             # m[s_t, s_(t-1)]
-            m = np.log(self.p_next_state[:, :, inputs[step]]) + msg[np.newaxis, :]
+            m = self.log_p_next_state[:, :, inputs[step]] + msg[np.newaxis, :]
             max_track[step, :] = np.nanargmax(m, axis=1)
-            #print step, ":", np.argmax(m, axis=1)
             msg = np.nanmax(m, axis=1)
 
         # calculate maximum probability
@@ -107,7 +196,6 @@ class ConditionalChain(object):
         # backtrack maximum states
         max_state = np.zeros(n_steps, dtype='int')
         max_state[n_steps-1] = np.nanargmax(msg)
-        # max_state[n_steps-1] = np.argmax(max_track[n_steps-1, :])
         for step in range(n_steps-2, -1, -1):
             max_state[step] = max_track[step+1, max_state[step+1]]
 
@@ -118,9 +206,9 @@ class ConditionalChain(object):
         assert np.all(0 <= states) and np.all(states < self.n_system_states)
         assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
 
-        lp = np.log(self.p_initial_state[states[0]])
+        lp = self.log_p_initial_state[states[0]]
         for step in range(1, n_steps):
-            lp += np.log(self.p_next_state[states[step], states[step-1], inputs[step]])
+            lp += self.log_p_next_state[states[step], states[step-1], inputs[step]]
         return lp
 
     def greedy_states(self, inputs):
@@ -128,12 +216,12 @@ class ConditionalChain(object):
         assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
 
         max_state = np.zeros(n_steps, dtype='int')
-        cur_state = np.argmin(self.p_initial_state)
+        cur_state = np.argmin(self.log_p_initial_state)
         for step in range(0, n_steps):
             # print "step=%d, state=%d, input=%d, p(s_t+1 | state, input)=" % (step, cur_state, inputs[step])
             # print self.log_p_next_state[:, cur_state, inputs[step]]
 
-            cur_state = np.argmax(self.p_next_state[:, cur_state, inputs[step]])
+            cur_state = np.argmax(self.log_p_next_state[:, cur_state, inputs[step]])
             max_state[step] = cur_state
 
         return max_state
@@ -149,7 +237,7 @@ class ConditionalChain(object):
             # print "step=%d, state=%d, input=%d, p(s_t+1 | state, input)=" % (step, states[step-1], inputs[step])
             # print self.log_p_next_state[:, states[step-1], inputs[step]]
 
-            max_state[step] = np.argmax(self.p_next_state[:, states[step-1], inputs[step]])
+            max_state[step] = np.argmax(self.log_p_next_state[:, states[step-1], inputs[step]])
 
         return max_state
 
@@ -311,7 +399,7 @@ class ConditionalFilteredChain(object):
 ########################################################################################################################
 
 
-class ConditionalGaussianChain(object):
+class JointChain(object):
 
     def __init__(self, n_system_states, n_input_values):
         # log_p_next_state[s_t, s_(t-1), f_t] = p(s_t, f_t | s_(t-1))
@@ -328,36 +416,7 @@ class ConditionalGaussianChain(object):
     def n_input_values(self):
         return self.log_p_next_state.shape[2]
 
-    @staticmethod
-    def normal_fit(x):
-        # x[var, sample]
-        assert x.ndim == 2
-
-        # TODO: use robust covariance estimator sklearn.covariance.MinCovDet
-        mu = np.mean(x, axis=1)
-        sigma = np.cov(x)
-        if x.shape[0] == 1:
-            if sigma == 0:
-                sigma = 0.01
-            sigma = np.asarray([[sigma]])
-        return mu, sigma
-
-    @staticmethod
-    def normal_pdf(x, mu, sigma):
-        assert x.ndim == 2
-        assert mu.ndim == 1 and sigma.ndim == 2
-        k = x.shape[0]
-        assert k == mu.shape[0]
-        assert k == sigma.shape[0] == sigma.shape[1]
-
-        nf = (2.0*np.pi)**(-k/2.0) * np.linalg.det(sigma)**(-0.5)
-        prec = np.linalg.inv(sigma)
-        e = -0.5 * np.sum((x - mu[:, np.newaxis]) * np.dot(prec, (x - mu[:, np.newaxis])), axis=0)
-        pdf = nf * np.exp(e)
-
-        return pdf
-
-    def train(self, states, inputs, valid):
+    def train_gaussian(self, states, inputs, valid):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -369,9 +428,9 @@ class ConditionalGaussianChain(object):
         assert states.dtype == 'int' and inputs.dtype == 'int'
 
         # initial state probabilities
-        mu, sigma = self.normal_fit(states[0, :][np.newaxis, :])
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
         s = np.arange(self.n_system_states)
-        self.log_p_initial_state[:] = self.normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
         self.log_p_initial_state /= np.sum(self.log_p_initial_state)
         self.log_p_initial_state = np.log(self.log_p_initial_state)
 
@@ -383,11 +442,87 @@ class ConditionalGaussianChain(object):
                 continue
 
             si = np.vstack((states[mask], inputs[mask]))
-            mu, sigma = self.normal_fit(si)
+            mu, sigma = normal_fit(si)
 
             s, i = np.meshgrid(np.arange(self.n_system_states), np.arange(self.n_input_values))
             si = np.vstack((np.ravel(s.T), np.ravel(i.T)))
-            pdf = self.normal_pdf(si, mu, sigma)
+            pdf = normal_pdf(si, mu, sigma)
+            self.log_p_next_state[:, pstate, :] = np.reshape(pdf, (self.n_system_states, self.n_input_values))
+            self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :])
+        self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def train_gaussian_mixture(self, states, inputs, valid, n_components, covariance_type):
+        # states[step, sample]
+        # inputs[step, sample]
+        # valid[step, sample]
+
+        n_steps = states.shape[0]
+        n_samples = states.shape[1]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+        assert states.dtype == 'int' and inputs.dtype == 'int'
+
+        # initial state probabilities
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
+        s = np.arange(self.n_system_states)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
+
+        # state transition probabilities
+        self.log_p_next_state[:] = 0
+        for pstate in range(self.n_system_states):
+            mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
+            if not np.any(mask):
+                continue
+
+            si = np.vstack((states[mask], inputs[mask]))
+            gmm = GMM(n_components, covariance_type)
+            gmm.fit(si.T)
+
+            s, i = np.meshgrid(np.arange(self.n_system_states), np.arange(self.n_input_values))
+            si = np.vstack((np.ravel(s.T), np.ravel(i.T)))
+            pdf = np.exp(gmm.score(si.T))
+            self.log_p_next_state[:, pstate, :] = np.reshape(pdf, (self.n_system_states, self.n_input_values))
+            self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :])
+        self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def train_kde(self, states, inputs, valid, kernel, bandwidth):
+        # states[step, sample]
+        # inputs[step, sample]
+        # valid[step, sample]
+
+        n_steps = states.shape[0]
+        n_samples = states.shape[1]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+        assert states.dtype == 'int' and inputs.dtype == 'int'
+
+        # initial state probabilities
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
+        s = np.arange(self.n_system_states)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
+
+        # state transition probabilities
+        self.log_p_next_state[:] = 0
+        for pstate in range(self.n_system_states):
+            mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
+            if not np.any(mask):
+                continue
+            print pstate
+
+            si = np.vstack((states[mask], inputs[mask]))
+
+            kde = KernelDensity(kernel=kernel, bandwidth=bandwidth, rtol=1e-4)
+            # print "fit ", si.shape
+            kde.fit(si.T)
+
+            s, i = np.meshgrid(np.arange(self.n_system_states), np.arange(self.n_input_values))
+            si = np.vstack((np.ravel(s.T), np.ravel(i.T)))
+            # print "estimate ", si.shape
+            pdf = np.exp(kde.score_samples(si.T))
             self.log_p_next_state[:, pstate, :] = np.reshape(pdf, (self.n_system_states, self.n_input_values))
             self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :])
         self.log_p_next_state = np.log(self.log_p_next_state)

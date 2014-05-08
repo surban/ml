@@ -6,6 +6,7 @@ from ml.apps.skin.timeseries import *
 from ml.simple.table import *
 from ml.datasets.skin import SkinDataset
 from ml.common.util import ParameterHistory
+from ml.common.progress import status, done
 from ml.common.test import check_gradient, check_directional_gradient
 from climin.gd import GradientDescent
 from climin.bfgs import Bfgs, Lbfgs
@@ -72,6 +73,12 @@ class SkinWorkingset(object):
         print "discrete force states:   %d" % self.discrete_force_states
         print "discrete skin states:    %d" % self.discrete_skin_states
 
+    def from_discrete_force(self, discrete_force):
+        return discrete_force * self.force_step + self.force_min
+
+    def from_discrete_skin(self, discrete_skin):
+        return discrete_skin * self.skin_step + self.skin_min
+
     def n_curves(self, prt):
         return len(self.curves[prt])
 
@@ -108,15 +115,27 @@ class SkinWorkingset(object):
             print "%s:   next step: %.7f;  all steps: %.5f;  failed curves: %d" % (prt, err['ns_'+prt], err['ms_'+prt],
                                                                                    len(err['failed_'+prt]))
 
+    def trim_to_valid(self, f, s, v):
+        max_v = np.nonzero(v)
+        last_valid = max_v[0][-1]
+        return f[0:last_valid], s[0:last_valid]
+
     def get_discrete_fs_curve(self, prt, smpl):
         f = self.discrete_force[prt][:, smpl]
         s = self.discrete_skin[prt][:, smpl]
-
         v = self.valid[prt][:, smpl]
-        max_v = np.nonzero(v)
-        last_valid = max_v[0][-1]
+        return self.trim_to_valid(f, s, v)
 
-        return f[0:last_valid-1], s[0:last_valid-1]
+    def predict_multicurve(self, predictor, force, skin, valid):
+        skin_p = np.zeros(skin.shape)
+        for smpl in range(force.shape[1]):
+            status(smpl, force.shape[1], "Predicting")
+            f, s = self.trim_to_valid(force[:, smpl], skin[:, smpl], valid[:, smpl])
+            s_p = predictor(f)
+            skin_p[0:s_p.shape[0], smpl] = s_p
+        done()
+        return skin_p
+
 
 
 class SkinNextstepWorkingset(object):

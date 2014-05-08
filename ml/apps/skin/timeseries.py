@@ -108,7 +108,8 @@ def build_nextstep_data(ds, purpose, taxel, n_curves=None):
         z = rec[1, 1:]
 
         X = np.concatenate((X, x), axis=1)
-        Z = np.concatenate((Z, z), axis=1)
+        Z = np.concatenate((Z, z))
+        #Z = np.concatenate((Z, z), axis=1)
 
     return X, Z
 
@@ -209,7 +210,7 @@ def multistep_error(skin_p, skin, valid, mean_err=False):
     if not mean_err:
         return 0.5 * np.sum(diff)
     else:
-        return 0.5 * np.mean(diff)
+        return 0.5 * np.sum(diff) / np.sum(valid)
 
 
 def multistep_error_per_sample(skin_p, skin, valid):
