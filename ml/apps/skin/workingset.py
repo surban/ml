@@ -1,6 +1,7 @@
 from math import ceil
 import numpy as np
 import matplotlib.pyplot as plt
+import multiprocessing
 
 from ml.apps.skin.timeseries import *
 from ml.simple.table import *
@@ -136,6 +137,18 @@ class SkinWorkingset(object):
         done()
         return skin_p
 
+    def predict_multicurve_parallel(self, predictor, force, skin, valid):
+        pool = multiprocessing.Pool()
+        results = []
+
+        skin_p = np.zeros(skin.shape)
+        for smpl in range(force.shape[1]):
+            f, s = self.trim_to_valid(force[:, smpl], skin[:, smpl], valid[:, smpl])
+            results.append(pool.apply_async(predictor), f)
+        for smpl in range(len(results)):
+            s_p = results[smpl].get()
+            skin_p[0:s_p.shape[0], smpl] = s_p
+        return skin_p
 
 
 class SkinNextstepWorkingset(object):

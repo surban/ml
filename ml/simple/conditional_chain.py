@@ -2,6 +2,7 @@ from __future__ import division
 
 import numpy as np
 import scipy.stats
+from sklearn.gaussian_process import GaussianProcess
 
 from sklearn.mixture import GMM, VBGMM
 from sklearn.neighbors.kde import KernelDensity
@@ -42,6 +43,26 @@ def normal_pdf(x, mu, sigma):
     pdf = nf * np.exp(e)
 
     return pdf
+
+
+def merge_duplicates(x, y):
+    assert x.ndim == 1 and y.ndim == 1
+
+    xn = {}
+    for i in range(x.size):
+        k = x[i]
+        if k in xn:
+            xn[k].append(y[i])
+        else:
+            xn[k] = [y[i]]
+
+    xout = np.zeros(len(xn.keys()))
+    yout = np.zeros(xout.shape)
+    for i, (k, v) in enumerate(xn.iteritems()):
+        xout[i] = k
+        yout[i] = np.mean(v)
+
+    return xout, yout
 
 
 class ConditionalChain(object):
@@ -130,7 +151,7 @@ class ConditionalChain(object):
             self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :], axis=0)[np.newaxis, :]
         self.log_p_next_state = np.log(self.log_p_next_state)
 
-    def train_gp(self, states, inputs, valid):
+    def train_gp(self, states, inputs, valid, bandwidth, noise_sigma):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -154,18 +175,32 @@ class ConditionalChain(object):
             mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
             if not np.any(mask):
                 continue
-            print pstate
 
-            si = np.vstack((states[mask], inputs[mask]))
+            i = inputs[mask]
+            s = states[mask]
+            i, s = merge_duplicates(i, s)
+            # print "pstate=%d #points=%d" % (pstate, i.size)
+            # print i
+            # print s
 
-            kde = KernelDensity(kernel=kernel, bandwidth=bandwidth, rtol=1e-4)
-            kde.fit(si.T)
+            gp = GaussianProcess(corr='squared_exponential', theta0=(bandwidth,), normalize=False)
+            gp.fit(i[:, np.newaxis], s)
 
-            s, i = np.meshgrid(np.arange(self.n_system_states), np.arange(self.n_input_values))
-            si = np.vstack((np.ravel(s.T), np.ravel(i.T)))
-            pdf = np.exp(kde.score_samples(si.T))
-            self.log_p_next_state[:, pstate, :] = np.reshape(pdf, (self.n_system_states, self.n_input_values))
-            self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :], axis=0)[np.newaxis, :]
+            cs = np.arange(self.n_system_states)
+            ci = np.arange(self.n_input_values)
+            s_mu, s_mse = gp.predict(ci[:, np.newaxis], eval_MSE=True)
+            s_sigma = np.sqrt(s_mse)
+            s_sigma += noise_sigma
+            for inp in range(self.n_input_values):
+                # if s_sigma[inp] < 1e-5:
+                #     print "clamping sigma at ", pstate
+                #     s_sigma[inp] = 1e-5
+                self.log_p_next_state[:, pstate, inp] = normal_pdf(cs[np.newaxis, :],
+                                                                   np.atleast_1d(s_mu[inp]),
+                                                                   np.atleast_2d(s_sigma[inp]))
+                # assert np.all(self.log_p_next_state[:, pstate, inp] > 0.1)
+                self.log_p_next_state[:, pstate, inp] /= np.sum(self.log_p_next_state[:, pstate, inp])
+
         self.log_p_next_state = np.log(self.log_p_next_state)
 
     def most_probable_states(self, inputs):
