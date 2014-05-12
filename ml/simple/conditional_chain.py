@@ -2,8 +2,10 @@ from __future__ import division
 
 import numpy as np
 import scipy.stats
-from sklearn.gaussian_process import GaussianProcess
+import matplotlib.pyplot as plt
+import GPy as gpy
 
+from sklearn.gaussian_process import GaussianProcess
 from sklearn.mixture import GMM, VBGMM
 from sklearn.neighbors.kde import KernelDensity
 
@@ -14,6 +16,23 @@ def find_evidence(state, state_next, train_states, input=None, train_inputs=None
         val &= (train_inputs == input)
     smpl_val = np.any(val, axis=0)
     return np.nonzero(smpl_val)[0]
+
+
+def plot_transition(states, inputs, valid, pstate, style='x'):
+    mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
+    if not np.any(mask):
+        print "no"
+        return
+
+    i = inputs[mask]
+    s = states[mask]
+    i, s = merge_duplicates(i, s)
+
+    idx = np.argsort(i)
+    i = i[idx]
+    s = s[idx]
+
+    plt.plot(i, s, style)
 
 
 def normal_fit(x):
@@ -174,6 +193,7 @@ class ConditionalChain(object):
         for pstate in range(self.n_system_states):
             mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
             if not np.any(mask):
+                # print "skipping state %d" % pstate
                 continue
 
             i = inputs[mask]
@@ -183,7 +203,8 @@ class ConditionalChain(object):
             # print i
             # print s
 
-            gp = GaussianProcess(corr='squared_exponential', theta0=(bandwidth,), normalize=False)
+            gp = GaussianProcess(corr='squared_exponential', regr='constant',
+                                 theta0=(1.0/bandwidth,), normalize=True)
             gp.fit(i[:, np.newaxis], s)
 
             cs = np.arange(self.n_system_states)
@@ -202,6 +223,61 @@ class ConditionalChain(object):
                 self.log_p_next_state[:, pstate, inp] /= np.sum(self.log_p_next_state[:, pstate, inp])
 
         self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def train_gp2(self, states, inputs, valid, variance, lengthscale, noise_sigma):
+        # states[step, sample]
+        # inputs[step, sample]
+        # valid[step, sample]
+
+        n_steps = states.shape[0]
+        n_samples = states.shape[1]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+        assert states.dtype == 'int' and inputs.dtype == 'int'
+
+        # initial state probabilities
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
+        s = np.arange(self.n_system_states)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
+
+        # state transition probabilities
+        self.log_p_next_state[:] = 0
+        for pstate in range(self.n_system_states):
+            mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
+            if not np.any(mask):
+                # print "skipping state %d" % pstate
+                continue
+
+            i = inputs[mask]
+            s = states[mask]
+            i, s = merge_duplicates(i, s)
+            # print "pstate=%d #points=%d" % (pstate, i.size)
+            # print i
+            # print s
+
+            kernel = gpy.kern.rbf(input_dim=1, variance=variance, lengthscale=lengthscale)
+            gp = gpy.models.GPRegression(i[:, np.newaxis], s[:, np.newaxis], kernel)
+            gp.ensure_default_constraints()
+            # gp.optimize()
+
+            cs = np.arange(self.n_system_states)
+            ci = np.arange(self.n_input_values)
+            s_mu, s_var, _, _ = gp.predict(ci[:, np.newaxis], full_cov=False)
+            s_mu = s_mu[:, 0]
+            s_var = s_var[:, 0]
+            s_sigma = np.sqrt(s_var)
+            s_sigma += noise_sigma
+            for inp in range(self.n_input_values):
+                self.log_p_next_state[:, pstate, inp] = normal_pdf(cs[np.newaxis, :],
+                                                                   np.atleast_1d(s_mu[inp]),
+                                                                   np.atleast_2d(s_sigma[inp]))
+                # assert np.all(self.log_p_next_state[:, pstate, inp] > 0.1)
+                self.log_p_next_state[:, pstate, inp] /= np.sum(self.log_p_next_state[:, pstate, inp])
+
+        self.log_p_next_state = np.log(self.log_p_next_state)
+
 
     def most_probable_states(self, inputs):
         # inputs[step]
