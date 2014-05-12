@@ -169,7 +169,8 @@ class ConditionalChain(object):
             self.log_p_next_state[:, pstate, :] /= np.sum(self.log_p_next_state[:, pstate, :], axis=0)[np.newaxis, :]
         self.log_p_next_state = np.log(self.log_p_next_state)
 
-    def train_gp(self, states, inputs, valid, variance, lengthscale, noise_sigma):
+    def train_gp(self, states, inputs, valid, limit_sigma,
+                 gp_optimize, gp_variance=None, gp_lengthscale=None, gp_noise=None):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -202,10 +203,19 @@ class ConditionalChain(object):
             # print i
             # print s
 
-            kernel = gpy.kern.rbf(input_dim=1, variance=variance, lengthscale=lengthscale)
+            kernel = gpy.kern.rbf(input_dim=1)
             gp = gpy.models.GPRegression(i[:, np.newaxis], s[:, np.newaxis], kernel)
+            gp.unconstrain('')
+            if gp_variance is not None:
+                gp.constrain_fixed('rbf_variance', gp_variance)
+            if gp_lengthscale is not None:
+                gp.constrain_fixed('rbf_lengthscale', gp_lengthscale)
+            if gp_noise is not None:
+                gp.constrain_fixed('noise_variance', gp_noise)
             gp.ensure_default_constraints()
-            # gp.optimize()
+            if gp_optimize:
+                gp.optimize()
+            # print gp
 
             cs = np.arange(self.n_system_states)
             ci = np.arange(self.n_input_values)
@@ -213,13 +223,15 @@ class ConditionalChain(object):
             s_mu = s_mu[:, 0]
             s_var = s_var[:, 0]
             s_sigma = np.sqrt(s_var)
-            s_sigma += noise_sigma
+            # s_sigma += noise_sigma
             for inp in range(self.n_input_values):
-                self.log_p_next_state[:, pstate, inp] = normal_pdf(cs[np.newaxis, :],
-                                                                   np.atleast_1d(s_mu[inp]),
-                                                                   np.atleast_2d(s_sigma[inp]))
-                # assert np.all(self.log_p_next_state[:, pstate, inp] > 0.1)
-                self.log_p_next_state[:, pstate, inp] /= np.sum(self.log_p_next_state[:, pstate, inp])
+                if s_sigma[inp] < limit_sigma:
+                    self.log_p_next_state[:, pstate, inp] = normal_pdf(cs[np.newaxis, :],
+                                                                       np.atleast_1d(s_mu[inp]),
+                                                                       np.atleast_2d(s_sigma[inp]))
+                    self.log_p_next_state[:, pstate, inp] /= np.sum(self.log_p_next_state[:, pstate, inp])
+                else:
+                    self.log_p_next_state[:, pstate, inp] = 0
 
         self.log_p_next_state = np.log(self.log_p_next_state)
 
