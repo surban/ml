@@ -127,6 +127,12 @@ class SkinWorkingset(object):
         v = self.valid[prt][:, smpl]
         return self.trim_to_valid(f, s, v)
 
+    def get_fs_curve(self, prt, smpl):
+        f = self.force[prt][:, smpl]
+        s = self.skin[prt][:, smpl]
+        v = self.valid[prt][:, smpl]
+        return self.trim_to_valid(f, s, v)
+
     def predict_multicurve(self, predictor, force, skin, valid):
         skin_p = np.zeros(skin.shape)
         for smpl in range(force.shape[1]):
