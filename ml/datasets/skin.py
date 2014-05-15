@@ -9,7 +9,7 @@ import sys
 import warnings
 
 if os.name == 'nt':
-    default_directory = r"Z:\dev\indentor\indentor\apps\out"
+    default_directory = r"\\brml.tum.de\dfs\nthome\surban\dev\indentor\indentor\apps\out"
 else:
     default_directory = r"/nthome/surban/dev/indentor/indentor/apps/out"
 

@@ -9,36 +9,39 @@ from ml.datasets.skin import SkinDataset
 from ml.common.util import ParameterHistory
 from ml.common.progress import status, done
 from ml.common.test import check_gradient, check_directional_gradient
-from climin.gd import GradientDescent
-from climin.bfgs import Bfgs, Lbfgs
-from climin.rmsprop import RmsProp
 
 
 class SkinWorkingset(object):
 
-    def __init__(self, ds_name, taxel, curve_limit=None,
-                 force_min=0.0, force_step=0.1, force_max=25.0,
-                 skin_min=-0.1, skin_step=0.02, skin_max=2.0):
+    all_prts = ['trn', 'val', 'tst']
+    range_epsilon = 0.1
 
-        self.force_min = force_min
-        self.force_step = force_step
-        self.force_max = force_max
+    def __init__(self, ds_name, taxel=None, curve_limit=None,
+                 discrete_force_states=100, discrete_skin_states=100):
 
-        self.skin_min = skin_min
-        self.skin_step = skin_step
-        self.skin_max = skin_max
+        self.discrete_force_states = discrete_force_states
+        self.discrete_skin_states = discrete_skin_states
 
         self.ds = SkinDataset(ds_name)
         self.ds.print_statistics()
-        self.taxel = taxel
         self.curve_limit = curve_limit
-        print "Using taxel ", self.taxel
+
+        self._taxel = None
+        self.taxel = taxel
+
+    @property
+    def taxel(self):
+        return self._taxel
+
+    @taxel.setter
+    def taxel(self, value):
+        self._taxel = value
+        print "Using taxel ", self._taxel
         print
+        self._build_data()
+        self._build_discrete_data()
 
-        self.build_data()
-        self.build_discrete_data()
-
-    def build_data(self):
+    def _build_data(self):
         self.ns_in = {}
         self.ns_skin = {}
         self.curves = {}
@@ -46,33 +49,50 @@ class SkinWorkingset(object):
         self.skin = {}
         self.valid = {}
 
-        for prt in ['trn', 'val', 'tst']:
-            self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self.taxel,
+        if self._taxel is None:
+            return
+
+        for prt in self.all_prts:
+            self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self._taxel,
                                                                      n_curves=self.curve_limit)
             print "%s: next step:          %d steps" % (prt, self.ns_in[prt].shape[1])
 
-            self.curves[prt] = self.ds.record(prt, self.taxel)
+            self.curves[prt] = self.ds.record(prt, self._taxel)
             if self.curve_limit is not None:
                 self.curves[prt] = self.curves[prt][0:self.curve_limit]
             self.force[prt], self.skin[prt], self.valid[prt] = build_multicurve(self.curves[prt])
             print "%s: curves:             %d" % (prt, len(self.curves[prt]))
 
-    def build_discrete_data(self):
+        self.force_min = min([np.min(self.force[prt]) for prt in self.all_prts]) - self.range_epsilon
+        self.force_max = max([np.max(self.force[prt]) for prt in self.all_prts]) + self.range_epsilon
+        self.skin_min = min([np.min(self.skin[prt]) for prt in self.all_prts]) - self.range_epsilon
+        self.skin_max = max([np.max(self.skin[prt]) for prt in self.all_prts]) + self.range_epsilon
+
+        print
+        print "minimum force:   %f" % self.force_min
+        print "maximum force:   %f" % self.force_max
+        print "minimum skin:    %f" % self.skin_min
+        print "maximum skin:    %f" % self.skin_max
+
+    def _build_discrete_data(self):
         self.discrete_force = {}
         self.discrete_skin = {}
 
-        for prt in ['trn', 'val', 'tst']:
+        if self._taxel is None:
+            return
+
+        self.force_step = (self.force_max - self.force_min) / float(self.discrete_force_states)
+        self.skin_step = (self.skin_max - self.skin_min) / float(self.discrete_skin_states)
+
+        for prt in self.all_prts:
             self.discrete_force[prt] = np.asarray((self.force[prt] - self.force_min) / float(self.force_step),
                                                   dtype='int')
             self.discrete_skin[prt] = np.asarray((self.skin[prt] - self.skin_min) / float(self.skin_step),
                                                  dtype='int')
 
-        self.discrete_force_states = int((self.force_max - self.force_min) / float(self.force_step)) + 3
-        self.discrete_skin_states = int((self.skin_max - self.skin_min) / float(self.skin_step)) + 3
-
         print
-        print "discrete force states:   %d" % self.discrete_force_states
-        print "discrete skin states:    %d" % self.discrete_skin_states
+        print "force step:   %f" % self.force_step
+        print "skin step:    %f" % self.skin_step
 
     def from_discrete_force(self, discrete_force):
         return discrete_force * self.force_step + self.force_min
@@ -85,7 +105,7 @@ class SkinWorkingset(object):
 
     def error(self, tr):
         err = {}
-        for prt in ['trn', 'val', 'tst']:
+        for prt in self.all_prts:
             ns_skin_p = tr.predict(self.ns_in[prt])
             err['ns_'+prt] = 0.5 * np.mean((self.ns_skin[prt] - ns_skin_p)**2)
 
@@ -98,7 +118,7 @@ class SkinWorkingset(object):
     def restarting_predict_error(self, tr, restart_steps):
         err = {}
         err['restart_steps'] = restart_steps
-        for prt in ['trn', 'val', 'tst']:
+        for prt in self.all_prts:
             ns_skin_p = tr.predict(self.ns_in[prt])
             err['ns_'+prt] = 0.5 * np.mean((self.ns_skin[prt] - ns_skin_p)**2)
 
@@ -112,7 +132,7 @@ class SkinWorkingset(object):
     def print_error(self, err):
         if 'restart_steps' in err:
             print "restart steps: %d" % err['restart_steps']
-        for prt in ['trn', 'val', 'tst']:
+        for prt in self.all_prts:
             print "%s:   next step: %.7f;  all steps: %.5f;  failed curves: %d" % (prt, err['ns_'+prt], err['ms_'+prt],
                                                                                    len(err['failed_'+prt]))
 
