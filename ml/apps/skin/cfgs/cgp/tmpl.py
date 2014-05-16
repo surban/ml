@@ -1,10 +1,11 @@
 tmpl = """
-# SUBMIT: runner=python -m apps.skin.conditionalchain_gp
-# SBATCH --mem=1024
+# SUBMIT: runner=python -m ml.apps.skin.conditionalchain_gp
+# SBATCH --mem=2048
+# SBATCH --time=1:00:00
 dataset_name = "bidir_small"
 discrete_force_states = $discrete_force_states$
 discrete_skin_states = $discrete_skin_states$
-kernel = $kernel$
+kernel = "$kernel$"
 std_adjust = $std_adjust$
 cutoff_stds = $cutoff_stds$
 mngful_dist = $mngful_dist$

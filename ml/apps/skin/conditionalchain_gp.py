@@ -23,7 +23,7 @@ for taxel in ws.ds.available_taxels():
     # train
     sc = ConditionalChain(ws.discrete_skin_states, ws.discrete_force_states)
     sc.train_gp_var(ws.discrete_skin['trn'], ws.discrete_force['trn'], ws.valid['trn'],
-                    cutoff_stds=cfg.cutoff_stds, mngful_dist=cfg.mngful_dist, std_adjust=cfg.std_adjust,
+                    cutoff_stds=cfg.cutoff_stds, mngful_dist=int(cfg.mngful_dist), std_adjust=cfg.std_adjust,
                     gp_kernel=eval('lambda: gpy.kern.%s(1)' % cfg.kernel),
                     gp_normalize_x=False, gp_normalize_y=cfg.normalize_y, gp_optimize=True,
                     gp_parameters={})
