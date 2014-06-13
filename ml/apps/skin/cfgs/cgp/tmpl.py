@@ -1,6 +1,6 @@
 tmpl = """
 # SUBMIT: runner=python -m ml.apps.skin.conditionalchain_gp
-# SBATCH --mem=2048
+# SBATCH --mem=3096
 # SBATCH --time=1:00:00
 dataset_name = "bidir_small"
 discrete_force_states = $discrete_force_states$
