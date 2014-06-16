@@ -76,20 +76,37 @@ class SkinDataset(object):
         return self._storage['metadata'].attrs['interval']
 
     def _build(self, directory):
+        metadata = self._storage.create_group('metadata')
+
         interval = None
+        freqs = 0
+
         for x in range(self.num_taxels):
             for y in range(self.num_taxels):
-                taxel = (x,y)
+                taxel = (x, y)
 
                 data_dir = os.path.join(directory, "%d%d" % (x, y))
                 if not os.path.isdir(data_dir):
                     continue
 
-                forces, skins, my_interval = self._load_directory(data_dir)
-                n_curves = len(forces)
+                datas, my_interval = self._load_directory(data_dir)
+                n_curves = len(datas)
+                if 'skin_freqs' in datas[0]:
+                    my_freqs = datas[0]['skin_freqs']
+                else:
+                    my_freqs = None
+
+                if freqs == 0:
+                    freqs = my_freqs
+                    metadata.attrs['freqs'] = freqs
+                else:
+                    if freqs != my_freqs:
+                        print "Taxel %s has different frequencies (%s) than other taxels (%s)" % \
+                              (str(taxel), str(my_freqs), str(freqs))
 
                 if not interval:
                     interval = my_interval
+                    metadata.attrs['interval'] = interval
                 else:
                     if not abs(my_interval - interval) < 0.0001:
                         print "Taxel %s has time step (%g s) that is different from other taxels (%g s)" % \
@@ -103,32 +120,31 @@ class SkinDataset(object):
                 self._storage.create_group(self._group_path('validation', taxel))
                 self._storage.create_group(self._group_path('test', taxel))
 
-                j = 0
-                for i in range(trngset_size):
-                    ds = self._storage.create_dataset(self._record_path('train', taxel, i),
-                                                      shape=(2, forces[j].shape[0]), dtype='f')
-                    ds[0, :] = forces[j]
-                    ds[1, :] = skins[j]
-                    j += 1
-                for i in range(valiset_size):
-                    ds = self._storage.create_dataset(self._record_path('validation', taxel, i),
-                                                      shape=(2, forces[j].shape[0]), dtype='f')
-                    ds[0, :] = forces[j]
-                    ds[1, :] = skins[j]
-                    j += 1
-                for i in range(testset_size):
-                    ds = self._storage.create_dataset(self._record_path('test', taxel, i),
-                                                      shape=(2, forces[j].shape[0]), dtype='f')
-                    ds[0, :] = forces[j]
-                    ds[1, :] = skins[j]
-                    j += 1
+                datas = self._assign_to_dataset(datas, 'train', taxel, trngset_size, freqs)
+                datas = self._assign_to_dataset(datas, 'validation', taxel, valiset_size, freqs)
+                datas = self._assign_to_dataset(datas, 'test', taxel, testset_size, freqs)
+                assert datas == []
 
-        metadata = self._storage.create_group('metadata')
-        metadata.attrs['interval'] = interval
+    def _assign_to_dataset(self, datas, purpose, taxel, count, freqs):
+        for i in range(count):
+            n_samples = datas[i]['force'].shape[0]
+            if freqs is None:
+                ds = self._storage.create_dataset(self._record_path(purpose, taxel, i),
+                                                  shape=(2, n_samples), dtype='f')
+                ds[0, :] = datas[i]['force']
+                ds[1, :] = datas[i]['skin']
+            else:
+                ds = self._storage.create_dataset(self._record_path(purpose, taxel, i),
+                                                  shape=(1 + 2*len(freqs), n_samples), dtype='f')
+                ds[0, :] = datas[i]['force'][i]
+                for f in range(len(freqs)):
+                    ds[1 + 2*f] = datas[i]['skin_amp'][f, :]
+                    ds[1 + 2*f + 1] = datas[i]['skin_phase'][f, :]
+
+        return datas[count:]
 
     def _load_directory(self, directory):
-        forces = []
-        skins = []
+        data = []
         deltat = None
 
         files = glob.glob(os.path.join(directory, "*.fsd.npz"))
@@ -136,8 +152,7 @@ class SkinDataset(object):
         for filename in files:
             try:
                 d = np.load(filename)
-                forces.append(d['force'])
-                skins.append(d['skin'])
+                data.append(d)
                 dt = np.diff(d['time'])
             except Exception as e:
                 print "Error loading %s: %s" % (filename, str(e))
@@ -150,10 +165,10 @@ class SkinDataset(object):
                 deltat = dt[0]
             else:
                 if not abs(deltat - dt[0]) < 0.0001:
-                    print "Curve %s has time step (%g s) that is different from other curvers (%g s)" % \
+                    print "Curve %s has time step (%g s) that is different from other curves (%g s)" % \
                         (filename, dt[0], deltat)
 
-        return forces, skins, deltat
+        return data, deltat
 
     def print_statistics(self):
         print "Dataset %s:" % self._storage.filename
