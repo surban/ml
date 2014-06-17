@@ -100,6 +100,8 @@ def build_nextstep_data(ds, purpose, taxel, n_curves=None):
     else:
         assert n_curves <= ds.record_count(purpose, taxel)
 
+    rec = ds.record(purpose, taxel, 0)
+
     X = np.zeros((2, 0))
     Z = np.zeros((0, ))
     for i in range(n_curves):
@@ -165,6 +167,26 @@ def build_multicurve(curves):
         valid[0:c.shape[1], sample] = True
 
     return force, skin, valid
+
+
+def build_flat_data(curves):
+    """Concatenates all given curves into the form:
+    force[sample] and skin[feature, sample]."""
+    if not isinstance(curves, (list, tuple)):
+        curves = [curves]
+    n_samples = sum([c.shape[1] for c in curves])
+    n_features = curves[0].shape[0] - 1
+
+    force = np.zeros((n_samples,))
+    skin = np.zeros((n_features, n_samples))
+    pos = 0
+    for c in curves:
+        ns = c.shape[1]
+        force[pos : pos+ns] = c[0, :]
+        skin[:, pos : pos+ns] = c[1:, :]
+        pos += ns
+
+    return force, skin
 
 
 def multistep_predict(predictor, forces, valid, skin_start, skin_p=None):

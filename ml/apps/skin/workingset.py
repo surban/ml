@@ -11,6 +11,7 @@ from ml.common.progress import status, done
 from ml.common.test import check_gradient, check_directional_gradient
 
 
+
 class SkinWorkingset(object):
 
     all_prts = ['trn', 'val', 'tst']
@@ -48,19 +49,24 @@ class SkinWorkingset(object):
         self.force = {}
         self.skin = {}
         self.valid = {}
+        self.flat_force = {}
+        self.flat_skin = {}
 
         if self._taxel is None:
             return
 
         for prt in self.all_prts:
-            self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self._taxel,
-                                                                     n_curves=self.curve_limit)
-            print "%s: next step:          %d steps" % (prt, self.ns_in[prt].shape[1])
+            if self.ds.frequencies is None:
+                self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self._taxel,
+                                                                         n_curves=self.curve_limit)
+                print "%s: next step:          %d steps" % (prt, self.ns_in[prt].shape[1])
 
             self.curves[prt] = self.ds.record(prt, self._taxel)
             if self.curve_limit is not None:
                 self.curves[prt] = self.curves[prt][0:self.curve_limit]
+
             self.force[prt], self.skin[prt], self.valid[prt] = build_multicurve(self.curves[prt])
+            self.flat_force[prt], self.flat_skin[prt] = build_flat_data(self.curves[prt])
             print "%s: curves:             %d" % (prt, len(self.curves[prt]))
 
         self.force_min = min([np.min(self.force[prt]) for prt in self.all_prts]) - self.range_epsilon
@@ -102,6 +108,10 @@ class SkinWorkingset(object):
 
     def n_curves(self, prt):
         return len(self.curves[prt])
+
+    @property
+    def n_features(self):
+        return self.curves['trn'][0].shape[0] - 1
 
     def error(self, tr):
         err = {}
