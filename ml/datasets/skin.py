@@ -75,6 +75,13 @@ class SkinDataset(object):
     def timestep(self):
         return self._storage['metadata'].attrs['interval']
 
+    @property
+    def frequencies(self):
+        if 'freqs' in self._storage['metadata'].attrs:
+            return self._storage['metadata'].attrs['freqs']
+        else:
+            return None
+
     def _build(self, directory):
         metadata = self._storage.create_group('metadata')
 
@@ -98,7 +105,8 @@ class SkinDataset(object):
 
                 if freqs == 0:
                     freqs = my_freqs
-                    metadata.attrs['freqs'] = freqs
+                    if freqs is not None:
+                        metadata.attrs['freqs'] = freqs
                 else:
                     if freqs != my_freqs:
                         print "Taxel %s has different frequencies (%s) than other taxels (%s)" % \
@@ -136,7 +144,7 @@ class SkinDataset(object):
             else:
                 ds = self._storage.create_dataset(self._record_path(purpose, taxel, i),
                                                   shape=(1 + 2*len(freqs), n_samples), dtype='f')
-                ds[0, :] = datas[i]['force'][i]
+                ds[0, :] = datas[i]['force']
                 for f in range(len(freqs)):
                     ds[1 + 2*f] = datas[i]['skin_amp'][f, :]
                     ds[1 + 2*f + 1] = datas[i]['skin_phase'][f, :]
@@ -164,7 +172,7 @@ class SkinDataset(object):
             if not deltat:
                 deltat = dt[0]
             else:
-                if not abs(deltat - dt[0]) < 0.0001:
+                if not abs(deltat - dt[0]) < 0.0001 and 'skin_freqs' not in d:
                     print "Curve %s has time step (%g s) that is different from other curves (%g s)" % \
                         (filename, dt[0], deltat)
 
@@ -189,14 +197,16 @@ class SkinDataset(object):
         points_per_record = n_points / n_records
         print "Avg. datapoints per record: %d" % points_per_record
         print "Sampling interval:          %g s" % self.timestep
+        if self.frequencies is not None:
+            print "Stimulus frequencies:       "
+            print "%s kHz" % (self.frequencies / 1000.0)
         print
-
-
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print "Usage: %s <dataset directory>" % sys.argv[0]
+        print "Builds a skin dataset from a curve output directory."
+        print "Usage: %s <curve output directory>" % sys.argv[0]
         sys.exit(1)
     directory = sys.argv[1]
     print "Building dataset from %s" % directory
