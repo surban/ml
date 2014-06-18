@@ -149,7 +149,10 @@ class SkinWorkingset(object):
     def trim_to_valid(self, f, s, v):
         max_v = np.nonzero(v)
         last_valid = max_v[0][-1]
-        return f[0:last_valid], s[0:last_valid]
+        if s.ndim == 2:
+            return f[0:last_valid], s[:, 0:last_valid]
+        else:
+            return f[0:last_valid], s[0:last_valid]
 
     def get_discrete_fs_curve(self, prt, smpl):
         f = self.discrete_force[prt][:, smpl]
@@ -163,15 +166,35 @@ class SkinWorkingset(object):
         v = self.valid[prt][:, smpl]
         return self.trim_to_valid(f, s, v)
 
-    def predict_multicurve(self, predictor, force, skin, valid):
-        skin_p = np.zeros(skin.shape)
+    def predict_multicurve(self, predictor, force, skin, valid, what='skin'):
+        assert what in ['skin', 'force']
+        if what == 'skin':
+            predicted = np.zeros(skin.shape)
+        else:
+            predicted = np.zeros(force.shape)
+        predicted_conf = np.zeros(predicted.shape)
+        using_conf = False
         for smpl in range(force.shape[1]):
             status(smpl, force.shape[1], "Predicting")
-            f, s = self.trim_to_valid(force[:, smpl], skin[:, smpl], valid[:, smpl])
-            s_p = predictor(f)
-            skin_p[0:s_p.shape[0], smpl] = s_p
+            if skin.ndim == 3:
+                f, s = self.trim_to_valid(force[:, smpl], skin[:, :, smpl], valid[:, smpl])
+            else:
+                f, s = self.trim_to_valid(force[:, smpl], skin[:, smpl], valid[:, smpl])
+            if what == 'skin':
+                pp = predictor(f)
+            else:
+                pp = predictor(s)
+            if isinstance(pp, tuple):
+                predicted[0:pp[0].shape[0], smpl] = pp[0]
+                predicted_conf[0:pp[1].shape[0], smpl] = pp[1]
+                using_conf = True
+            else:
+                predicted[0:pp.shape[0], smpl] = pp
         done()
-        return skin_p
+        if using_conf:
+            return predicted, predicted_conf
+        else:
+            return predicted
 
     def predict_multicurve_parallel(self, predictor, force, skin, valid):
         pool = multiprocessing.Pool()

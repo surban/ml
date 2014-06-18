@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import math
 import random
 import ml.common.progress as progress
+from GPy.util import Tango
+
 
 max_force = 20
 max_skin = 2
@@ -39,9 +41,13 @@ def plot_multicurve(force, skin, valid, *args):
             plt.xlabel("force [N]")
 
 
-def plot_multicurve_time(force, skin, valid, skin_predicted=None, timestep=None):
+def plot_multicurve_time(force, skin, valid,
+                         skin_predicted=None, skin_predicted_conf=None,
+                         force_predicted=None, force_predicted_conf=None,
+                         timestep=None):
     n_curves = force.shape[1]
-    assert skin.shape[1] == n_curves
+    if skin is not None:
+        assert skin.shape[1] == n_curves
     assert valid.shape[1] == n_curves
 
     height = int(math.sqrt(n_curves))
@@ -67,25 +73,47 @@ def plot_multicurve_time(force, skin, valid, skin_predicted=None, timestep=None)
 
         ax1 = plt.gca()
         ax1.plot(ts, force[0:valid_to, c], 'k')
+        if force_predicted is not None:
+            if force_predicted_conf is not None:
+                plt.fill_between(ts,
+                                 force_predicted[0:valid_to, c] + force_predicted_conf[0:valid_to, c],
+                                 force_predicted[0:valid_to, c] - force_predicted_conf[0:valid_to, c],
+                                 edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
+            else:
+                ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
         ax1.set_ylim(0, max_force)
         ax1.set_xlim(0, max_time)
         for tl in ax1.get_yticklabels():
             tl.set_color('k')
         if c % width == 0:
             ax1.set_ylabel("force [N]")
+        else:
+            ax1.set_yticklabels([])
         if c / width == height-1:
             ax1.set_xlabel("time [s]")
+        else:
+            ax1.set_xticklabels([])
 
-        ax2 = ax1.twinx()
-        ax2.plot(ts, skin[0:valid_to, c], 'b')
-        if skin_predicted is not None:
-            ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
-        ax2.set_ylim(0, max_skin)
-        ax2.set_xlim(0, max_time)
-        for tl in ax2.get_yticklabels():
-            tl.set_color('b')
-        if (c+1) % width == 0:
-            ax2.set_ylabel("skin [V]", color='b')
+        if skin is not None:
+            ax2 = ax1.twinx()
+            ax2.plot(ts, skin[0:valid_to, c], 'b')
+            if skin_predicted is not None:
+                if skin_predicted_conf is not None:
+                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
+                    plt.fill_between(ts,
+                                     skin_predicted[0:valid_to, c] + skin_predicted_conf[0:valid_to, c],
+                                     skin_predicted[0:valid_to, c] - skin_predicted_conf[0:valid_to, c],
+                                     edgecolor=Tango.colorsHex['darkGray'], facecolor=Tango.colorsHex['lightGray'], alpha=0.4)
+                else:
+                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
+            ax2.set_ylim(0, max_skin)
+            ax2.set_xlim(0, max_time)
+            for tl in ax2.get_yticklabels():
+                tl.set_color('b')
+            if (c+1) % width == 0:
+                ax2.set_ylabel("skin [V]", color='b')
+            else:
+                ax2.set_yticklabels([])
 
         plt.title(str(c))
 
@@ -157,13 +185,20 @@ def build_multicurve(curves):
     if not isinstance(curves, (list, tuple)):
         curves = [curves]
     maxlen = max([c.shape[1] for c in curves])
+    multifreq = curves[0].shape[0] > 2
 
     force = np.zeros((maxlen, len(curves)))
-    skin = np.zeros((maxlen, len(curves)))
+    if multifreq:
+        skin = np.zeros((curves[0].shape[0] - 1, maxlen, len(curves)))
+    else:
+        skin = np.zeros((maxlen, len(curves)))
     valid = np.zeros((maxlen, len(curves)), dtype=bool)
     for sample, c in enumerate(curves):
         force[0:c.shape[1], sample] = c[0, :]
-        skin[0:c.shape[1], sample] = c[1, :]
+        if multifreq:
+            skin[:, 0:c.shape[1], sample] = c[1:, :]
+        else:
+            skin[0:c.shape[1], sample] = c[1, :]
         valid[0:c.shape[1], sample] = True
 
     return force, skin, valid
