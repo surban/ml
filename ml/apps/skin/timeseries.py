@@ -78,7 +78,8 @@ def plot_multicurve_time(force, skin, valid,
                 plt.fill_between(ts,
                                  force_predicted[0:valid_to, c] + force_predicted_conf[0:valid_to, c],
                                  force_predicted[0:valid_to, c] - force_predicted_conf[0:valid_to, c],
-                                 edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
+                                 edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.1)
+                ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
             else:
                 ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
         ax1.set_ylim(0, max_force)
@@ -99,11 +100,11 @@ def plot_multicurve_time(force, skin, valid,
             ax2.plot(ts, skin[0:valid_to, c], 'b')
             if skin_predicted is not None:
                 if skin_predicted_conf is not None:
-                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
                     plt.fill_between(ts,
                                      skin_predicted[0:valid_to, c] + skin_predicted_conf[0:valid_to, c],
                                      skin_predicted[0:valid_to, c] - skin_predicted_conf[0:valid_to, c],
-                                     edgecolor=Tango.colorsHex['darkGray'], facecolor=Tango.colorsHex['lightGray'], alpha=0.4)
+                                     edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.1)
+                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
                 else:
                     ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
             ax2.set_ylim(0, max_skin)
@@ -260,9 +261,9 @@ def restarting_multistep_predict(predictor, forces, valid, skin, restart_steps):
     return s_p
 
 
-def multistep_error(skin_p, skin, valid, mean_err=False):
+def multistep_error(prediction, truth, valid, mean_err=False):
     """Calculates the error function of multiple prediction steps."""
-    diff = (skin_p - skin)**2
+    diff = (prediction - truth)**2
     diff[~valid] = 0
     if not mean_err:
         return 0.5 * np.sum(diff)
@@ -270,9 +271,9 @@ def multistep_error(skin_p, skin, valid, mean_err=False):
         return 0.5 * np.sum(diff) / np.sum(valid)
 
 
-def multistep_error_per_sample(skin_p, skin, valid):
+def multistep_error_per_sample(prediction, truth, valid):
     """Calculates the error function of multiple prediction steps."""
-    diff = (skin_p - skin)**2
+    diff = (prediction - truth)**2
     diff[~valid] = 0
     return 0.5 * np.sum(diff, axis=0)
 
