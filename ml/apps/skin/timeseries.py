@@ -64,7 +64,7 @@ def plot_multicurve_time(force, skin, valid,
         if len(where_valid) == 0:
             valid_to = 0
         else:
-            valid_to = where_valid[-1]
+            valid_to = where_valid[-1] + 1
 
         if timestep:
             ts = np.linspace(0, valid_to * timestep, valid_to)

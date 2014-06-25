@@ -150,9 +150,9 @@ class SkinWorkingset(object):
         max_v = np.nonzero(v)
         last_valid = max_v[0][-1]
         if s.ndim == 2:
-            return f[0:last_valid], s[:, 0:last_valid]
+            return f[0:last_valid+1], s[:, 0:last_valid+1]
         else:
-            return f[0:last_valid], s[0:last_valid]
+            return f[0:last_valid+1], s[0:last_valid+1]
 
     def get_discrete_fs_curve(self, prt, smpl):
         f = self.discrete_force[prt][:, smpl]
