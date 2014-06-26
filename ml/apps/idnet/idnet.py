@@ -24,7 +24,7 @@ check_nans = False
 show_gradient = False
 cfg, plot_dir = ml.common.util.standard_cfg(prepend_scriptname=False)
 cfg.steprate = ml.common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val,
-                                     transition='linear', transition_length=1000)
+                                        transition='linear', transition_length=1000)
 if 'do_weight_plots' in dir(cfg):
     do_weight_plots = cfg.do_weight_plots
 else:
