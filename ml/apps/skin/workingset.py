@@ -18,10 +18,15 @@ class SkinWorkingset(object):
     range_epsilon = 0.1
 
     def __init__(self, ds_name, taxel=None, curve_limit=None,
-                 discrete_force_states=100, discrete_skin_states=100):
+                 discrete_force_states=100, discrete_skin_states=100,
+                 force_min=None, force_max=None, skin_min=None, skin_max=None):
 
         self.discrete_force_states = discrete_force_states
         self.discrete_skin_states = discrete_skin_states
+        self.specified_force_min = force_min
+        self.specified_force_max = force_max
+        self.specified_skin_min = skin_min
+        self.specified_skin_max = skin_max
 
         self.ds = SkinDataset(ds_name)
         self.ds.print_statistics()
@@ -41,6 +46,7 @@ class SkinWorkingset(object):
         print
         self._build_data()
         self._build_discrete_data()
+        print
 
     def _build_data(self):
         self.ns_in = {}
@@ -74,6 +80,19 @@ class SkinWorkingset(object):
         self.skin_min = min([np.min(self.skin[prt]) for prt in self.all_prts]) - self.range_epsilon
         self.skin_max = max([np.max(self.skin[prt]) for prt in self.all_prts]) + self.range_epsilon
 
+        if self.specified_force_min:
+            assert self.force_min >= self.specified_force_min
+            self.force_min = self.specified_force_min
+        if self.specified_force_max:
+            assert self.force_max <= self.specified_force_max
+            self.force_max = self.specified_force_max
+        if self.specified_skin_min:
+            assert self.skin_min >= self.specified_skin_min
+            self.skin_min = self.specified_force_min
+        if self.specified_skin_max:
+            assert self.skin_max <= self.specified_skin_max
+            self.skin_max = self.specified_skin_max
+
         print
         print "minimum force:   %f" % self.force_min
         print "maximum force:   %f" % self.force_max
@@ -91,14 +110,20 @@ class SkinWorkingset(object):
         self.skin_step = (self.skin_max - self.skin_min) / float(self.discrete_skin_states)
 
         for prt in self.all_prts:
-            self.discrete_force[prt] = np.asarray((self.force[prt] - self.force_min) / float(self.force_step),
-                                                  dtype='int')
-            self.discrete_skin[prt] = np.asarray((self.skin[prt] - self.skin_min) / float(self.skin_step),
-                                                 dtype='int')
+            self.discrete_force[prt] = self.to_discrete_force(self.force[prt])
+            self.discrete_skin[prt] = self.to_discrete_skin(self.skin[prt])
 
         print
         print "force step:   %f" % self.force_step
         print "skin step:    %f" % self.skin_step
+
+    def to_discrete_force(self, force):
+        assert np.all(self.force_min <= force) and np.all(force <= self.force_max)
+        return np.asarray((force - self.force_min) / float(self.force_step), dtype='int')
+
+    def to_discrete_skin(self, skin):
+        assert np.all(self.skin_min <= skin) and np.all(skin <= self.skin_max)
+        return np.asarray((skin - self.skin_min) / float(self.skin_step), dtype='int')
 
     def from_discrete_force(self, discrete_force):
         return discrete_force * self.force_step + self.force_min
@@ -108,6 +133,10 @@ class SkinWorkingset(object):
 
     def n_curves(self, prt):
         return len(self.curves[prt])
+
+    def select_frequencies(self, freqs, skin):
+        idx = [2*np.where(np.abs(self.ds.frequencies - f) < 1)[0][0] for f in freqs]
+        return skin[idx, ...]
 
     @property
     def n_features(self):

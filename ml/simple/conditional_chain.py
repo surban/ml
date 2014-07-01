@@ -210,7 +210,7 @@ class ConditionalChain(object):
         return self.apply_gp(sta, inp, plot_pstate=pstate, **kwargs)
 
     def apply_gp(self, sta, inp,
-                 mngful_dist=5, cutoff_stds=3.0, std_adjust=1.0,
+                 mngful_dist=5, cutoff_stds=3.0, std_adjust=1.0, std_power=1.0,
                  gp_kernel=gpy.kern.rbf, gp_normalize_x=False, gp_normalize_y=False, gp_optimize=True,
                  gp_parameters={},
                  do_plots=False, plot_rng=None, plot_pstate=0):
@@ -219,10 +219,23 @@ class ConditionalChain(object):
         inp_mrgd, sta_mrgd, sta_var = merge_duplicates(inp, sta)
 
         # determine meaningful predictions
-        mngful = np.zeros(self.n_input_values)
-        for i in range(mngful_dist):
-            mngful[np.minimum(inp_mrgd + i, self.n_input_values - 1)] = 1
-            mngful[np.maximum(inp_mrgd - i, 0)] = 1
+        if mngful_dist is not None:
+            mngful = np.zeros(self.n_input_values)
+            for i in range(mngful_dist):
+                mngful[np.minimum(inp_mrgd + i, self.n_input_values - 1)] = 1
+                mngful[np.maximum(inp_mrgd - i, 0)] = 1
+        else:
+            mngful = np.ones(self.n_input_values)
+
+        # handle singleton data (workaround for non-positive definite matrices in GPy)
+        if inp_mrgd.size == 1:
+            inp_mrgd = np.resize(inp_mrgd, (2,))
+            sta_mrgd = np.resize(sta_mrgd, (2,))
+            inp_mrgd[1] = inp_mrgd[0] + 1
+            sta_mrgd[1] = sta_mrgd[0]
+            singleton_fix = True
+        else:
+            singleton_fix = False
 
         # fit GP on data
         gp = gpy.models.GPRegression(inp_mrgd[:, np.newaxis], sta_mrgd[:, np.newaxis], gp_kernel(),
@@ -233,14 +246,19 @@ class ConditionalChain(object):
                 gp.constrain_fixed(k, v)
         gp.ensure_default_constraints()
         if gp_optimize:
-            gp.optimize()
-            #gp.optimize_restarts()
+            #gp.randomize()
+            #gp.optimize()
+            gp.optimize_restarts(num_restarts=3)
+        if do_plots:
+            print gp
 
         # estimate variance from predictions of first GP
         sta_mu, _, _, _ = gp.predict(inp_mrgd[:, np.newaxis], full_cov=False)
         sta_mrgd_var = np.zeros(inp_mrgd.shape)
         for n in range(inp_mrgd.size):
             sta_mrgd_var[n] = np.mean((sta[inp == inp_mrgd[n]] - sta_mu[n])**2)
+        if singleton_fix:
+            sta_mrgd_var = np.zeros(shape=sta_mrgd.shape)
 
         # fit GP on variance
         gp_var = gpy.models.GPRegression(inp_mrgd[:, np.newaxis], sta_mrgd_var[:, np.newaxis], gp_kernel(),
@@ -257,9 +275,10 @@ class ConditionalChain(object):
         pred_var1 = pred_var1[:, 0]
         pred_var2, _, _, _ = gp_var.predict(pred_inp[:, np.newaxis], full_cov=False)
         pred_var2 = pred_var2[:, 0]
+        pred_var2[pred_var2 < 0] = 0
         pred_std = np.sqrt(pred_var1) + np.sqrt(pred_var2)
         pred_std *= std_adjust
-        # pred_std = np.sqrt(pred_var2)
+        pred_std = np.power(pred_std, std_power)
 
         # discretize output distribution
         pdf = np.zeros((self.n_system_states, self.n_input_values))
@@ -267,13 +286,14 @@ class ConditionalChain(object):
         for pinp in pred_inp:
             if not mngful[pinp] > 0:
                 continue
-            if np.isnan(pred_std[pinp]):
-                pred_std[pinp] = pred_std[pinp - 1]
+            # if np.isnan(pred_std[pinp]):
+            #     pred_std[pinp] = pred_std[pinp - 1]
             if pred_std[pinp] < 0.01:
                 pred_std[pinp] = 0.01
 
             ipdf = normal_pdf(pdf_sta[np.newaxis, :], np.atleast_1d(pred_sta[pinp]), np.atleast_2d(pred_std[pinp])**2)
-            ipdf[np.abs(pdf_sta - pred_sta[pinp]) > cutoff_stds * pred_std[pinp]] = 0
+            if cutoff_stds is not None:
+                ipdf[np.abs(pdf_sta - pred_sta[pinp]) > cutoff_stds * pred_std[pinp]] = 0
             nfac = np.sum(ipdf)
             if nfac == 0:
                 nfac = 1
@@ -281,7 +301,7 @@ class ConditionalChain(object):
             pdf[:, pinp] = ipdf
 
         # plot
-        if do_plots is not False:
+        if do_plots:
             if plot_rng is None:
                 plot_rng = [0, self.n_input_values]
 
@@ -300,25 +320,25 @@ class ConditionalChain(object):
             plt.ylim(0, self.n_system_states)
             conf1 = 2 * np.sqrt(pred_var1)
             conf2 = 2 * pred_std
-            cutoff = cutoff_stds * pred_std
-            plt.fill_between(pred_inp, pred_sta + cutoff, pred_sta - cutoff,
-                             edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
-            # plt.fill_between(pred_inp, pred_sta + conf2, pred_sta - conf2,
-            #                  edgecolor=Tango.colorsHex['darkBlue'], facecolor=Tango.colorsHex['lightBlue'], alpha=0.4)
-            # plt.fill_between(pred_inp, pred_sta + conf1, pred_sta - conf1,
-            #                  edgecolor=Tango.colorsHex['darkPurple'], facecolor=Tango.colorsHex['lightPurple'], alpha=0.4)
+            # cutoff = cutoff_stds * pred_std
+            # plt.fill_between(pred_inp, pred_sta + cutoff, pred_sta - cutoff,
+            #                  edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
+            plt.fill_between(pred_inp, pred_sta + conf2, pred_sta - conf2,
+                             edgecolor=Tango.colorsHex['darkBlue'], facecolor=Tango.colorsHex['lightBlue'], alpha=0.4)
+            plt.fill_between(pred_inp, pred_sta + conf1, pred_sta - conf1,
+                             edgecolor=Tango.colorsHex['darkPurple'], facecolor=Tango.colorsHex['lightPurple'], alpha=0.4)
             plt.plot(pred_inp, pred_sta, 'k')
             #plt.errorbar(pred_inp, pred_sta, 2*np.sqrt(sta_mrgd_var), fmt=None)
             plt.axhline(plot_pstate, color='r')
 
             # plot output distribution
             plt.subplot(2, 2, 3)
-            plt.imshow(pdf, origin='lower', aspect=2, interpolation='none')
+            plt.imshow(pdf, origin='lower', aspect=1, interpolation='none')
             plt.colorbar()
 
         return pred_inp, pred_sta, pred_std, mngful, pdf
 
-    def train_gp_var(self, states, inputs, valid, cutoff_stds=3.0, **kwargs):
+    def train_gp_var(self, states, inputs, valid, **kwargs):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -338,6 +358,7 @@ class ConditionalChain(object):
         self.log_p_next_state[:] = 0
         for pstate in range(self.n_system_states):
             status(pstate, self.n_system_states, "Training GP")
+            # print pstate
 
             sta, inp = self.get_transitions(states, inputs, valid, pstate)
             if sta.size == 0:

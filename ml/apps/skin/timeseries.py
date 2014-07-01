@@ -41,9 +41,37 @@ def plot_multicurve(force, skin, valid, *args):
             plt.xlabel("force [N]")
 
 
+def plot_multicurve_error(force, force_predicted, valid, *args):
+    n_curves = force.shape[1]
+    assert force_predicted.shape[1] == n_curves
+    assert valid.shape[1] == n_curves
+
+    height = int(math.sqrt(n_curves))
+    width = int(math.ceil(n_curves / float(height)))
+
+    for c in range(n_curves):
+        plt.subplot(height, width, c+1)
+        valid_to = np.where(valid[:, c])[0][-1] + 1
+        plt.plot(force[0:valid_to, c], force_predicted[0:valid_to, c], *args)
+        plt.xlim(0, max_force)
+        plt.ylim(0, max_force)
+        plt.title(str(c))
+        plt.gca().set_aspect('equal')
+
+        if c % width == 0:
+            plt.ylabel("predicted force [N]")
+        else:
+            plt.gca().set_yticklabels([])
+        if c / width == height-1:
+            plt.xlabel("force [N]")
+        else:
+            plt.gca().set_xticklabels([])
+
+
 def plot_multicurve_time(force, skin, valid,
                          skin_predicted=None, skin_predicted_conf=None,
                          force_predicted=None, force_predicted_conf=None,
+                         force_real=None,
                          timestep=None):
     n_curves = force.shape[1]
     if skin is not None:
@@ -82,6 +110,8 @@ def plot_multicurve_time(force, skin, valid,
                 ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
             else:
                 ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
+        if force_real is not None:
+            ax1.plot(ts, force_real[0:valid_to, c], 'b')
         ax1.set_ylim(0, max_force)
         ax1.set_xlim(0, max_time)
         for tl in ax1.get_yticklabels():
