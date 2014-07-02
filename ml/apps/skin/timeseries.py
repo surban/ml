@@ -111,7 +111,7 @@ def plot_multicurve_time(force, skin, valid,
             else:
                 ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
         if force_real is not None:
-            ax1.plot(ts, force_real[0:valid_to, c], 'b')
+            ax1.plot(ts, force_real[0:valid_to, c], 'b', alpha=0.4)
         ax1.set_ylim(0, max_force)
         ax1.set_xlim(0, max_time)
         for tl in ax1.get_yticklabels():

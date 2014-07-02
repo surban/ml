@@ -1,6 +1,7 @@
 from __future__ import division
 
 import numpy as np
+from scipy.misc import logsumexp
 import scipy.stats
 import matplotlib.pyplot as plt
 import GPy as gpy
@@ -444,6 +445,34 @@ class ConditionalChain(object):
                     self.log_p_next_state[:, pstate, inp] = 0
 
         self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def infer_inputs(self, states):
+        # states[step]
+        # ml_inputs[step]
+        # log_p_inputs[input, step]
+        # self.log_p_initial_state[s_0] = p(s_0)
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+
+        n_steps = states.shape[0]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+
+        # initialize outputs
+        log_p_inputs = np.zeros((self.n_input_values, n_steps))
+
+        # initial state
+        pstate = np.argmax(self.log_p_initial_state)
+
+        # infer input probabilities using Bayes' theorem
+        for step in range(n_steps):
+            state = states[step]
+            log_p_inputs[:, step] = (self.log_p_next_state[state, pstate, :] -
+                                     logsumexp(self.log_p_next_state[state, pstate, :]))
+            pstate = state
+
+        # determine maximum probability inputs
+        ml_inputs = np.argmax(log_p_inputs, axis=0)
+
+        return ml_inputs, log_p_inputs
 
     def most_probable_states(self, inputs):
         # inputs[step]
