@@ -203,6 +203,9 @@ class SkinWorkingset(object):
             predicted = np.zeros(force.shape)
         predicted_conf = np.zeros(predicted.shape)
         using_conf = False
+        predicted_prob = None
+        using_prob = False
+
         for smpl in range(force.shape[1]):
             status(smpl, force.shape[1], "Predicting")
             if skin.ndim == 3:
@@ -215,12 +218,21 @@ class SkinWorkingset(object):
                 pp = predictor(s)
             if isinstance(pp, tuple):
                 predicted[0:pp[0].shape[0], smpl] = pp[0]
-                predicted_conf[0:pp[1].shape[0], smpl] = pp[1]
-                using_conf = True
+                if pp[1].ndim == 1:
+                    predicted_conf[0:pp[1].shape[0], smpl] = pp[1]
+                    using_conf = True
+                elif pp[1].ndim == 2:
+                    if predicted_prob is None:
+                        predicted_prob = np.zeros((pp[1].shape[0], predicted.shape[0], predicted.shape[1]))
+                    predicted_prob[:, 0:pp[1].shape[1], smpl] = pp[1]
+                    using_prob = True
             else:
                 predicted[0:pp.shape[0], smpl] = pp
         done()
-        if using_conf:
+
+        if using_prob:
+            return predicted, predicted_prob
+        elif using_conf:
             return predicted, predicted_conf
         else:
             return predicted

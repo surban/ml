@@ -212,7 +212,8 @@ class ConditionalChain(object):
 
     def apply_gp(self, sta, inp,
                  mngful_dist=5, cutoff_stds=3.0, std_adjust=1.0, std_power=1.0,
-                 gp_kernel=gpy.kern.rbf, gp_normalize_x=False, gp_normalize_y=False, gp_optimize=True,
+                 gp_kernel=gpy.kern.rbf, gp_normalize_x=False, gp_normalize_y=False,
+                 gp_optimize=True, gp_optimize_restarts=1,
                  gp_parameters={},
                  do_plots=False, plot_rng=None, plot_pstate=0):
 
@@ -247,9 +248,10 @@ class ConditionalChain(object):
                 gp.constrain_fixed(k, v)
         gp.ensure_default_constraints()
         if gp_optimize:
-            #gp.randomize()
-            #gp.optimize()
-            gp.optimize_restarts(num_restarts=3)
+            if gp_optimize_restarts == 1:
+                gp.optimize()
+            else:
+                gp.optimize_restarts(num_restarts=gp_optimize_restarts)
         if do_plots:
             print gp
 
@@ -446,6 +448,25 @@ class ConditionalChain(object):
 
         self.log_p_next_state = np.log(self.log_p_next_state)
 
+    def check_normalization(self):
+        # self.log_p_initial_state[s_0] = p(s_0)
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+
+        is_sum = logsumexp(self.log_p_initial_state)
+        ns_sum = logsumexp(self.log_p_next_state, axis=0)
+
+        print "Initial state: ", is_sum
+        print "Next state normalization failures: "
+
+        for pstate in range(self.n_system_states):
+            for inp in range(self.n_input_values):
+                if not np.all(np.isfinite(self.log_p_next_state[:, pstate, inp])):
+                    ns_sum[pstate, inp] = 0
+
+        err_pos = np.where(np.abs(ns_sum) > 1e-5)
+        for pstate, inp in np.transpose(err_pos):
+            print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
+
     def infer_inputs(self, states):
         # states[step]
         # ml_inputs[step]
@@ -473,6 +494,56 @@ class ConditionalChain(object):
         ml_inputs = np.argmax(log_p_inputs, axis=0)
 
         return ml_inputs, log_p_inputs
+
+    def most_probable_inputs(self, states, sigma):
+        # states[step]
+        # msg[f_(step-1)]
+        # max_track[step, f_step]
+        # max_input[step]
+        # p_next_input[f_step, f_(step-1)]
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+
+        n_steps = states.shape[0]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+
+        # precompute input transition probabilities
+        all_inputs = np.arange(0, self.n_input_values)
+        p_next_input = np.zeros((self.n_input_values, self.n_input_values))
+        for pinp in range(self.n_input_values):
+            p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=sigma)
+            # p_next_input[:, pinp] = normal_pdf(all_inputs, mu=pinp, sigma=sigma)
+            p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
+        log_p_next_input = np.log(p_next_input)
+
+        # track maximum probability inputs
+        max_track = np.zeros((n_steps, self.n_input_values), dtype='int')
+
+        # use uniform probability for leaf factor at beginning of chain
+        initial_prob = np.ones(self.n_input_values) / float(self.n_input_values)
+        msg = np.log(initial_prob)
+
+        # initial state
+        pstate = np.argmax(self.log_p_initial_state)
+
+        # pass messages towards end node of chain
+        for step in range(n_steps):
+            # m[f_t, f_(t-1)]
+            state = states[step]
+            m = self.log_p_next_state[state, pstate, :, np.newaxis] + log_p_next_input + msg[np.newaxis, :]
+            max_track[step, :] = np.nanargmax(m, axis=1)
+            msg = np.nanmax(m, axis=1)
+            pstate = state
+
+        # calculate maximum probability
+        log_p_max = np.nanmax(msg)
+
+        # backtrack maximum states
+        max_input = np.zeros(n_steps, dtype='int')
+        max_input[n_steps-1] = np.nanargmax(msg)
+        for step in range(n_steps-2, -1, -1):
+            max_input[step] = max_track[step+1, max_input[step+1]]
+
+        return max_input, log_p_max
 
     def most_probable_states(self, inputs):
         # inputs[step]

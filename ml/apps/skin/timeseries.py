@@ -1,11 +1,11 @@
 import numpy as np
 import scipy.sparse
 import matplotlib.pyplot as plt
+import matplotlib.patches
 import math
 import random
 import ml.common.progress as progress
 from GPy.util import Tango
-
 
 max_force = 20
 max_skin = 2
@@ -72,6 +72,7 @@ def plot_multicurve_time(force, skin, valid,
                          skin_predicted=None, skin_predicted_conf=None,
                          force_predicted=None, force_predicted_conf=None,
                          force_real=None,
+                         force_prob=None, force_prob_extents=None, force_prob_max=None,
                          timestep=None):
     n_curves = force.shape[1]
     if skin is not None:
@@ -85,6 +86,14 @@ def plot_multicurve_time(force, skin, valid,
         max_time = force.shape[0] * timestep
     else:
         max_time = force.shape[0]
+
+    tick_color = 'k'
+    if force_prob is None:
+        force_color = 'k'
+        linewidth = 1
+    else:
+        force_color = 'w'
+        linewidth = 3
 
     for c in range(n_curves):
         plt.subplot(height, width, c+1)
@@ -100,22 +109,35 @@ def plot_multicurve_time(force, skin, valid,
             ts = np.arange(valid_to)
 
         ax1 = plt.gca()
-        ax1.plot(ts, force[0:valid_to, c], 'k')
+        if force_real is not None:
+            ax1.plot(ts, force_real[0:valid_to, c], 'b', alpha=0.4, linewidth=linewidth)
+        ax1.plot(ts, force[0:valid_to, c], force_color, linewidth=linewidth)
         if force_predicted is not None:
             if force_predicted_conf is not None:
                 plt.fill_between(ts,
                                  force_predicted[0:valid_to, c] + force_predicted_conf[0:valid_to, c],
                                  force_predicted[0:valid_to, c] - force_predicted_conf[0:valid_to, c],
                                  edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.1)
-                ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
+                ax1.plot(ts, force_predicted[0:valid_to, c], 'r', linewidth=linewidth)
             else:
-                ax1.plot(ts, force_predicted[0:valid_to, c], 'r')
-        if force_real is not None:
-            ax1.plot(ts, force_real[0:valid_to, c], 'b', alpha=0.4)
+                ax1.plot(ts, force_predicted[0:valid_to, c], 'r', linewidth=linewidth)
+        if force_prob is not None:
+            cmap = plt.get_cmap('jet')
+            plt.imshow(force_prob[:, 0:valid_to, c], interpolation='none', origin='lower', cmap=cmap,
+                       extent=(0, ts[-1], force_prob_extents[0], force_prob_extents[1]),
+                       aspect='auto', vmin=0, vmax=force_prob_max)
+            if c == n_curves - 1:
+                plt.colorbar()
+            fillbox = np.asarray([[np.min(force_prob[:, :, c])]])
+            plt.imshow(fillbox, interpolation='none', cmap=cmap,
+                       extent=((ts[-2] + ts[-1])/2., max_time, force_prob_extents[0], force_prob_extents[1]),
+                       aspect='auto')
         ax1.set_ylim(0, max_force)
         ax1.set_xlim(0, max_time)
         for tl in ax1.get_yticklabels():
-            tl.set_color('k')
+            tl.set_color(tick_color)
+        for tl in ax1.get_xticklabels():
+            tl.set_color(tick_color)
         if c % width == 0:
             ax1.set_ylabel("force [N]")
         else:
@@ -127,16 +149,16 @@ def plot_multicurve_time(force, skin, valid,
 
         if skin is not None:
             ax2 = ax1.twinx()
-            ax2.plot(ts, skin[0:valid_to, c], 'b')
+            ax2.plot(ts, skin[0:valid_to, c], 'b', linewidth=linewidth)
             if skin_predicted is not None:
                 if skin_predicted_conf is not None:
                     plt.fill_between(ts,
                                      skin_predicted[0:valid_to, c] + skin_predicted_conf[0:valid_to, c],
                                      skin_predicted[0:valid_to, c] - skin_predicted_conf[0:valid_to, c],
                                      edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.1)
-                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
+                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r', linewidth=linewidth)
                 else:
-                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r')
+                    ax2.plot(ts, skin_predicted[0:valid_to, c], 'r', linewidth=linewidth)
             ax2.set_ylim(0, max_skin)
             ax2.set_xlim(0, max_time)
             for tl in ax2.get_yticklabels():
