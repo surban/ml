@@ -511,7 +511,6 @@ class ConditionalChain(object):
         p_next_input = np.zeros((self.n_input_values, self.n_input_values))
         for pinp in range(self.n_input_values):
             p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=sigma)
-            # p_next_input[:, pinp] = normal_pdf(all_inputs, mu=pinp, sigma=sigma)
             p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
         log_p_next_input = np.log(p_next_input)
 
@@ -529,7 +528,10 @@ class ConditionalChain(object):
         for step in range(n_steps):
             # m[f_t, f_(t-1)]
             state = states[step]
-            m = self.log_p_next_state[state, pstate, :, np.newaxis] + log_p_next_input + msg[np.newaxis, :]
+            log_p_next_state = self.log_p_next_state[state, pstate, :, np.newaxis]
+            if not np.any(np.isfinite(log_p_next_state)):
+                log_p_next_state = np.log(np.ones(log_p_next_state.shape) / float(log_p_next_state.shape[0]))
+            m = log_p_next_state + log_p_next_input + msg[np.newaxis, :]
             max_track[step, :] = np.nanargmax(m, axis=1)
             msg = np.nanmax(m, axis=1)
             pstate = state
