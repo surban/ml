@@ -92,6 +92,199 @@ def merge_duplicates(x, y):
     return xout, yout, yvar
 
 
+class VarGP(object):
+
+    def __init__(self, inp, tar,
+                 kernel=gpy.kern.rbf, normalize_x=False, normalize_y=False,
+                 optimize=True, optimize_restarts=1,
+                 gp_parameters={},
+                 cutoff_stds=None, std_adjust=1.0, std_power=1.0):
+
+        # inp[feature, smpl]
+        # tar[smpl]
+
+        assert inp.ndim == 2
+        assert tar.ndim == 1
+
+        self.mngful = None
+        self.cutoff_stds = cutoff_stds
+        self.std_adjust = std_adjust
+        self.std_power = std_power
+
+        # merge duplicates
+        inp_mrgd, sta_mrgd, sta_var = self._merge_duplicates(inp, tar)
+
+        # handle singleton data (workaround for non-positive definite matrices in GPy)
+        if inp_mrgd.shape[1] == 1:
+            inp_mrgd = np.resize(inp_mrgd, (inp_mrgd.shape[0], 2))
+            sta_mrgd = np.resize(sta_mrgd, (2,))
+            inp_mrgd[:, 1] = inp_mrgd[:, 0] + 1
+            sta_mrgd[1] = sta_mrgd[0]
+            singleton_fix = True
+        else:
+            singleton_fix = False
+
+        n_samples = inp_mrgd.shape[1]
+        self.n_features = inp_mrgd.shape[0]
+
+        # fit GP on data
+        self.gp = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd[:, np.newaxis], kernel(),
+                                          normalize_X=normalize_x, normalize_Y=normalize_y)
+        self.gp.unconstrain('')
+        for k, v in gp_parameters.iteritems():
+            if v is not None:
+                self.gp.constrain_fixed(k, v)
+        self.gp.ensure_default_constraints()
+        if optimize:
+            if optimize_restarts == 1:
+                self.gp.optimize()
+            else:
+                self.gp.optimize_restarts(num_restarts=optimize_restarts)
+
+        # estimate variance from predictions of first GP
+        sta_mu, _, _, _ = self.gp.predict(inp_mrgd.T, full_cov=False)
+        sta_mrgd_var = np.zeros(n_samples)
+        for n in range(n_samples):
+            sta_mrgd_var[n] = np.mean((tar[np.all(inp == inp_mrgd[:, n], axis=0)] - sta_mu[n])**2)
+        if singleton_fix:
+            sta_mrgd_var = np.zeros(shape=sta_mrgd.shape)
+
+        # fit GP on variance
+        self.gp_var = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd_var[:, np.newaxis], kernel(),
+                                              normalize_Y=True)
+        self.gp_var.unconstrain('')
+        self.gp_var.ensure_default_constraints()
+        self.gp_var.optimize()
+
+    def _merge_duplicates(self, inp, tar):
+        # inp[feature, smpl]
+        # tar[smpl]
+
+        assert tar.ndim == 1
+        n_features = inp.shape[0]
+        n_samples = inp.shape[1]
+
+        xn = {}
+        for smpl in range(n_samples):
+            k = inp[:, smpl]
+            if k in xn:
+                xn[k].append(tar[smpl])
+            else:
+                xn[k] = [tar[smpl]]
+
+        merged_inp = np.zeros((n_features, len(xn.keys())), dtype=inp.dtype)
+        merged_tar = np.zeros(len(xn.keys()))
+        merged_tar_var = np.zeros(len(xn.keys()))
+        for smpl, (k, v) in enumerate(xn.iteritems()):
+            merged_inp[:, smpl] = k
+            merged_tar[smpl] = np.mean(v)
+            merged_tar_var[smpl] = np.var(v, ddof=1)
+
+        return merged_inp, merged_tar, merged_tar_var
+
+    def limit_meaningful_predictions(self, mngful_dist, inp, n_inp_values):
+        # inp[feature, smpl]
+
+        assert inp.ndim == 2
+        assert inp.shape[0] == self.n_features
+        assert self.n_features == 1, "limit_meaningful_predictions() requires one-dimensional input space"
+
+        # determine meaningful predictions
+        self.mngful = np.zeros(n_inp_values, dtype='bool')
+        for i in range(mngful_dist):
+            self.mngful[np.minimum(inp[0, :] + i, n_inp_values - 1)] = True
+            self.mngful[np.maximum(inp[0, :] - i, 0)] = True
+
+    def predict(self, inp):
+        assert inp.ndim == 2
+        assert inp.shape[0] == self.n_features
+
+        tar, var_gp, _, _ = self.gp.predict(inp.T, full_cov=False)
+        tar = tar[:, 0]
+        var_gp = var_gp[:, 0]
+
+        var_data, _, _, _ = self.gp_var.predict(inp.T, full_cov=False)
+        var_data = var_data[:, 0]
+        var_data[var_data < 0] = 0
+
+        std = np.sqrt(var_gp) + np.sqrt(var_data)
+        std = self.std_adjust * np.power(std, self.std_power)
+
+        return tar, std, var_gp, var_data
+
+    def pdf(self, n_inp_values, n_tar_values):
+        assert self.n_features == 1
+
+        # calculate predictions and associated variances
+        inp = np.arange(n_inp_values)[np.newaxis, :]
+        tar, std, _, _ = self.predict(inp)
+
+        # discretize output distribution
+        pdf = np.zeros((n_tar_values, n_inp_values))
+        tar_values = np.arange(n_tar_values)
+        for inp_val in inp:
+            if self.mngful is not None and not self.mngful[inp_val]:
+                continue
+            if std[inp_val] < 0.01:
+                std[inp_val] = 0.01
+
+            ipdf = normal_pdf(tar_values[np.newaxis, :], np.atleast_1d(tar[inp_val]), np.atleast_2d(std[inp_val])**2)
+            if self.cutoff_stds is not None:
+                ipdf[np.abs(tar_values - tar[inp_val]) > self.cutoff_stds * std[inp_val]] = 0
+            nfac = np.sum(ipdf)
+            if nfac == 0:
+                nfac = 1
+            ipdf /= nfac
+            pdf[:, inp_val] = ipdf
+
+        return pdf
+
+    def plot(self, n_inp_values, n_tar_values, rng=None, hmarker=0):
+        assert self.n_features == 1
+
+        if rng is None:
+            rng = [0, n_inp_values]
+
+        inp = np.arange(n_inp_values)[np.newaxis, :]
+        tar, std, var_gp, var_data = self.predict(inp)
+        pdf = self.pdf(n_inp_values, n_tar_values)
+
+        # plot base GP
+        plt.subplot(2, 2, 1)
+        plt.hold(True)
+        self.gp.plot(plot_limits=rng, which_data_rows=[], ax=plt.gca())
+        plt.ylim(0, n_tar_values)
+        plt.plot((n_tar_values - 5) * self.mngful, 'g')
+        plt.plot(inp[0, :], tar, 'r.')
+        plt.axhline(hmarker, color='r')
+
+        # plot GP with data variance
+        plt.subplot(2, 2, 2)
+        plt.hold(True)
+        plt.ylim(0, n_tar_values)
+        conf_gp = 2 * np.sqrt(var_gp)
+        conf_total = 2 * std
+        # cutoff = cutoff_stds * pred_std
+        # plt.fill_between(pred_inp, pred_tar + cutoff, pred_tar - cutoff,
+        #                  edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
+        plt.fill_between(inp[0, :], tar + conf_total, tar - conf_total,
+                         edgecolor=Tango.colorsHex['darkBlue'], facecolor=Tango.colorsHex['lightBlue'], alpha=0.4)
+        plt.fill_between(inp[0, :], tar + conf_gp, tar - conf_gp,
+                         edgecolor=Tango.colorsHex['darkPurple'], facecolor=Tango.colorsHex['lightPurple'], alpha=0.4)
+        plt.plot(inp, tar, 'k')
+        #plt.errorbar(pred_inp, pred_tar, 2*np.sqrt(sta_mrgd_var), fmt=None)
+        plt.axhline(hmarker, color='r')
+
+        # plot output distribution
+        plt.subplot(2, 2, 3)
+        plt.imshow(pdf, origin='lower', aspect=1, interpolation='none')
+        plt.colorbar()
+
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
 class ConditionalChain(object):
 
     def __init__(self, n_system_states, n_input_values):
@@ -208,138 +401,8 @@ class ConditionalChain(object):
 
     def apply_gp_to_state(self, states, inputs, valid, pstate, **kwargs):
         sta, inp = self.get_transitions(states, inputs, valid, pstate)
-        return self.apply_gp(sta, inp, plot_pstate=pstate, **kwargs)
-
-    def apply_gp(self, sta, inp,
-                 mngful_dist=5, cutoff_stds=3.0, std_adjust=1.0, std_power=1.0,
-                 gp_kernel=gpy.kern.rbf, gp_normalize_x=False, gp_normalize_y=False,
-                 gp_optimize=True, gp_optimize_restarts=1,
-                 gp_parameters={},
-                 do_plots=False, plot_rng=None, plot_pstate=0):
-
-        # merge duplicates
-        inp_mrgd, sta_mrgd, sta_var = merge_duplicates(inp, sta)
-
-        # determine meaningful predictions
-        if mngful_dist is not None:
-            mngful = np.zeros(self.n_input_values)
-            for i in range(mngful_dist):
-                mngful[np.minimum(inp_mrgd + i, self.n_input_values - 1)] = 1
-                mngful[np.maximum(inp_mrgd - i, 0)] = 1
-        else:
-            mngful = np.ones(self.n_input_values)
-
-        # handle singleton data (workaround for non-positive definite matrices in GPy)
-        if inp_mrgd.size == 1:
-            inp_mrgd = np.resize(inp_mrgd, (2,))
-            sta_mrgd = np.resize(sta_mrgd, (2,))
-            inp_mrgd[1] = inp_mrgd[0] + 1
-            sta_mrgd[1] = sta_mrgd[0]
-            singleton_fix = True
-        else:
-            singleton_fix = False
-
-        # fit GP on data
-        gp = gpy.models.GPRegression(inp_mrgd[:, np.newaxis], sta_mrgd[:, np.newaxis], gp_kernel(),
-                                     normalize_X=gp_normalize_x, normalize_Y=gp_normalize_y)
-        gp.unconstrain('')
-        for k, v in gp_parameters.iteritems():
-            if v is not None:
-                gp.constrain_fixed(k, v)
-        gp.ensure_default_constraints()
-        if gp_optimize:
-            if gp_optimize_restarts == 1:
-                gp.optimize()
-            else:
-                gp.optimize_restarts(num_restarts=gp_optimize_restarts)
-        if do_plots:
-            print gp
-
-        # estimate variance from predictions of first GP
-        sta_mu, _, _, _ = gp.predict(inp_mrgd[:, np.newaxis], full_cov=False)
-        sta_mrgd_var = np.zeros(inp_mrgd.shape)
-        for n in range(inp_mrgd.size):
-            sta_mrgd_var[n] = np.mean((sta[inp == inp_mrgd[n]] - sta_mu[n])**2)
-        if singleton_fix:
-            sta_mrgd_var = np.zeros(shape=sta_mrgd.shape)
-
-        # fit GP on variance
-        gp_var = gpy.models.GPRegression(inp_mrgd[:, np.newaxis], sta_mrgd_var[:, np.newaxis], gp_kernel(),
-                                         normalize_Y=True)
-        gp_var.unconstrain('')
-        # gp_var.constrain_fixed('rbf_lengthscale', gp['rbf_lengthscale'])
-        gp_var.ensure_default_constraints()
-        gp_var.optimize()
-
-        # calculate predictions
-        pred_inp = np.arange(self.n_input_values)
-        pred_sta, pred_var1, _, _ = gp.predict(pred_inp[:, np.newaxis], full_cov=False)
-        pred_sta = pred_sta[:, 0]
-        pred_var1 = pred_var1[:, 0]
-        pred_var2, _, _, _ = gp_var.predict(pred_inp[:, np.newaxis], full_cov=False)
-        pred_var2 = pred_var2[:, 0]
-        pred_var2[pred_var2 < 0] = 0
-        pred_std = np.sqrt(pred_var1) + np.sqrt(pred_var2)
-        pred_std *= std_adjust
-        pred_std = np.power(pred_std, std_power)
-
-        # discretize output distribution
-        pdf = np.zeros((self.n_system_states, self.n_input_values))
-        pdf_sta = np.arange(self.n_system_states)
-        for pinp in pred_inp:
-            if not mngful[pinp] > 0:
-                continue
-            # if np.isnan(pred_std[pinp]):
-            #     pred_std[pinp] = pred_std[pinp - 1]
-            if pred_std[pinp] < 0.01:
-                pred_std[pinp] = 0.01
-
-            ipdf = normal_pdf(pdf_sta[np.newaxis, :], np.atleast_1d(pred_sta[pinp]), np.atleast_2d(pred_std[pinp])**2)
-            if cutoff_stds is not None:
-                ipdf[np.abs(pdf_sta - pred_sta[pinp]) > cutoff_stds * pred_std[pinp]] = 0
-            nfac = np.sum(ipdf)
-            if nfac == 0:
-                nfac = 1
-            ipdf /= nfac
-            pdf[:, pinp] = ipdf
-
-        # plot
-        if do_plots:
-            if plot_rng is None:
-                plot_rng = [0, self.n_input_values]
-
-            # plot base GP
-            plt.subplot(2, 2, 1)
-            plt.hold(True)
-            gp.plot(plot_limits=plot_rng, which_data_rows=[], ax=plt.gca())
-            plt.ylim(0, self.n_system_states)
-            plt.plot((self.n_system_states - 5) * mngful, 'g')
-            plt.plot(inp, sta, 'r.')
-            plt.axhline(plot_pstate, color='r')
-
-            # plot GP with data variance
-            plt.subplot(2, 2, 2)
-            plt.hold(True)
-            plt.ylim(0, self.n_system_states)
-            conf1 = 2 * np.sqrt(pred_var1)
-            conf2 = 2 * pred_std
-            # cutoff = cutoff_stds * pred_std
-            # plt.fill_between(pred_inp, pred_sta + cutoff, pred_sta - cutoff,
-            #                  edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
-            plt.fill_between(pred_inp, pred_sta + conf2, pred_sta - conf2,
-                             edgecolor=Tango.colorsHex['darkBlue'], facecolor=Tango.colorsHex['lightBlue'], alpha=0.4)
-            plt.fill_between(pred_inp, pred_sta + conf1, pred_sta - conf1,
-                             edgecolor=Tango.colorsHex['darkPurple'], facecolor=Tango.colorsHex['lightPurple'], alpha=0.4)
-            plt.plot(pred_inp, pred_sta, 'k')
-            #plt.errorbar(pred_inp, pred_sta, 2*np.sqrt(sta_mrgd_var), fmt=None)
-            plt.axhline(plot_pstate, color='r')
-
-            # plot output distribution
-            plt.subplot(2, 2, 3)
-            plt.imshow(pdf, origin='lower', aspect=1, interpolation='none')
-            plt.colorbar()
-
-        return pred_inp, pred_sta, pred_std, mngful, pdf
+        return predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
+                        plot_pstate=pstate, **kwargs)
 
     def train_gp_var(self, states, inputs, valid, **kwargs):
         # states[step, sample]
@@ -619,6 +682,243 @@ class ConditionalChain(object):
             max_state[step] = np.argmax(self.log_p_next_state[:, states[step-1], inputs[step]])
 
         return max_state
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+
+class ControlObservationChain(object):
+
+    def __init__(self, n_system_states, n_input_values):
+        # log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+        self.log_p_next_state = np.zeros((n_system_states, n_system_states, n_input_values))
+
+        # log_p_initial_state[s_0] = p(s_0)
+        self.log_p_initial_state = np.zeros((n_system_states,))
+
+    @property
+    def n_system_states(self):
+        return self.log_p_next_state.shape[0]
+
+    @property
+    def n_input_values(self):
+        return self.log_p_next_state.shape[2]
+
+    def get_transitions(self, states, inputs, valid, pstate):
+        mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
+        return states[mask], inputs[mask]
+
+    def get_valid_observations(self, states, observations, valid):
+        # states[step, sample]
+        # observations[feature, step, sample]
+        # valid[step, sample]
+
+        n_samples = states.shape[1]
+        n_features = observations.shape[0]
+
+        valid_states = np.zeros(0)
+        valid_observations = np.zeros((n_features, 0))
+
+        for smpl in range(n_samples):
+            n_valid_steps = np.where(valid[:, smpl])[0][-1] + 1
+            valid_states = np.concatenate((valid_states, states[0:n_valid_steps, smpl]))
+            valid_observations = np.concatenate((valid_observations, observations[:, 0:n_valid_steps, smpl]))
+
+        return valid_states, valid_observations
+
+    def apply_gp_to_state(self, states, inputs, valid, pstate, **kwargs):
+        sta, inp = self.get_transitions(states, inputs, valid, pstate)
+        return predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
+                        plot_pstate=pstate, **kwargs)
+
+    def train_transitions(self, states, inputs, valid, **kwargs):
+        # states[step, sample]
+        # inputs[step, sample]
+        # valid[step, sample]
+
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+        assert states.dtype == 'int' and inputs.dtype == 'int'
+
+        # initial state probabilities
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
+        s = np.arange(self.n_system_states)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
+
+        # state transition probabilities
+        self.log_p_next_state[:] = 0
+        for pstate in range(self.n_system_states):
+            status(pstate, self.n_system_states, "Learning transitions")
+            sta, inp = self.get_transitions(states, inputs, valid, pstate)
+            if sta.size == 0:
+                continue
+            pred_inp, pred_sta, pred_std, mngful, pdf = predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
+                                                                 **kwargs)
+            self.log_p_next_state[:, pstate, :] = pdf
+        done()
+
+        self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def train_observations(self, states, observations, valid, **kwargs):
+        # states[step, sample]
+        # observations[feature, step, sample]
+        # valid[step, sample]
+
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert states.dtype == 'int'
+
+        v_states, v_observations = self.get_valid_observations(states, observations, valid)
+
+        pred_inp, pred_sta, pred_std, mngful, pdf = predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
+                                                             **kwargs)
+
+
+
+    def check_normalization(self):
+        # self.log_p_initial_state[s_0] = p(s_0)
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+
+        is_sum = logsumexp(self.log_p_initial_state)
+        ns_sum = logsumexp(self.log_p_next_state, axis=0)
+
+        print "Initial state: ", is_sum
+        print "Next state normalization failures: "
+
+        for pstate in range(self.n_system_states):
+            for inp in range(self.n_input_values):
+                if not np.all(np.isfinite(self.log_p_next_state[:, pstate, inp])):
+                    ns_sum[pstate, inp] = 0
+
+        err_pos = np.where(np.abs(ns_sum) > 1e-5)
+        for pstate, inp in np.transpose(err_pos):
+            print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
+
+    def infer_inputs(self, states):
+        # states[step]
+        # ml_inputs[step]
+        # log_p_inputs[input, step]
+        # self.log_p_initial_state[s_0] = p(s_0)
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+
+        n_steps = states.shape[0]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+
+        # initialize outputs
+        log_p_inputs = np.zeros((self.n_input_values, n_steps))
+
+        # initial state
+        pstate = np.argmax(self.log_p_initial_state)
+
+        # infer input probabilities using Bayes' theorem
+        for step in range(n_steps):
+            state = states[step]
+            log_p_inputs[:, step] = (self.log_p_next_state[state, pstate, :] -
+                                     logsumexp(self.log_p_next_state[state, pstate, :]))
+            pstate = state
+
+        # determine maximum probability inputs
+        ml_inputs = np.argmax(log_p_inputs, axis=0)
+
+        return ml_inputs, log_p_inputs
+
+    def most_probable_inputs(self, states, sigma):
+        # states[step]
+        # msg[f_(step-1)]
+        # max_track[step, f_step]
+        # max_input[step]
+        # p_next_input[f_step, f_(step-1)]
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+
+        n_steps = states.shape[0]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+
+        # precompute input transition probabilities
+        all_inputs = np.arange(0, self.n_input_values)
+        p_next_input = np.zeros((self.n_input_values, self.n_input_values))
+        for pinp in range(self.n_input_values):
+            p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=sigma)
+            p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
+        log_p_next_input = np.log(p_next_input)
+
+        # track maximum probability inputs
+        max_track = np.zeros((n_steps, self.n_input_values), dtype='int')
+
+        # use uniform probability for leaf factor at beginning of chain
+        initial_prob = np.ones(self.n_input_values) / float(self.n_input_values)
+        msg = np.log(initial_prob)
+
+        # initial state
+        pstate = np.argmax(self.log_p_initial_state)
+
+        # pass messages towards end node of chain
+        for step in range(n_steps):
+            # m[f_t, f_(t-1)]
+            state = states[step]
+            log_p_next_state = self.log_p_next_state[state, pstate, :, np.newaxis]
+            if not np.any(np.isfinite(log_p_next_state)):
+                log_p_next_state = np.log(np.ones(log_p_next_state.shape) / float(log_p_next_state.shape[0]))
+            m = log_p_next_state + log_p_next_input + msg[np.newaxis, :]
+            max_track[step, :] = np.nanargmax(m, axis=1)
+            msg = np.nanmax(m, axis=1)
+            pstate = state
+
+        # calculate maximum probability
+        log_p_max = np.nanmax(msg)
+
+        # backtrack maximum states
+        max_input = np.zeros(n_steps, dtype='int')
+        max_input[n_steps-1] = np.nanargmax(msg)
+        for step in range(n_steps-2, -1, -1):
+            max_input[step] = max_track[step+1, max_input[step+1]]
+
+        return max_input, log_p_max
+
+    def most_probable_states(self, inputs):
+        # inputs[step]
+        # msg[s_(step-1)]
+        # max_track[step, s_step]
+        # max_state[step]
+
+        n_steps = inputs.shape[0]
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+
+        # track maximum states
+        max_track = np.zeros((n_steps, self.n_system_states), dtype='int')
+
+        # leaf factor at beginning of chain
+        msg = self.log_p_initial_state
+
+        # pass messages towards end node of chain
+        for step in range(n_steps):
+            # m[s_t, s_(t-1)]
+            m = self.log_p_next_state[:, :, inputs[step]] + msg[np.newaxis, :]
+            max_track[step, :] = np.nanargmax(m, axis=1)
+            msg = np.nanmax(m, axis=1)
+
+        # calculate maximum probability
+        log_p_max = np.nanmax(msg)
+
+        # backtrack maximum states
+        max_state = np.zeros(n_steps, dtype='int')
+        max_state[n_steps-1] = np.nanargmax(msg)
+        for step in range(n_steps-2, -1, -1):
+            max_state[step] = max_track[step+1, max_state[step+1]]
+
+        return max_state, log_p_max
+
+    def log_p(self, states, inputs):
+        n_steps = inputs.shape[0]
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+
+        lp = self.log_p_initial_state[states[0]]
+        for step in range(1, n_steps):
+            lp += self.log_p_next_state[states[step], states[step-1], inputs[step]]
+        return lp
+
 
 
 ########################################################################################################################
