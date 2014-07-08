@@ -95,6 +95,7 @@ def merge_duplicates(x, y):
 class VarGP(object):
 
     def __init__(self, inp, tar,
+                 use_data_variance=True,
                  kernel=gpy.kern.rbf, normalize_x=False, normalize_y=False,
                  optimize=True, optimize_restarts=1,
                  gp_parameters={},
@@ -110,6 +111,7 @@ class VarGP(object):
         self.cutoff_stds = cutoff_stds
         self.std_adjust = std_adjust
         self.std_power = std_power
+        self.use_data_variance = use_data_variance
 
         # merge duplicates
         inp_mrgd, sta_mrgd, sta_var = self._merge_duplicates(inp, tar)
@@ -166,7 +168,7 @@ class VarGP(object):
 
         xn = {}
         for smpl in range(n_samples):
-            k = inp[:, smpl]
+            k = tuple(inp[:, smpl])
             if k in xn:
                 xn[k].append(tar[smpl])
             else:
@@ -176,7 +178,7 @@ class VarGP(object):
         merged_tar = np.zeros(len(xn.keys()))
         merged_tar_var = np.zeros(len(xn.keys()))
         for smpl, (k, v) in enumerate(xn.iteritems()):
-            merged_inp[:, smpl] = k
+            merged_inp[:, smpl] = np.asarray(k)
             merged_tar[smpl] = np.mean(v)
             merged_tar_var[smpl] = np.var(v, ddof=1)
 
@@ -207,17 +209,20 @@ class VarGP(object):
         var_data = var_data[:, 0]
         var_data[var_data < 0] = 0
 
-        std = np.sqrt(var_gp) + np.sqrt(var_data)
+        if self.use_data_variance:
+            std = np.sqrt(var_gp) + np.sqrt(var_data)
+        else:
+            std = np.sqrt(var_gp)
         std = self.std_adjust * np.power(std, self.std_power)
 
         return tar, std, var_gp, var_data
 
     def pdf(self, n_inp_values, n_tar_values):
-        assert self.n_features == 1
+        assert self.n_features == 1, "pdf() requires one-dimensional input space"
 
         # calculate predictions and associated variances
-        inp = np.arange(n_inp_values)[np.newaxis, :]
-        tar, std, _, _ = self.predict(inp)
+        inp = np.arange(n_inp_values)
+        tar, std, _, _ = self.predict(inp[np.newaxis, :])
 
         # discretize output distribution
         pdf = np.zeros((n_tar_values, n_inp_values))
@@ -239,8 +244,8 @@ class VarGP(object):
 
         return pdf
 
-    def plot(self, n_inp_values, n_tar_values, rng=None, hmarker=0):
-        assert self.n_features == 1
+    def plot(self, trn_inp, trn_tar, n_inp_values, n_tar_values, rng=None, hmarker=None):
+        assert self.n_features == 1, "plot() requires one-dimensional input space"
 
         if rng is None:
             rng = [0, n_inp_values]
@@ -255,8 +260,9 @@ class VarGP(object):
         self.gp.plot(plot_limits=rng, which_data_rows=[], ax=plt.gca())
         plt.ylim(0, n_tar_values)
         plt.plot((n_tar_values - 5) * self.mngful, 'g')
-        plt.plot(inp[0, :], tar, 'r.')
-        plt.axhline(hmarker, color='r')
+        plt.plot(trn_inp[0, :], trn_tar, 'r.')
+        if hmarker is not None:
+            plt.axhline(hmarker, color='r')
 
         # plot GP with data variance
         plt.subplot(2, 2, 2)
@@ -271,9 +277,10 @@ class VarGP(object):
                          edgecolor=Tango.colorsHex['darkBlue'], facecolor=Tango.colorsHex['lightBlue'], alpha=0.4)
         plt.fill_between(inp[0, :], tar + conf_gp, tar - conf_gp,
                          edgecolor=Tango.colorsHex['darkPurple'], facecolor=Tango.colorsHex['lightPurple'], alpha=0.4)
-        plt.plot(inp, tar, 'k')
+        plt.plot(inp[0, :], tar, 'k')
         #plt.errorbar(pred_inp, pred_tar, 2*np.sqrt(sta_mrgd_var), fmt=None)
-        plt.axhline(hmarker, color='r')
+        if hmarker is not None:
+            plt.axhline(hmarker, color='r')
 
         # plot output distribution
         plt.subplot(2, 2, 3)
@@ -399,12 +406,7 @@ class ConditionalChain(object):
         plt.ylabel("next state")
         plt.title("mean transitions for state %d" % pstate)
 
-    def apply_gp_to_state(self, states, inputs, valid, pstate, **kwargs):
-        sta, inp = self.get_transitions(states, inputs, valid, pstate)
-        return predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
-                        plot_pstate=pstate, **kwargs)
-
-    def train_gp_var(self, states, inputs, valid, **kwargs):
+    def train_gp_var(self, states, inputs, valid, mngful_dist=None, plot_pstate=None, **kwargs):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -423,91 +425,23 @@ class ConditionalChain(object):
         # state transition probabilities
         self.log_p_next_state[:] = 0
         for pstate in range(self.n_system_states):
+            if plot_pstate is not None and plot_pstate != pstate:
+                continue
             status(pstate, self.n_system_states, "Training GP")
             # print pstate
 
             sta, inp = self.get_transitions(states, inputs, valid, pstate)
             if sta.size == 0:
                 continue
-            pred_inp, pred_sta, pred_std, mngful, pdf = self.apply_gp(sta, inp, **kwargs)
-            self.log_p_next_state[:, pstate, :] = pdf
+            inp = inp[np.newaxis, :]
+            vargp = VarGP(inp, sta, **kwargs)
+            if mngful_dist is not None:
+                vargp.limit_meaningful_predictions(mngful_dist, inp, self.n_input_values)
+            self.log_p_next_state[:, pstate, :] = vargp.pdf(self.n_input_values, self.n_system_states)
+            if plot_pstate is not None:
+                vargp.plot(inp, sta, self.n_input_values, self.n_input_values, hmarker=pstate)
+                return
         done()
-
-        self.log_p_next_state = np.log(self.log_p_next_state)
-
-    def train_gp(self, states, inputs, valid, limit_sigma,
-                 gp_kernel=gpy.kern.rbf, gp_normalize_x=False, gp_normalize_y=False, gp_optimize=True,
-                 gp_parameters={}, pstate_limit=None):
-        # states[step, sample]
-        # inputs[step, sample]
-        # valid[step, sample]
-
-        n_steps = states.shape[0]
-        n_samples = states.shape[1]
-        assert np.all(0 <= states) and np.all(states < self.n_system_states)
-        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
-        assert states.dtype == 'int' and inputs.dtype == 'int'
-
-        # initial state probabilities
-        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
-        s = np.arange(self.n_system_states)
-        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
-        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
-        self.log_p_initial_state = np.log(self.log_p_initial_state)
-
-        pstate_rng = range(self.n_system_states)
-        if pstate_limit is not None:
-            print "Warning: only inferring pstate ", pstate_limit
-            pstate_rng = [pstate_limit]
-
-        # state transition probabilities
-        self.log_p_next_state[:] = 0
-        for pstate in pstate_rng:
-            mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
-            if not np.any(mask):
-                # print "skipping state %d" % pstate
-                continue
-
-            i = inputs[mask]
-            s = states[mask]
-            i, s, s_var = merge_duplicates(i, s)
-            # mean_var = 4 * np.nanmean(s_var)
-            # if mean_var > 10:
-            #     mean_var = 10
-            # print mean_var
-            # print
-            # print "pstate=%d #points=%d" % (pstate, i.size)
-            # print i
-            # print s
-
-            gp = gpy.models.GPRegression(i[:, np.newaxis], s[:, np.newaxis], gp_kernel(),
-                                         normalize_X=gp_normalize_x, normalize_Y=gp_normalize_y)
-            gp.unconstrain('')
-            # gp.constrain_fixed('noise_variance', mean_var)
-            for k, v in gp_parameters.iteritems():
-                if v is not None:
-                    gp.constrain_fixed(k, v)
-            gp.ensure_default_constraints()
-            if gp_optimize:
-                gp.optimize()
-            if pstate_limit is not None:
-                print gp
-            # print gp
-
-            cs = np.arange(self.n_system_states)
-            ci = np.arange(self.n_input_values)
-            s_mu, s_var, _, _ = gp.predict(ci[:, np.newaxis], full_cov=False)
-            s_mu = s_mu[:, 0]
-            s_var = s_var[:, 0]
-            s_sigma = np.sqrt(s_var)
-            for inp in range(self.n_input_values):
-                if limit_sigma is None or s_sigma[inp] < limit_sigma:
-                    self.log_p_next_state[:, pstate, inp] = normal_pdf(cs[np.newaxis, :],
-                                                                       np.atleast_1d(s_mu[inp]),
-                                                                       np.atleast_2d(s_sigma[inp]**2))
-                    self.log_p_next_state[:, pstate, inp] /= np.sum(self.log_p_next_state[:, pstate, inp])
-                else:
-                    self.log_p_next_state[:, pstate, inp] = 0
 
         self.log_p_next_state = np.log(self.log_p_next_state)
 
@@ -726,11 +660,6 @@ class ControlObservationChain(object):
             valid_observations = np.concatenate((valid_observations, observations[:, 0:n_valid_steps, smpl]))
 
         return valid_states, valid_observations
-
-    def apply_gp_to_state(self, states, inputs, valid, pstate, **kwargs):
-        sta, inp = self.get_transitions(states, inputs, valid, pstate)
-        return predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
-                        plot_pstate=pstate, **kwargs)
 
     def train_transitions(self, states, inputs, valid, **kwargs):
         # states[step, sample]
