@@ -92,14 +92,57 @@ def merge_duplicates(x, y):
     return xout, yout, yvar
 
 
+def iterate_over_samples(func, valid, *inps, **kwargs):
+    assert valid.ndim == 2
+
+    n_inps = len(inps)
+    n_samples = valid.shape[1]
+
+    for inp in inps:
+        assert inp.shape[-1] == n_samples
+
+    outs = []
+
+    for smpl in range(n_samples):
+        n_valid = np.where(valid[:, smpl])[0][-1]
+
+        smpl_inps = []
+        for inp in inps:
+            if inp.ndim == 1:
+                smpl_inps.append(inp[smpl])
+            else:
+                smpl_inps.append(inp[smpl][..., 0:n_valid, smpl])
+        smpl_inps = tuple(smpl_inps)
+
+        smpl_outs = func(*smpl_inps, **kwargs)
+        if not isinstance(smpl_outs, tuple):
+            smpl_outs = (smpl_outs,)
+
+        if smpl == 0:
+            for smpl_out in smpl_outs:
+                if isinstance(smpl_out, np.array):
+                    out = np.zeros(smpl_out.shape + (n_samples,), dtype=smpl_out.dtype)
+                else:
+                    out = np.zeros(n_samples, dtype=type(smpl_out))
+                outs.append(out)
+
+        for i, smpl_out in enumerate(smpl_outs):
+            outs[i][..., smpl] = smpl_out
+
+    if len(outs) == 1:
+        return outs[0]
+    else:
+        return tuple(outs)
+
+
 class VarGP(object):
 
     def __init__(self, inp, tar,
                  use_data_variance=True,
-                 kernel=gpy.kern.rbf, normalize_x=False, normalize_y=False,
+                 kernel=gpy.kern.rbf, normalize_x=True, normalize_y=True,
                  optimize=True, optimize_restarts=1,
                  gp_parameters={},
-                 cutoff_stds=None, std_adjust=1.0, std_power=1.0):
+                 cutoff_stds=None, std_adjust=1.0, std_power=1.0, min_std=0.01):
 
         # inp[feature, smpl]
         # tar[smpl]
@@ -112,6 +155,7 @@ class VarGP(object):
         self.std_adjust = std_adjust
         self.std_power = std_power
         self.use_data_variance = use_data_variance
+        self.min_std = min_std
 
         # merge duplicates
         inp_mrgd, sta_mrgd, sta_var = self._merge_duplicates(inp, tar)
@@ -147,7 +191,8 @@ class VarGP(object):
         sta_mu, _, _, _ = self.gp.predict(inp_mrgd.T, full_cov=False)
         sta_mrgd_var = np.zeros(n_samples)
         for n in range(n_samples):
-            sta_mrgd_var[n] = np.mean((tar[np.all(inp == inp_mrgd[:, n], axis=0)] - sta_mu[n])**2)
+            smpl_inp = np.all(np.isclose(inp, inp_mrgd[:, n:n+1]), axis=0)
+            sta_mrgd_var[n] = np.mean((tar[smpl_inp] - sta_mu[n])**2)
         if singleton_fix:
             sta_mrgd_var = np.zeros(shape=sta_mrgd.shape)
 
@@ -157,6 +202,9 @@ class VarGP(object):
         self.gp_var.unconstrain('')
         self.gp_var.ensure_default_constraints()
         self.gp_var.optimize()
+
+    def __str__(self):
+        return str(self.gp)
 
     def _merge_duplicates(self, inp, tar):
         # inp[feature, smpl]
@@ -217,30 +265,43 @@ class VarGP(object):
 
         return tar, std, var_gp, var_data
 
-    def pdf(self, n_inp_values, n_tar_values):
-        assert self.n_features == 1, "pdf() requires one-dimensional input space"
+    def pdf_for_all_inputs(self, n_inp_values, n_tar_values):
+        assert self.n_features == 1, "pdf_for_all_inputs() requires one-dimensional input space"
+        inp = np.arange(n_inp_values)[np.newaxis, :]
+        return self.pdf(inp, n_tar_values)
+
+    def pdf(self, inp, n_tar_values):
+        # inp[feature, smpl]
+        # pdf[tar, smpl]
+        # tar[smpl]
+        # std[smpl]
+
+        assert inp.ndim == 2
+        assert inp.shape[0] == self.n_features
+
+        n_samples = inp.shape[1]
 
         # calculate predictions and associated variances
-        inp = np.arange(n_inp_values)
-        tar, std, _, _ = self.predict(inp[np.newaxis, :])
+        tar, std, _, _ = self.predict(inp)
+        std[std < self.min_std] = self.min_std
 
         # discretize output distribution
-        pdf = np.zeros((n_tar_values, n_inp_values))
+        pdf = np.zeros((n_tar_values, n_samples))
         tar_values = np.arange(n_tar_values)
-        for inp_val in inp:
-            if self.mngful is not None and not self.mngful[inp_val]:
-                continue
-            if std[inp_val] < 0.01:
-                std[inp_val] = 0.01
+        for smpl in range(n_samples):
+            if self.mngful is not None:
+                inp_val = inp[0, smpl]
+                if not self.mngful[inp_val]:
+                    continue
 
-            ipdf = normal_pdf(tar_values[np.newaxis, :], np.atleast_1d(tar[inp_val]), np.atleast_2d(std[inp_val])**2)
+            ipdf = normal_pdf(tar_values[np.newaxis, :], np.atleast_1d(tar[smpl]), np.atleast_2d(std[smpl])**2)
             if self.cutoff_stds is not None:
-                ipdf[np.abs(tar_values - tar[inp_val]) > self.cutoff_stds * std[inp_val]] = 0
+                ipdf[np.abs(tar_values - tar[smpl]) > self.cutoff_stds * std[smpl]] = 0
             nfac = np.sum(ipdf)
             if nfac == 0:
                 nfac = 1
             ipdf /= nfac
-            pdf[:, inp_val] = ipdf
+            pdf[:, smpl] = ipdf
 
         return pdf
 
@@ -252,7 +313,7 @@ class VarGP(object):
 
         inp = np.arange(n_inp_values)[np.newaxis, :]
         tar, std, var_gp, var_data = self.predict(inp)
-        pdf = self.pdf(n_inp_values, n_tar_values)
+        pdf = self.pdf_for_all_inputs(n_inp_values, n_tar_values)
 
         # plot base GP
         plt.subplot(2, 2, 1)
@@ -437,7 +498,7 @@ class ConditionalChain(object):
             vargp = VarGP(inp, sta, **kwargs)
             if mngful_dist is not None:
                 vargp.limit_meaningful_predictions(mngful_dist, inp, self.n_input_values)
-            self.log_p_next_state[:, pstate, :] = vargp.pdf(self.n_input_values, self.n_system_states)
+            self.log_p_next_state[:, pstate, :] = vargp.pdf_for_all_inputs(self.n_input_values, self.n_system_states)
             if plot_pstate is not None:
                 vargp.plot(inp, sta, self.n_input_values, self.n_input_values, hmarker=pstate)
                 return
@@ -507,7 +568,7 @@ class ConditionalChain(object):
         all_inputs = np.arange(0, self.n_input_values)
         p_next_input = np.zeros((self.n_input_values, self.n_input_values))
         for pinp in range(self.n_input_values):
-            p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=sigma)
+            p_next_input[:, pinp] = scipy.stats.norm.pdf_for_all_inputs(all_inputs, loc=pinp, scale=sigma)
             p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
         log_p_next_input = np.log(p_next_input)
 
@@ -631,6 +692,16 @@ class ControlObservationChain(object):
         # log_p_initial_state[s_0] = p(s_0)
         self.log_p_initial_state = np.zeros((n_system_states,))
 
+        # GP that models p(s_t | x_t)
+        self.gp_states_given_observations = None
+        """:type : VarGP"""
+
+        # uniform prior over inputs
+        self.log_p_input = np.log(np.ones(self.n_input_values) / self.n_input_values)
+
+        # uniform prior over states
+        self.log_p_state = np.log(np.ones(self.n_system_states) / self.n_system_states)
+
     @property
     def n_system_states(self):
         return self.log_p_next_state.shape[0]
@@ -657,11 +728,11 @@ class ControlObservationChain(object):
         for smpl in range(n_samples):
             n_valid_steps = np.where(valid[:, smpl])[0][-1] + 1
             valid_states = np.concatenate((valid_states, states[0:n_valid_steps, smpl]))
-            valid_observations = np.concatenate((valid_observations, observations[:, 0:n_valid_steps, smpl]))
+            valid_observations = np.concatenate((valid_observations, observations[:, 0:n_valid_steps, smpl]), axis=1)
 
         return valid_states, valid_observations
 
-    def train_transitions(self, states, inputs, valid, **kwargs):
+    def train_transitions(self, states, inputs, valid, mngful_dist=None, plot_pstate=None, **kwargs):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -680,13 +751,21 @@ class ControlObservationChain(object):
         # state transition probabilities
         self.log_p_next_state[:] = 0
         for pstate in range(self.n_system_states):
+            if plot_pstate is not None and plot_pstate != pstate:
+                continue
             status(pstate, self.n_system_states, "Learning transitions")
+
             sta, inp = self.get_transitions(states, inputs, valid, pstate)
             if sta.size == 0:
                 continue
-            pred_inp, pred_sta, pred_std, mngful, pdf = predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
-                                                                 **kwargs)
-            self.log_p_next_state[:, pstate, :] = pdf
+            inp = inp[np.newaxis, :]
+            vargp = VarGP(inp, sta, **kwargs)
+            if mngful_dist is not None:
+                vargp.limit_meaningful_predictions(mngful_dist, inp, self.n_input_values)
+            self.log_p_next_state[:, pstate, :] = vargp.pdf_for_all_inputs(self.n_input_values, self.n_system_states)
+            if plot_pstate is not None:
+                vargp.plot(inp, sta, self.n_input_values, self.n_input_values, hmarker=pstate)
+                return
         done()
 
         self.log_p_next_state = np.log(self.log_p_next_state)
@@ -700,11 +779,15 @@ class ControlObservationChain(object):
         assert states.dtype == 'int'
 
         v_states, v_observations = self.get_valid_observations(states, observations, valid)
+        self.gp_states_given_observations = VarGP(v_observations, v_states, use_data_variance=False, **kwargs)
 
-        pred_inp, pred_sta, pred_std, mngful, pdf = predict_using_vargp(sta, inp, self.n_system_states, self.n_input_values,
-                                                             **kwargs)
+    def infer_states(self, observations):
+        # observations[feature, step]
+        # states[step]
+        # states_std[step]
 
-
+        states, states_std, _, _ = self.gp_states_given_observations.predict(observations)
+        return states, states_std
 
     def check_normalization(self):
         # self.log_p_initial_state[s_0] = p(s_0)
@@ -713,8 +796,8 @@ class ControlObservationChain(object):
         is_sum = logsumexp(self.log_p_initial_state)
         ns_sum = logsumexp(self.log_p_next_state, axis=0)
 
-        print "Initial state: ", is_sum
-        print "Next state normalization failures: "
+        if is_sum != 0:
+            print "Initial state: ", is_sum
 
         for pstate in range(self.n_system_states):
             for inp in range(self.n_input_values):
@@ -722,100 +805,89 @@ class ControlObservationChain(object):
                     ns_sum[pstate, inp] = 0
 
         err_pos = np.where(np.abs(ns_sum) > 1e-5)
+        if err_pos[0].size > 0:
+            print "Next state normalization failures: "
         for pstate, inp in np.transpose(err_pos):
             print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
 
-    def infer_inputs(self, states):
-        # states[step]
-        # ml_inputs[step]
-        # log_p_inputs[input, step]
-        # self.log_p_initial_state[s_0] = p(s_0)
+    def _nanmax(self, x):
+        xflat = np.reshape(x, (x.shape[0], -1))
+        xflat_argmax = np.nanargmax(xflat, axis=1)
+        x_max = np.nanmax(xflat, axis=1)
+        x_argmax = np.unravel_index(xflat_argmax, x.shape[1:])
+        return x_max, x_argmax
+
+    def most_probable_states_and_inputs_given_observations(self, observations):
+        # observations[feature, step]
+        # log_p_state_given_obs[state, step]
+        # obs_state_mean[step]
+        # obs_state_std[step]
+        # inputs[step]
+        # log_p_input[input]
+        # log_p_state[state]
+        # msg[s_(step-1)]
+        # mt_state[step, s_step]
+        # mt_input[step, s_step]
+        # best_state[step]
+        # best_input[step]
         # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
 
-        n_steps = states.shape[0]
-        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        n_steps = observations.shape[1]
 
-        # initialize outputs
-        log_p_inputs = np.zeros((self.n_input_values, n_steps))
+        # track maximum states and inputs
+        mt_state = np.zeros((n_steps, self.n_system_states), dtype='int')
+        mt_input = np.zeros((n_steps, self.n_system_states), dtype='int')
 
-        # initial state
-        pstate = np.argmax(self.log_p_initial_state)
+        # state probabilities from observations
+        log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observations, self.n_system_states))
 
-        # infer input probabilities using Bayes' theorem
-        for step in range(n_steps):
-            state = states[step]
-            log_p_inputs[:, step] = (self.log_p_next_state[state, pstate, :] -
-                                     logsumexp(self.log_p_next_state[state, pstate, :]))
-            pstate = state
-
-        # determine maximum probability inputs
-        ml_inputs = np.argmax(log_p_inputs, axis=0)
-
-        return ml_inputs, log_p_inputs
-
-    def most_probable_inputs(self, states, sigma):
-        # states[step]
-        # msg[f_(step-1)]
-        # max_track[step, f_step]
-        # max_input[step]
-        # p_next_input[f_step, f_(step-1)]
-        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
-
-        n_steps = states.shape[0]
-        assert np.all(0 <= states) and np.all(states < self.n_system_states)
-
-        # precompute input transition probabilities
-        all_inputs = np.arange(0, self.n_input_values)
-        p_next_input = np.zeros((self.n_input_values, self.n_input_values))
-        for pinp in range(self.n_input_values):
-            p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=sigma)
-            p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
-        log_p_next_input = np.log(p_next_input)
-
-        # track maximum probability inputs
-        max_track = np.zeros((n_steps, self.n_input_values), dtype='int')
-
-        # use uniform probability for leaf factor at beginning of chain
-        initial_prob = np.ones(self.n_input_values) / float(self.n_input_values)
-        msg = np.log(initial_prob)
-
-        # initial state
-        pstate = np.argmax(self.log_p_initial_state)
+        # leaf factor at beginning of chain
+        msg = self.log_p_initial_state
 
         # pass messages towards end node of chain
         for step in range(n_steps):
-            # m[f_t, f_(t-1)]
-            state = states[step]
-            log_p_next_state = self.log_p_next_state[state, pstate, :, np.newaxis]
-            if not np.any(np.isfinite(log_p_next_state)):
-                log_p_next_state = np.log(np.ones(log_p_next_state.shape) / float(log_p_next_state.shape[0]))
-            m = log_p_next_state + log_p_next_input + msg[np.newaxis, :]
-            max_track[step, :] = np.nanargmax(m, axis=1)
-            msg = np.nanmax(m, axis=1)
-            pstate = state
+            # m[s_t, s_(t-1), f_t]
+            # m_max[s_t]
+            # m_argmax_pstate[s_t]
+            # m_argmax_input[s_t]
+            m = self.log_p_next_state + self.log_p_input + msg[np.newaxis, :, np.newaxis]
+            m_max, (m_argmax_pstate, m_argmax_input) = self._nanmax(m)
+            mt_state[step, :] = m_argmax_pstate
+            mt_input[step, :] = m_argmax_input
+            msg = m_max + log_p_state_given_obs[:, step] - self.log_p_state
 
         # calculate maximum probability
-        log_p_max = np.nanmax(msg)
+        best_log_p = np.nanmax(msg)
 
-        # backtrack maximum states
-        max_input = np.zeros(n_steps, dtype='int')
-        max_input[n_steps-1] = np.nanargmax(msg)
+        # backtrack best states and inputs
+        best_state = np.zeros(n_steps, dtype='int')
+        best_state[n_steps-1] = np.nanargmax(msg)
         for step in range(n_steps-2, -1, -1):
-            max_input[step] = max_track[step+1, max_input[step+1]]
+            best_state[step] = mt_state[step+1, best_state[step+1]]
+        best_input = mt_input[np.arange(mt_input.shape[0]), best_state]
 
-        return max_input, log_p_max
+        return best_state, best_input, best_log_p
 
-    def most_probable_states(self, inputs):
+    def most_probable_states_given_inputs(self, inputs):
+        return self.most_probable_states_given_inputs_and_observations(inputs, None)
+
+    def most_probable_states_given_inputs_and_observations(self, inputs, observations):
         # inputs[step]
+        # observations[step]
         # msg[s_(step-1)]
-        # max_track[step, s_step]
-        # max_state[step]
+        # mt_state[step, s_step]
+        # best_state[step]
+        # log_p_state_given_obs[state, step]
 
         n_steps = inputs.shape[0]
         assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
 
         # track maximum states
-        max_track = np.zeros((n_steps, self.n_system_states), dtype='int')
+        mt_state = np.zeros((n_steps, self.n_system_states), dtype='int')
+
+        # state probabilities from observations
+        if observations is not None:
+            log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observations, self.n_system_states))
 
         # leaf factor at beginning of chain
         msg = self.log_p_initial_state
@@ -824,30 +896,36 @@ class ControlObservationChain(object):
         for step in range(n_steps):
             # m[s_t, s_(t-1)]
             m = self.log_p_next_state[:, :, inputs[step]] + msg[np.newaxis, :]
-            max_track[step, :] = np.nanargmax(m, axis=1)
-            msg = np.nanmax(m, axis=1)
+            m_max = np.nanmax(m, axis=1)
+            mt_state[step, :] = np.nanargmax(m, axis=1)
+            msg = m_max
+            if observations is not None:
+                msg += log_p_state_given_obs[:, step] - self.log_p_state
 
         # calculate maximum probability
-        log_p_max = np.nanmax(msg)
+        best_log_p = np.nanmax(msg)
 
         # backtrack maximum states
-        max_state = np.zeros(n_steps, dtype='int')
-        max_state[n_steps-1] = np.nanargmax(msg)
+        best_state = np.zeros(n_steps, dtype='int')
+        best_state[n_steps-1] = np.nanargmax(msg)
         for step in range(n_steps-2, -1, -1):
-            max_state[step] = max_track[step+1, max_state[step+1]]
+            best_state[step] = mt_state[step+1, best_state[step+1]]
 
-        return max_state, log_p_max
+        return best_state, best_log_p
 
-    def log_p(self, states, inputs):
+    def log_p(self, states, inputs, observations):
         n_steps = inputs.shape[0]
         assert np.all(0 <= states) and np.all(states < self.n_system_states)
         assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
 
+        # state probabilities from observations
+        log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observations, self.n_system_states))
+
         lp = self.log_p_initial_state[states[0]]
         for step in range(1, n_steps):
             lp += self.log_p_next_state[states[step], states[step-1], inputs[step]]
+            lp += log_p_state_given_obs[states[step], step] - self.log_p_state[states[step]]
         return lp
-
 
 
 ########################################################################################################################
