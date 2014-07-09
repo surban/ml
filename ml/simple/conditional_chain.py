@@ -96,6 +96,7 @@ def iterate_over_samples(func, valid, *inps, **kwargs):
     assert valid.ndim == 2
 
     n_inps = len(inps)
+    n_steps = valid.shape[0]
     n_samples = valid.shape[1]
 
     for inp in inps:
@@ -111,7 +112,7 @@ def iterate_over_samples(func, valid, *inps, **kwargs):
             if inp.ndim == 1:
                 smpl_inps.append(inp[smpl])
             else:
-                smpl_inps.append(inp[smpl][..., 0:n_valid, smpl])
+                smpl_inps.append(inp[..., 0:n_valid, smpl])
         smpl_inps = tuple(smpl_inps)
 
         smpl_outs = func(*smpl_inps, **kwargs)
@@ -120,14 +121,17 @@ def iterate_over_samples(func, valid, *inps, **kwargs):
 
         if smpl == 0:
             for smpl_out in smpl_outs:
-                if isinstance(smpl_out, np.array):
-                    out = np.zeros(smpl_out.shape + (n_samples,), dtype=smpl_out.dtype)
+                if isinstance(smpl_out, np.ndarray):
+                    out = np.zeros(smpl_out.shape[0:-1] + (n_steps, n_samples), dtype=smpl_out.dtype)
                 else:
                     out = np.zeros(n_samples, dtype=type(smpl_out))
                 outs.append(out)
 
         for i, smpl_out in enumerate(smpl_outs):
-            outs[i][..., smpl] = smpl_out
+            if isinstance(smpl_out, np.ndarray):
+                outs[i][..., 0:n_valid, smpl] = smpl_out
+            else:
+                outs[i][smpl] = smpl_out
 
     if len(outs) == 1:
         return outs[0]
@@ -156,7 +160,22 @@ class VarGP(object):
         self.std_power = std_power
         self.use_data_variance = use_data_variance
         self.min_std = min_std
+        self.kernel = kernel
+        self.normalize_x = normalize_x
+        self.normalize_y = normalize_y
+        self.gp_parameters = gp_parameters
+        self.n_features = None
 
+        self.gp = None
+        self.gp_var = None
+
+        self.train(inp, tar, optimize, optimize_restarts)
+
+    def copy_gp_parameters(self, src, dest):
+        for par in src._get_param_names():
+            dest[par] = src[par]
+
+    def train(self, inp, tar, optimize=False, optimize_restarts=1):
         # merge duplicates
         inp_mrgd, sta_mrgd, sta_var = self._merge_duplicates(inp, tar)
 
@@ -173,14 +192,19 @@ class VarGP(object):
         n_samples = inp_mrgd.shape[1]
         self.n_features = inp_mrgd.shape[0]
 
+        old_gp = self.gp
+        old_gp_var = self.gp_var
+
         # fit GP on data
-        self.gp = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd[:, np.newaxis], kernel(),
-                                          normalize_X=normalize_x, normalize_Y=normalize_y)
+        self.gp = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd[:, np.newaxis], self.kernel(),
+                                          normalize_X=self.normalize_x, normalize_Y=self.normalize_y)
         self.gp.unconstrain('')
-        for k, v in gp_parameters.iteritems():
+        for k, v in self.gp_parameters.iteritems():
             if v is not None:
                 self.gp.constrain_fixed(k, v)
         self.gp.ensure_default_constraints()
+        if old_gp is not None:
+            self.copy_gp_parameters(old_gp, self.gp)
         if optimize:
             if optimize_restarts == 1:
                 self.gp.optimize()
@@ -197,11 +221,14 @@ class VarGP(object):
             sta_mrgd_var = np.zeros(shape=sta_mrgd.shape)
 
         # fit GP on variance
-        self.gp_var = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd_var[:, np.newaxis], kernel(),
+        self.gp_var = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd_var[:, np.newaxis], self.kernel(),
                                               normalize_Y=True)
         self.gp_var.unconstrain('')
         self.gp_var.ensure_default_constraints()
-        self.gp_var.optimize()
+        if old_gp_var is not None:
+            self.copy_gp_parameters(old_gp_var, self.gp_var)
+        if optimize:
+            self.gp_var.optimize()
 
     def __str__(self):
         return str(self.gp)
@@ -732,7 +759,8 @@ class ControlObservationChain(object):
 
         return valid_states, valid_observations
 
-    def train_transitions(self, states, inputs, valid, mngful_dist=None, plot_pstate=None, **kwargs):
+    def train_transitions(self, states, inputs, valid, mngful_dist=None, plot_pstate=None,
+                          finetune=False, finetune_optimize=False, **kwargs):
         # states[step, sample]
         # inputs[step, sample]
         # valid[step, sample]
@@ -748,6 +776,9 @@ class ControlObservationChain(object):
         self.log_p_initial_state /= np.sum(self.log_p_initial_state)
         self.log_p_initial_state = np.log(self.log_p_initial_state)
 
+        if not finetune:
+            self.gp_transitions = [None for _ in range(self.n_system_states)]
+
         # state transition probabilities
         self.log_p_next_state[:] = 0
         for pstate in range(self.n_system_states):
@@ -759,18 +790,22 @@ class ControlObservationChain(object):
             if sta.size == 0:
                 continue
             inp = inp[np.newaxis, :]
-            vargp = VarGP(inp, sta, **kwargs)
+            if finetune and self.gp_transitions[pstate] is not None:
+                self.gp_transitions[pstate].train(inp, sta, optimize=finetune_optimize)
+            else:
+                self.gp_transitions[pstate] = VarGP(inp, sta, **kwargs)
             if mngful_dist is not None:
-                vargp.limit_meaningful_predictions(mngful_dist, inp, self.n_input_values)
-            self.log_p_next_state[:, pstate, :] = vargp.pdf_for_all_inputs(self.n_input_values, self.n_system_states)
+                self.gp_transitions[pstate].limit_meaningful_predictions(mngful_dist, inp, self.n_input_values)
+            self.log_p_next_state[:, pstate, :] = \
+                self.gp_transitions[pstate].pdf_for_all_inputs(self.n_input_values, self.n_system_states)
             if plot_pstate is not None:
-                vargp.plot(inp, sta, self.n_input_values, self.n_input_values, hmarker=pstate)
+                self.gp_transitions[pstate].plot(inp, sta, self.n_input_values, self.n_input_values, hmarker=pstate)
                 return
         done()
 
         self.log_p_next_state = np.log(self.log_p_next_state)
 
-    def train_observations(self, states, observations, valid, **kwargs):
+    def train_observations(self, states, observations, valid, finetune=False, finetune_optimize=False, **kwargs):
         # states[step, sample]
         # observations[feature, step, sample]
         # valid[step, sample]
@@ -779,7 +814,10 @@ class ControlObservationChain(object):
         assert states.dtype == 'int'
 
         v_states, v_observations = self.get_valid_observations(states, observations, valid)
-        self.gp_states_given_observations = VarGP(v_observations, v_states, use_data_variance=False, **kwargs)
+        if finetune:
+            self.gp_states_given_observations.train(v_observations, v_states, optimize=finetune_optimize)
+        else:
+            self.gp_states_given_observations = VarGP(v_observations, v_states, use_data_variance=False, **kwargs)
 
     def infer_states(self, observations):
         # observations[feature, step]
@@ -873,13 +911,14 @@ class ControlObservationChain(object):
 
     def most_probable_states_given_inputs_and_observations(self, inputs, observations):
         # inputs[step]
-        # observations[step]
+        # observations
         # msg[s_(step-1)]
         # mt_state[step, s_step]
         # best_state[step]
         # log_p_state_given_obs[state, step]
 
         n_steps = inputs.shape[0]
+        assert inputs.dtype == 'int'
         assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
 
         # track maximum states
