@@ -723,6 +723,9 @@ class ControlObservationChain(object):
         self.gp_states_given_observations = None
         """:type : VarGP"""
 
+        # GPs that model p(s_t | s_(t-1), f_t)
+        self.gp_transitions = []
+
         # uniform prior over inputs
         self.log_p_input = np.log(np.ones(self.n_input_values) / self.n_input_values)
 
@@ -758,6 +761,18 @@ class ControlObservationChain(object):
             valid_observations = np.concatenate((valid_observations, observations[:, 0:n_valid_steps, smpl]), axis=1)
 
         return valid_states, valid_observations
+
+    def initialize_transitions(self, sigma):
+        self.log_p_initial_state[:] = np.log(np.ones(self.n_system_states) / float(self.n_system_states))
+
+        sigma_mat = np.asarray([[sigma]])
+        states = np.arange(self.n_system_states)
+        for pstate in range(self.n_system_states):
+            for inp in range(self.n_input_values):
+                mu = np.asarray([inp / float(self.n_input_values) * float(self.n_system_states)])
+                self.log_p_next_state[:, pstate, inp] = normal_pdf(states[np.newaxis, :], mu, sigma_mat)
+                self.log_p_next_state[:, pstate, inp] /= np.sum(self.log_p_next_state[:, pstate, inp])
+        self.log_p_next_state = np.log(self.log_p_next_state)
 
     def train_transitions(self, states, inputs, valid, mngful_dist=None, plot_pstate=None,
                           finetune=False, finetune_optimize=False, **kwargs):
@@ -834,7 +849,7 @@ class ControlObservationChain(object):
         is_sum = logsumexp(self.log_p_initial_state)
         ns_sum = logsumexp(self.log_p_next_state, axis=0)
 
-        if is_sum != 0:
+        if not np.isclose(is_sum, 0):
             print "Initial state: ", is_sum
 
         for pstate in range(self.n_system_states):
