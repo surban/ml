@@ -10,6 +10,7 @@ from GPy.util import Tango
 from sklearn.mixture import GMM, VBGMM
 from sklearn.neighbors.kde import KernelDensity
 from ml.common.progress import status, done
+from ml.simple.factorgraph import FactorGraph, Variable, Factor
 
 
 def find_evidence(state, state_next, train_states, input=None, train_inputs=None):
@@ -862,6 +863,72 @@ class ControlObservationChain(object):
             print "Next state normalization failures: "
         for pstate, inp in np.transpose(err_pos):
             print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
+
+    def build_factorgraph(self, observation_values):
+        # self.log_p_input[f_t] = p(f_t)
+        # self.log_p_state[s_t] = p(s_t)
+        # self.log_p_initial_state[s_-1] = p(s_-1)
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+        # observation_values[feature, step]
+        # log_p_state_given_obs[state, step]
+        # log_p_obs[state, step]
+
+        n_steps = observation_values.shape[1]
+
+        # p(s_t | x_t)
+        log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values, self.n_system_states))
+
+        # p(x_t | s_t) + const.
+        log_p_obs = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
+
+        fg = FactorGraph()
+        inputs = []
+        states = []
+        observations = []
+
+        # initial state
+        state_initial = Variable("s_initial", self.n_system_states)
+        fg.add_node(state_initial)
+        fg.add_node(Factor("S_INITIAL", self.log_p_initial_state, (state_initial,)))
+        previous_state = state_initial
+
+        for step in range(n_steps):
+            # input
+            inp = Variable("f_%d" % step, self.n_input_values)
+            fg.add_node(inp)
+            fg.add_node(Factor("F_%d" % step, self.log_p_input, (inp,)))
+
+            # state
+            state = Variable("s_%d" % step, self.n_system_states)
+            fg.add_node(state)
+            fg.add_node(Factor("S_%d" % step, self.log_p_next_state,
+                               (state, previous_state, inp)))
+
+            # observation (fixed)
+            obs = Variable("x_%d" % step, 1)
+            fg.add_node(obs)
+            fg.add_node(Factor("X_%d" % step, log_p_obs[np.newaxis, :, step], (obs, state)))
+
+            inputs.append(inp)
+            states.append(state)
+            observations.append(obs)
+            previous_state = state
+
+        return fg, inputs, states, observations
+
+    def fg_most_probable_states_and_inputs_given_observations(self, observations):
+        n_steps = observations.shape[1]
+
+        fg, inputs, states, observations = self.build_factorgraph(observations)
+
+        fg.prepare()
+        fg.initiate_message_passing()
+
+        best_log_p = fg.backtrack_best_state()
+        best_state = np.asarray([s.best_state for s in states])
+        best_input = np.asarray([i.best_state for i in inputs])
+
+        return best_state, best_input, best_log_p
 
     def _nanmax(self, x):
         xflat = np.reshape(x, (x.shape[0], -1))

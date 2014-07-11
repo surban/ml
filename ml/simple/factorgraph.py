@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-log = logging.getLogger("factorgraph")
+log = logging.getLogger(__name__)
 
 
 class FactorGraph(object):
@@ -13,7 +13,7 @@ class FactorGraph(object):
         """type: list of [_Node]"""
 
     def add_node(self, node):
-        assert node in self.nodes, "node already part of factor graph"
+        assert node not in self.nodes, "node already part of factor graph"
         self.nodes.append(node)
 
         if isinstance(node, Factor):
@@ -28,12 +28,18 @@ class FactorGraph(object):
             n.prepare()
 
     def initiate_message_passing(self):
+        log.debug("starting message passing from leaf nodes")
         for n in self.nodes:
-            if n.is_leaf():
+            if n.is_leaf:
                 n.transmit_all_possible_msgs()
+        log.debug("message passing from leaf nodes is done")
 
     def backtrack_best_state(self):
-        return self.variables[0].initiate_backtrack()
+        log.debug("backtracking best state")
+        for v in self.variables:
+            if v.is_leaf:
+                return v.initiate_backtrack()
+        assert False, "no leaf variable available"
 
 
 class _Node(object):
@@ -94,13 +100,17 @@ class _Node(object):
 
 class Factor(_Node):
 
-    def __init__(self, name):
+    def __init__(self, name, factor, variables):
         super(Factor, self).__init__(name)
         self.variables = []
         """:type: list of [Variable]"""
         self.factor = None
         """:type: np.ndarray"""
         self.max_track = {}
+
+        log.debug("Created factor %s", name)
+
+        self._set_factor(factor, variables)
 
     @property
     def neighbours(self):
@@ -110,9 +120,11 @@ class Factor(_Node):
     def n_variables(self):
         return len(self.variables)
 
-    def set_factor(self, factor, variables):
+    def _set_factor(self, factor, variables):
         assert isinstance(factor, np.ndarray)
         assert factor.ndim == len(variables)
+        for v in variables:
+            assert isinstance(v, Variable)
 
         # deregister with old variables
         for var in self.variables:
@@ -122,13 +134,23 @@ class Factor(_Node):
         self.factor = factor
 
         # register with new variables
-        for var in self.variables:
+        for i, var in enumerate(self.variables):
+            assert var.n_states == self.factor.shape[i], \
+                "factor shape (%d for dimension %d) does not match number of states (%d) of variable %s" % \
+                (self.factor.shape[i], i, var.n_states, var.name)
             var._register_factor(self)
+
+        var_str = ", ".join([v.name for v in self.variables])
+        log.debug("Connected factor %s with variables %s", self.name, var_str)
 
     def _nanmax(self, x, dim, keep_dim_in_argmax=False):
         """Calculates the maximum of x[:^(dim-1), i, ...] for each value of i.
         Returns (maximum, (argmax-dim-1, argmax-dim-2, ...)).
         """
+
+        # handle case when there is no maximization to be done
+        if x.ndim == 1 and dim == 0:
+            return x, ()
 
         # make stationary axis the first one
         x = np.rollaxis(x, dim)
@@ -150,11 +172,14 @@ class Factor(_Node):
             x_argmax_new.extend(x_argmax[dim:])
             x_argmax = tuple(x_argmax_new)
 
+        # convert to int dtype
+        x_argmax = [np.asarray(p, dtype='int') for p in x_argmax]
+
         return x_max, x_argmax
 
     def calculate_msg(self, target):
         # factor
-        m = self.factor[:]
+        m = np.copy(self.factor)
 
         # sum all received messages except from target
         for dim, var in enumerate(self.variables):
@@ -178,7 +203,6 @@ class Factor(_Node):
 
     def backtrack_maximum(self, source, value):
         assert source in self.variables, "unknown source"
-        src_dim = self.variables.index(source)
         assert isinstance(value, int), "value must be integer"
         assert 0 <= value < source.n_states, "value out of source range"
 
@@ -198,6 +222,8 @@ class Variable(_Node):
         self.factors = []
         """:type: list of [Factor]"""
         self.best_state = None
+
+        log.debug("Created variable %s", name)
 
     @property
     def neighbours(self):
@@ -230,13 +256,14 @@ class Variable(_Node):
             m += self.received_msgs[fac]
 
         p_max = np.nanmax(m)
-        self.best_state = np.nanargmax(p_max)
-        log.debug("%s: best state from p_max is %d with log p=%g", self.name, self.best_state, p_max)
+        best_state = int(np.nanargmax(p_max))
+        log.debug("%s: best state from p_max is %d with log p=%g", self.name, best_state, p_max)
+        self.backtrack_maximum(None, best_state)
 
         return p_max
 
     def backtrack_maximum(self, source, value):
-        assert source in self.factors, "unknown source"
+        assert source is None or source in self.factors, "unknown source"
         assert isinstance(value, int), "value must be integer"
         assert 0 <= value < self.n_states, "value out of variable range"
 
