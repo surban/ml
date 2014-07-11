@@ -596,7 +596,7 @@ class ConditionalChain(object):
         all_inputs = np.arange(0, self.n_input_values)
         p_next_input = np.zeros((self.n_input_values, self.n_input_values))
         for pinp in range(self.n_input_values):
-            p_next_input[:, pinp] = scipy.stats.norm.pdf_for_all_inputs(all_inputs, loc=pinp, scale=sigma)
+            p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=sigma)
             p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
         log_p_next_input = np.log(p_next_input)
 
@@ -864,7 +864,7 @@ class ControlObservationChain(object):
         for pstate, inp in np.transpose(err_pos):
             print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
 
-    def build_factorgraph(self, observation_values):
+    def build_factorgraph(self, observation_values, smooth_input=None):
         # self.log_p_input[f_t] = p(f_t)
         # self.log_p_state[s_t] = p(s_t)
         # self.log_p_initial_state[s_-1] = p(s_-1)
@@ -872,6 +872,7 @@ class ControlObservationChain(object):
         # observation_values[feature, step]
         # log_p_state_given_obs[state, step]
         # log_p_obs[state, step]
+        # log_p_next_input[f_(t+1), f_t]
 
         n_steps = observation_values.shape[1]
 
@@ -880,6 +881,15 @@ class ControlObservationChain(object):
 
         # p(x_t | s_t) + const.
         log_p_obs = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
+
+        # p(f_(t+1) | f_t)
+        if smooth_input is not None:
+            all_inputs = np.arange(0, self.n_input_values)
+            p_next_input = np.zeros((self.n_input_values, self.n_input_values))
+            for pinp in range(self.n_input_values):
+                p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=smooth_input)
+                p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
+            log_p_next_input = np.log(p_next_input)
 
         fg = FactorGraph()
         inputs = []
@@ -892,11 +902,22 @@ class ControlObservationChain(object):
         fg.add_node(Factor("S_INITIAL", self.log_p_initial_state, (state_initial,)))
         previous_state = state_initial
 
+        # initial inputs
+        if smooth_input is not None:
+            input_initial = Variable("f_initial", self.n_input_values)
+            fg.add_node(input_initial)
+            fg.add_node(Factor("F_INITIAL", self.log_p_input, (input_initial,)))
+            previous_inp = input_initial
+
+        # build graph parts for each timestep
         for step in range(n_steps):
             # input
             inp = Variable("f_%d" % step, self.n_input_values)
             fg.add_node(inp)
-            fg.add_node(Factor("F_%d" % step, self.log_p_input, (inp,)))
+            if smooth_input is not None:
+                fg.add_node(Factor("F_%d" % step, log_p_next_input, (inp, previous_inp)))
+            else:
+                fg.add_node(Factor("F_%d" % step, self.log_p_input, (inp,)))
 
             # state
             state = Variable("s_%d" % step, self.n_system_states)
@@ -913,16 +934,21 @@ class ControlObservationChain(object):
             states.append(state)
             observations.append(obs)
             previous_state = state
+            if smooth_input is not None:
+                previous_inp = inp
 
         return fg, inputs, states, observations
 
-    def fg_most_probable_states_and_inputs_given_observations(self, observations):
+    def fg_most_probable_states_and_inputs_given_observations(self, observations, smooth_input=None, loopy_iters=None):
         n_steps = observations.shape[1]
 
-        fg, inputs, states, observations = self.build_factorgraph(observations)
+        fg, inputs, states, observations = self.build_factorgraph(observations, smooth_input)
 
-        fg.prepare()
-        fg.initiate_message_passing()
+        if loopy_iters is not None:
+            fg.loopy_propagation = True
+            fg.do_message_passing(loopy_iters)
+        else:
+            fg.do_message_passing()
 
         best_log_p = fg.backtrack_best_state()
         best_state = np.asarray([s.best_state for s in states])

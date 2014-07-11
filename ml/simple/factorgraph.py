@@ -6,16 +6,18 @@ log = logging.getLogger(__name__)
 
 class FactorGraph(object):
 
-    def __init__(self):
+    def __init__(self, loopy_propagation=False):
         self.factors = []
         self.variables = []
         self.nodes = []
         """type: list of [_Node]"""
+        self.loopy_propagation = loopy_propagation
 
     def add_node(self, node):
         assert node not in self.nodes, "node already part of factor graph"
         self.nodes.append(node)
 
+        node.factorgraph = self
         if isinstance(node, Factor):
             self.factors.append(node)
         elif isinstance(node, Variable):
@@ -24,15 +26,33 @@ class FactorGraph(object):
             assert False, "unknown node type"
 
     def prepare(self):
+        log.debug("preparing all nodes for message passing")
         for n in self.nodes:
             n.prepare()
 
-    def initiate_message_passing(self):
-        log.debug("starting message passing from leaf nodes")
-        for n in self.nodes:
-            if n.is_leaf:
-                n.transmit_all_possible_msgs()
-        log.debug("message passing from leaf nodes is done")
+    def do_message_passing(self, n_iterations=None):
+        if self.loopy_propagation:
+            self.prepare()
+
+            if n_iterations is None:
+                n_iterations = len(self.variables) + 1
+
+            log.debug("doing loopy message passing for %d iterations", n_iterations)
+            for i in range(n_iterations):
+                log.debug("message passing iteration %d / %d -- variables", i+1, n_iterations)
+                for v in self.variables:
+                    v.transmit_all_possible_msgs()
+                log.debug("message passing iteration %d / %d -- factors", i+1, n_iterations)
+                for f in self.factors:
+                    f.transmit_all_possible_msgs()
+            log.debug("loopy message passing is done")
+        else:
+            self.prepare()
+            log.debug("starting message passing from leaf nodes")
+            for n in self.nodes:
+                if n.is_leaf:
+                    n.transmit_all_possible_msgs()
+            log.debug("message passing from leaf nodes is done")
 
     def backtrack_best_state(self):
         log.debug("backtracking best state")
@@ -49,6 +69,8 @@ class _Node(object):
         self.received_msgs = {}
         """:type: dict of [_Node, np.ndarray]"""
         self.transmitted = []
+        self.factorgraph = None
+        """:type: _FactorGraph"""
 
     @property
     def neighbours(self):
@@ -65,15 +87,20 @@ class _Node(object):
     def receive_msg(self, sender, msg):
         assert sender in self.neighbours, "sender must be connected to this node"
         self.received_msgs[sender] = msg
-        self.transmit_all_possible_msgs()
+
+        if not self.factorgraph.loopy_propagation:
+            self.transmit_all_possible_msgs()
 
     def transmit_msg(self, target):
         assert target in self.neighbours, "target must be connected to this node"
-        assert target not in self.transmitted, "target has already received a message from this node"
+        if not self.factorgraph.loopy_propagation:
+            assert target not in self.transmitted, "target has already received a message from this node"
 
         log.debug("%s->%s: calculating message", self.name, target.name)
         msg = self.calculate_msg(target)
-        self.transmitted.append(target)
+
+        if not self.factorgraph.loopy_propagation:
+            self.transmitted.append(target)
 
         log.debug("%s->%s: transmitting", self.name, target.name)
         target.receive_msg(self, msg)
@@ -237,9 +264,12 @@ class Variable(_Node):
         assert factor in self.factors, "specified factor not connected to this variable"
         self.factors.remove(factor)
 
-    # def init_empty_msgs(self):
-    #     for fac in self.factors:
-    #         self.received_msgs[fac] = np.zeros(self.n_states)
+    def prepare(self):
+        super(Variable, self).prepare()
+        if self.factorgraph.loopy_propagation:
+            # assume unity message before real message arrives
+            for fac in self.factors:
+                self.received_msgs[fac] = np.zeros(self.n_states)
 
     def calculate_msg(self, target):
         # sum over all received msgs except from target
