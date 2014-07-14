@@ -12,6 +12,7 @@ class FactorGraph(object):
         self.nodes = []
         """type: list of [_Node]"""
         self.loopy_propagation = loopy_propagation
+        self.prepared = False
 
     def add_node(self, node):
         assert node not in self.nodes, "node already part of factor graph"
@@ -29,11 +30,11 @@ class FactorGraph(object):
         log.debug("preparing all nodes for message passing")
         for n in self.nodes:
             n.prepare()
+        self.prepared = True
 
-    def do_message_passing(self, n_iterations=None):
+    def do_message_passing(self, n_iterations=None, only_leafs=True):
+        assert self.prepared
         if self.loopy_propagation:
-            self.prepare()
-
             if n_iterations is None:
                 n_iterations = len(self.variables) + 1
 
@@ -47,12 +48,12 @@ class FactorGraph(object):
                     f.transmit_all_possible_msgs()
             log.debug("loopy message passing is done")
         else:
-            self.prepare()
-            log.debug("starting message passing from leaf nodes")
+            log.debug("starting initial message passing")
             for n in self.nodes:
-                if n.is_leaf:
+                if not only_leafs or n.is_leaf:
+                    log.debug("asking node %s to send its message", n.name)
                     n.transmit_all_possible_msgs()
-            log.debug("message passing from leaf nodes is done")
+            log.debug("initial message passing is done")
 
     def backtrack_best_state(self):
         log.debug("backtracking best state")
@@ -71,6 +72,7 @@ class _Node(object):
         self.transmitted = []
         self.factorgraph = None
         """:type: _FactorGraph"""
+        self.backtracked = False
 
     @property
     def neighbours(self):
@@ -108,21 +110,42 @@ class _Node(object):
     def prepare(self):
         self.transmitted = []
         self.received_msgs = {}
+        self.backtracked = False
 
     def transmit_all_possible_msgs(self):
-        if len(self.received_msgs) == len(self.neighbours) - 1:
+        if self.is_leaf:
+            # message from leaf can always be sent
+            nb = self.neighbours[0]
+            if self.factorgraph.loopy_propagation or nb not in self.transmitted:
+                log.debug("%s: passing message from this leaf node to %s", self.name, nb.name)
+                self.transmit_msg(nb)
+        elif len(self.received_msgs) == len(self.neighbours) - 1:
             # message from one input is missing, can only send into that direction
-            log.debug("%s: have all but one input msgs, passing into missing direction", self.name)
             for nb in self.neighbours:
                 if nb not in self.received_msgs:
-                    self.transmit_msg(nb)
+                    if self.factorgraph.loopy_propagation or nb not in self.transmitted:
+                        log.debug("%s: have all but one input msgs, passing into missing direction %s",
+                                  self.name, nb.name)
+                        self.transmit_msg(nb)
                     break
         elif len(self.received_msgs) == len(self.neighbours):
             # messages from all inputs are available, can send into all directions
             log.debug("%s: have all input msgs, passing into all directions", self.name)
             for nb in self.neighbours:
-                if nb not in self.transmitted:
+                if self.factorgraph.loopy_propagation or nb not in self.transmitted:
                     self.transmit_msg(nb)
+
+    def backtrack_maximum(self, source, value):
+        assert source is None or source in self.neighbours, "unknown source"
+        assert isinstance(value, int), "value must be integer"
+
+        if self.factorgraph.loopy_propagation:
+            bt = self.backtracked
+            self.backtracked = True
+            return not bt
+        else:
+            assert not self.backtracked, "node already backtracked"
+            return True
 
 
 class Factor(_Node):
@@ -229,8 +252,8 @@ class Factor(_Node):
         return msg
 
     def backtrack_maximum(self, source, value):
-        assert source in self.variables, "unknown source"
-        assert isinstance(value, int), "value must be integer"
+        if not super(Factor, self).backtrack_maximum(source, value):
+            return
         assert 0 <= value < source.n_states, "value out of source range"
 
         # propagate to neighbouring variables
@@ -267,9 +290,14 @@ class Variable(_Node):
     def prepare(self):
         super(Variable, self).prepare()
         if self.factorgraph.loopy_propagation:
-            # assume unity message before real message arrives
             for fac in self.factors:
-                self.received_msgs[fac] = np.zeros(self.n_states)
+                self.assume_uniform_msg(fac)
+
+    def assume_uniform_msg(self, fac):
+        """Assume unity message from specified factor before real message arrives."""
+        assert fac in self.factors, "specified factor not connected to this variable"
+        log.debug("%s: assuming unity message from factor %s", self.name, fac.name)
+        self.received_msgs[fac] = np.zeros(self.n_states)
 
     def calculate_msg(self, target):
         # sum over all received msgs except from target
@@ -283,6 +311,7 @@ class Variable(_Node):
     def initiate_backtrack(self):
         m = np.zeros(self.n_states)
         for fac in self.factors:
+            assert fac in self.received_msgs, "no message received from %s" % fac.name
             m += self.received_msgs[fac]
 
         p_max = np.nanmax(m)
@@ -293,8 +322,8 @@ class Variable(_Node):
         return p_max
 
     def backtrack_maximum(self, source, value):
-        assert source is None or source in self.factors, "unknown source"
-        assert isinstance(value, int), "value must be integer"
+        if not super(Variable, self).backtrack_maximum(source, value):
+            return
         assert 0 <= value < self.n_states, "value out of variable range"
 
         # store value

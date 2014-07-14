@@ -94,6 +94,11 @@ def merge_duplicates(x, y):
 
 
 def iterate_over_samples(func, valid, *inps, **kwargs):
+    show_progress = True
+    if 'show_progress' in kwargs:
+        show_progress = kwargs['show_progress']
+        del kwargs['show_progress']
+
     assert valid.ndim == 2
 
     n_inps = len(inps)
@@ -106,6 +111,9 @@ def iterate_over_samples(func, valid, *inps, **kwargs):
     outs = []
 
     for smpl in range(n_samples):
+        if show_progress:
+            status(smpl, n_samples)
+
         n_valid = np.where(valid[:, smpl])[0][-1]
 
         smpl_inps = []
@@ -133,6 +141,9 @@ def iterate_over_samples(func, valid, *inps, **kwargs):
                 outs[i][..., 0:n_valid, smpl] = smpl_out
             else:
                 outs[i][smpl] = smpl_out
+
+    if show_progress:
+        done()
 
     if len(outs) == 1:
         return outs[0]
@@ -893,6 +904,7 @@ class ControlObservationChain(object):
 
         fg = FactorGraph()
         inputs = []
+        input_factors = []
         states = []
         observations = []
 
@@ -915,9 +927,10 @@ class ControlObservationChain(object):
             inp = Variable("f_%d" % step, self.n_input_values)
             fg.add_node(inp)
             if smooth_input is not None:
-                fg.add_node(Factor("F_%d" % step, log_p_next_input, (inp, previous_inp)))
+                input_factor = Factor("F_%d" % step, log_p_next_input, (inp, previous_inp))
             else:
-                fg.add_node(Factor("F_%d" % step, self.log_p_input, (inp,)))
+                input_factor = Factor("F_%d" % step, self.log_p_input, (inp,))
+            fg.add_node(input_factor)
 
             # state
             state = Variable("s_%d" % step, self.n_system_states)
@@ -931,23 +944,45 @@ class ControlObservationChain(object):
             fg.add_node(Factor("X_%d" % step, log_p_obs[np.newaxis, :, step], (obs, state)))
 
             inputs.append(inp)
+            input_factors.append(input_factor)
             states.append(state)
             observations.append(obs)
             previous_state = state
             if smooth_input is not None:
                 previous_inp = inp
 
-        return fg, inputs, states, observations
+        return fg, inputs, input_factors, states, observations
 
-    def fg_most_probable_states_and_inputs_given_observations(self, observations, smooth_input=None, loopy_iters=None):
+    def fg_most_probable_states_and_inputs_given_observations(self, observations, smooth_input=None, loopy_iters=None,
+                                                              prepass_non_loopy=True):
         n_steps = observations.shape[1]
 
-        fg, inputs, states, observations = self.build_factorgraph(observations, smooth_input)
+        fg, inputs, input_factors, states, observations = self.build_factorgraph(observations, smooth_input)
 
         if loopy_iters is not None:
-            fg.loopy_propagation = True
-            fg.do_message_passing(loopy_iters)
+            if prepass_non_loopy:
+                fg.loopy_propagation = False
+                fg.prepare()
+
+                if smooth_input is not None:
+                    # inject uniform messages to break initial loops
+                    for step in range(n_steps):
+                        inputs[step].assume_uniform_msg(input_factors[step])
+                        if step != n_steps - 1:
+                            inputs[step].assume_uniform_msg(input_factors[step + 1])
+
+                # do non-loopy propagation to precalculate probability estimates  
+                fg.do_message_passing(only_leafs=False)
+
+                # switch to loopy propagation to get smooth force estimates
+                fg.loopy_propagation = True
+                fg.do_message_passing(loopy_iters)
+            else:
+                fg.loopy_propagation = True
+                fg.prepare()
+                fg.do_message_passing(loopy_iters)
         else:
+            fg.prepare()
             fg.do_message_passing()
 
         best_log_p = fg.backtrack_best_state()
