@@ -875,7 +875,7 @@ class ControlObservationChain(object):
         for pstate, inp in np.transpose(err_pos):
             print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
 
-    def build_factorgraph(self, observation_values, smooth_input=None):
+    def build_factorgraph(self, n_steps=None, observation_values=None, smooth_input_sigma=None):
         # self.log_p_input[f_t] = p(f_t)
         # self.log_p_state[s_t] = p(s_t)
         # self.log_p_initial_state[s_-1] = p(s_-1)
@@ -885,20 +885,23 @@ class ControlObservationChain(object):
         # log_p_obs[state, step]
         # log_p_next_input[f_(t+1), f_t]
 
-        n_steps = observation_values.shape[1]
+        if observation_values is not None:
+            n_steps = observation_values.shape[1]
+        assert n_steps is not None
 
-        # p(s_t | x_t)
-        log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values, self.n_system_states))
+        if observation_values is not None:
+            # p(s_t | x_t)
+            log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values, self.n_system_states))
 
-        # p(x_t | s_t) + const.
-        log_p_obs = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
+            # p(x_t | s_t) + const.
+            log_p_obs = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
 
         # p(f_(t+1) | f_t)
-        if smooth_input is not None:
+        if smooth_input_sigma is not None:
             all_inputs = np.arange(0, self.n_input_values)
             p_next_input = np.zeros((self.n_input_values, self.n_input_values))
             for pinp in range(self.n_input_values):
-                p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=smooth_input)
+                p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=smooth_input_sigma)
                 p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
             log_p_next_input = np.log(p_next_input)
 
@@ -915,7 +918,7 @@ class ControlObservationChain(object):
         previous_state = state_initial
 
         # initial inputs
-        if smooth_input is not None:
+        if smooth_input_sigma is not None:
             input_initial = Variable("f_initial", self.n_input_values)
             fg.add_node(input_initial)
             fg.add_node(Factor("F_INITIAL", self.log_p_input, (input_initial,)))
@@ -926,7 +929,7 @@ class ControlObservationChain(object):
             # input
             inp = Variable("f_%d" % step, self.n_input_values)
             fg.add_node(inp)
-            if smooth_input is not None:
+            if smooth_input_sigma is not None:
                 input_factor = Factor("F_%d" % step, log_p_next_input, (inp, previous_inp))
             else:
                 input_factor = Factor("F_%d" % step, self.log_p_input, (inp,))
@@ -938,26 +941,29 @@ class ControlObservationChain(object):
             fg.add_node(Factor("S_%d" % step, self.log_p_next_state,
                                (state, previous_state, inp)))
 
-            # observation (fixed)
-            obs = Variable("x_%d" % step, 1)
-            fg.add_node(obs)
-            fg.add_node(Factor("X_%d" % step, log_p_obs[np.newaxis, :, step], (obs, state)))
+            if observation_values is not None:
+                # observation (fixed)
+                obs = Variable("x_%d" % step, 1)
+                fg.add_node(obs)
+                fg.add_node(Factor("X_%d" % step, log_p_obs[np.newaxis, :, step], (obs, state)))
 
             inputs.append(inp)
             input_factors.append(input_factor)
             states.append(state)
-            observations.append(obs)
+            if observation_values is not None:
+                observations.append(obs)
             previous_state = state
-            if smooth_input is not None:
+            if smooth_input_sigma is not None:
                 previous_inp = inp
 
         return fg, inputs, input_factors, states, observations
 
-    def fg_most_probable_states_and_inputs_given_observations(self, observations, smooth_input=None, loopy_iters=None,
+    def fg_most_probable_states_and_inputs_given_observations(self, observation_values, smooth_input=None, loopy_iters=None,
                                                               prepass_non_loopy=True):
-        n_steps = observations.shape[1]
+        n_steps = observation_values.shape[1]
 
-        fg, inputs, input_factors, states, observations = self.build_factorgraph(observations, smooth_input)
+        fg, inputs, input_factors, states, observations = self.build_factorgraph(observation_values=observation_values,
+                                                                                 smooth_input_sigma=smooth_input)
 
         if loopy_iters is not None:
             if prepass_non_loopy:
@@ -990,6 +996,20 @@ class ControlObservationChain(object):
         best_input = np.asarray([i.best_state for i in inputs])
 
         return best_state, best_input, best_log_p
+
+    def fg_most_probable_states_given_inputs(self, input_values):
+        n_steps = input_values.shape[0]
+        fg, inputs, input_factors, states, observations = self.build_factorgraph(n_steps=n_steps)
+
+        # clamp inputs
+        for step in range(n_steps):
+            inputs[step].clamp(input_values[step])
+
+        fg.prepare()
+        fg.do_message_passing()
+        best_log_p = fg.backtrack_best_state()
+        best_state = np.asarray([s.best_state for s in states])
+        return best_state, best_log_p
 
     def _nanmax(self, x):
         xflat = np.reshape(x, (x.shape[0], -1))

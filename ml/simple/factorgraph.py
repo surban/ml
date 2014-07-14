@@ -228,8 +228,18 @@ class Factor(_Node):
         return x_max, x_argmax
 
     def calculate_msg(self, target):
-        # factor
-        m = np.copy(self.factor)
+        # remove dimensions corresponding to clamped variables from factor
+        sl = []
+        for var in self.variables:
+            if var.clamped_value is None:
+                sl.append(slice(None))
+            else:
+                sl.append(slice(var.clamped_value, var.clamped_value+1))
+        sl = tuple(sl)
+        log.debug("%s: factor slice selector: %s", self.name, str(sl))
+
+        # get factor
+        m = np.copy(self.factor[sl])
 
         # sum all received messages except from target
         for dim, var in enumerate(self.variables):
@@ -272,6 +282,7 @@ class Variable(_Node):
         self.factors = []
         """:type: list of [Factor]"""
         self.best_state = None
+        self.clamped_value = None
 
         log.debug("Created variable %s", name)
 
@@ -287,6 +298,16 @@ class Variable(_Node):
         assert factor in self.factors, "specified factor not connected to this variable"
         self.factors.remove(factor)
 
+    def clamp(self, value):
+        assert isinstance(value, int), "value must be integer"
+        assert 0 <= value < self.n_states, "value out of variable range"
+        self.clamped_value = value
+        log.debug("%s: clamped to value %d", self.name, self.clamped_value)
+
+    def unclamp(self):
+        self.clamped_value = None
+        log.debug("%s: unclamped")
+
     def prepare(self):
         super(Variable, self).prepare()
         if self.factorgraph.loopy_propagation:
@@ -301,7 +322,10 @@ class Variable(_Node):
 
     def calculate_msg(self, target):
         # sum over all received msgs except from target
-        msg = np.zeros(self.n_states)
+        if self.clamped_value is not None:
+            msg = np.zeros(1)
+        else:
+            msg = np.zeros(self.n_states)
         for fac in self.factors:
             if fac is target:
                 continue
@@ -309,7 +333,10 @@ class Variable(_Node):
         return msg
 
     def initiate_backtrack(self):
-        m = np.zeros(self.n_states)
+        if self.clamped_value is not None:
+            m = np.zeros(1)
+        else:
+            m = np.zeros(self.n_states)
         for fac in self.factors:
             assert fac in self.received_msgs, "no message received from %s" % fac.name
             m += self.received_msgs[fac]
@@ -326,9 +353,14 @@ class Variable(_Node):
             return
         assert 0 <= value < self.n_states, "value out of variable range"
 
-        # store value
-        self.best_state = value
-        log.debug("%s: best state from backtrack is %d", self.name, self.best_state)
+        if self.clamped_value is not None:
+            assert value == 0, "clamped variable must be in 0 state"
+            self.best_state = self.clamped_value
+            log.debug("%s: using clamped value %d during backtrack", self.name, self.best_state)
+        else:
+            # store value
+            self.best_state = value
+            log.debug("%s: best state from backtrack is %d", self.name, self.best_state)
 
         # propage to neighbouring factors
         for factor in self.factors:
