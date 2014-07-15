@@ -68,6 +68,115 @@ def plot_multicurve_error(force, force_predicted, valid, *args):
             plt.gca().set_xticklabels([])
 
 
+def plot_mc(valid, data=None, conf=None,
+            prob=None, prob_extents=None, prob_max=None,
+            ylabel=None, label=None, max_value=None, side='left', timestep=None, conf_args={},
+            tick_color=None, n_plot_samples=None, title=None, **data_args):
+    assert valid.ndim == 2
+    n_samples = valid.shape[1]
+    n_max_steps = valid.shape[0]
+
+    assert side in ['left', 'right']
+    if data is not None:
+        assert data.shape[1] == n_samples and data.shape[0] == n_max_steps
+    if conf is not None:
+        assert conf.shape[1] == n_samples and conf.shape[0] == n_max_steps
+    if prob is not None:
+        assert prob_extents is not None and prob_max is not None
+        assert prob.ndim == 3 and prob.shape[3] == n_samples and prob.shape[2] == n_max_steps
+
+    if 'alpha' not in conf_args: conf_args['alpha'] = 0.1
+    if 'edgecolor' not in conf_args: conf_args['edgecolor'] = Tango.colorsHex['darkRed']
+    if 'facecolor' not in conf_args: conf_args['facecolor'] = Tango.colorsHex['lightRed']
+
+    if n_plot_samples:
+        assert n_plot_samples <= n_samples
+        n_samples = n_plot_samples
+
+        valid = valid[..., 0:n_plot_samples]
+        if data is not None:
+            data = data[..., 0:n_plot_samples]
+        if conf is not None:
+            conf = conf[..., 0:n_plot_samples]
+        if prob is not None:
+            prob = prob[..., 0:n_plot_samples]
+
+    height = int(math.sqrt(n_samples))
+    width = int(math.ceil(n_samples / float(height)))
+
+    if timestep:
+        max_time = n_max_steps * timestep
+        xlabel = "time [s]"
+    else:
+        max_time = n_max_steps
+        xlabel = "step"
+
+    for c in range(n_samples):
+        plt.subplot(height, width, c+1)
+        where_valid = np.where(valid[:, c])[0]
+        if len(where_valid) == 0:
+            valid_to = 0
+        else:
+            valid_to = where_valid[-1] + 1
+
+        if timestep:
+            ts = np.linspace(0, valid_to * timestep, valid_to)
+        else:
+            ts = np.arange(valid_to)
+
+        ax1 = plt.gca()
+        if side == 'right':
+            ax = ax1.twinx()
+        else:
+            ax = ax1
+
+        if conf is not None:
+            plt.fill_between(ts, data[0:valid_to, c] + conf[0:valid_to, c], data[0:valid_to, c] - conf[0:valid_to, c],
+                             **conf_args)
+
+        if data is not None:
+            ax.plot(ts, data[0:valid_to, c], label=label, **data_args)
+        if c == n_samples - 1 and label:
+            plt.legend()
+
+        if prob is not None:
+            cmap = plt.get_cmap('jet')
+            plt.imshow(prob[:, 0:valid_to, c], interpolation='none', origin='lower', cmap=cmap,
+                       extent=(0, ts[-1], prob_extents[0], prob_extents[1]),
+                       aspect='auto', vmin=0, vmax=prob_max)
+            if c == n_samples - 1:
+                plt.colorbar()
+            fillbox = np.asarray([[np.min(prob[:, :, c])]])
+            plt.imshow(fillbox, interpolation='none', cmap=cmap,
+                       extent=((ts[-2] + ts[-1])/2., max_time, prob_extents[0], prob_extents[1]),
+                       aspect='auto')
+
+        ax1.set_xlim(0, max_time)
+        if max_value:
+            ax.set_ylim(0, max_value)
+
+        if tick_color:
+            for tl in ax.get_yticklabels():
+                tl.set_color(tick_color)
+            for tl in ax1.get_xticklabels():
+                tl.set_color(tick_color)
+
+        if c % width == 0:
+            if ylabel:
+                ax1.set_ylabel(ylabel)
+        else:
+            ax1.set_yticklabels([])
+        if c / width == height-1:
+            ax1.set_xlabel(xlabel)
+        else:
+            ax1.set_xticklabels([])
+
+        plt.title(str(c))
+
+    if title:
+        plt.suptitle(title)
+
+
 def plot_multicurve_time(force, skin, valid,
                          skin_predicted=None, skin_predicted_conf=None,
                          force_predicted=None, force_predicted_conf=None,

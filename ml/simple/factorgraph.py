@@ -236,7 +236,7 @@ class Factor(_Node):
             else:
                 sl.append(slice(var.clamped_value, var.clamped_value+1))
         sl = tuple(sl)
-        log.debug("%s: factor slice selector: %s", self.name, str(sl))
+        # log.debug("%s: factor slice selector: %s", self.name, str(sl))
 
         # get factor
         m = np.copy(self.factor[sl])
@@ -342,7 +342,7 @@ class Variable(_Node):
             m += self.received_msgs[fac]
 
         p_max = np.nanmax(m)
-        best_state = int(np.nanargmax(p_max))
+        best_state = int(np.nanargmax(m))
         log.debug("%s: best state from p_max is %d with log p=%g", self.name, best_state, p_max)
         self.backtrack_maximum(None, best_state)
 
