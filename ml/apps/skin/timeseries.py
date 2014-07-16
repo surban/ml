@@ -68,17 +68,32 @@ def plot_multicurve_error(force, force_predicted, valid, *args):
             plt.gca().set_xticklabels([])
 
 
-def plot_mc(valid, data=None, conf=None,
+def get_sample(smpl, valid, *datas):
+    assert valid.ndim == 2
+    where_valid = np.where(valid[:, smpl])[0]
+    if len(where_valid) == 0:
+        valid_to = 0
+    else:
+        valid_to = where_valid[-1] + 1
+
+    vdatas = [d[..., 0:valid_to, smpl] for d in datas]
+    return tuple(vdatas)
+
+
+def plot_mc(valid, ydata=None, conf=None, xdata=None,
             prob=None, prob_extents=None, prob_max=None,
-            ylabel=None, label=None, max_value=None, side='left', timestep=None, conf_args={},
-            tick_color=None, n_plot_samples=None, title=None, **data_args):
+            ylabel=None, xlabel=None, ymax=None, xmax=None, label=None,
+            side='left', timestep=None, conf_args={}, aspect=None,
+            y_tick_color=None, n_plot_samples=None, title=None, **data_args):
     assert valid.ndim == 2
     n_samples = valid.shape[1]
     n_max_steps = valid.shape[0]
 
     assert side in ['left', 'right']
-    if data is not None:
-        assert data.shape[1] == n_samples and data.shape[0] == n_max_steps
+    if ydata is not None:
+        assert ydata.shape[1] == n_samples and ydata.shape[0] == n_max_steps
+    if xdata is not None:
+        assert xdata.shape[1] == n_samples and xdata.shape[0] == n_max_steps
     if conf is not None:
         assert conf.shape[1] == n_samples and conf.shape[0] == n_max_steps
     if prob is not None:
@@ -89,13 +104,14 @@ def plot_mc(valid, data=None, conf=None,
     if 'edgecolor' not in conf_args: conf_args['edgecolor'] = Tango.colorsHex['darkRed']
     if 'facecolor' not in conf_args: conf_args['facecolor'] = Tango.colorsHex['lightRed']
 
-    if n_plot_samples:
-        assert n_plot_samples <= n_samples
+    if n_plot_samples and n_plot_samples < n_samples:
         n_samples = n_plot_samples
 
         valid = valid[..., 0:n_plot_samples]
-        if data is not None:
-            data = data[..., 0:n_plot_samples]
+        if ydata is not None:
+            ydata = ydata[..., 0:n_plot_samples]
+        if xdata is not None:
+            xdata = xdata[..., 0:n_plot_samples]
         if conf is not None:
             conf = conf[..., 0:n_plot_samples]
         if prob is not None:
@@ -104,12 +120,13 @@ def plot_mc(valid, data=None, conf=None,
     height = int(math.sqrt(n_samples))
     width = int(math.ceil(n_samples / float(height)))
 
-    if timestep:
-        max_time = n_max_steps * timestep
-        xlabel = "time [s]"
-    else:
-        max_time = n_max_steps
-        xlabel = "step"
+    if xdata is None and xmax is None:
+        if timestep:
+            xmax = n_max_steps * timestep
+            xlabel = "time [s]"
+        else:
+            xmax = n_max_steps
+            xlabel = "step"
 
     for c in range(n_samples):
         plt.subplot(height, width, c+1)
@@ -119,10 +136,13 @@ def plot_mc(valid, data=None, conf=None,
         else:
             valid_to = where_valid[-1] + 1
 
-        if timestep:
-            ts = np.linspace(0, valid_to * timestep, valid_to)
+        if xdata is not None:
+            tdata = xdata[0:valid_to, c]
         else:
-            ts = np.arange(valid_to)
+            if timestep:
+                tdata = np.linspace(0, valid_to * timestep, valid_to)
+            else:
+                tdata = np.arange(valid_to)
 
         ax1 = plt.gca()
         if side == 'right':
@@ -131,45 +151,49 @@ def plot_mc(valid, data=None, conf=None,
             ax = ax1
 
         if conf is not None:
-            plt.fill_between(ts, data[0:valid_to, c] + conf[0:valid_to, c], data[0:valid_to, c] - conf[0:valid_to, c],
+            plt.fill_between(tdata, ydata[0:valid_to, c] + conf[0:valid_to, c], ydata[0:valid_to, c] - conf[0:valid_to, c],
                              **conf_args)
 
-        if data is not None:
-            ax.plot(ts, data[0:valid_to, c], label=label, **data_args)
+        if ydata is not None:
+            ax.plot(tdata, ydata[0:valid_to, c], label=label, **data_args)
         if c == n_samples - 1 and label:
             plt.legend()
 
         if prob is not None:
             cmap = plt.get_cmap('jet')
             plt.imshow(prob[:, 0:valid_to, c], interpolation='none', origin='lower', cmap=cmap,
-                       extent=(0, ts[-1], prob_extents[0], prob_extents[1]),
+                       extent=(0, tdata[-1], prob_extents[0], prob_extents[1]),
                        aspect='auto', vmin=0, vmax=prob_max)
             if c == n_samples - 1:
                 plt.colorbar()
             fillbox = np.asarray([[np.min(prob[:, :, c])]])
             plt.imshow(fillbox, interpolation='none', cmap=cmap,
-                       extent=((ts[-2] + ts[-1])/2., max_time, prob_extents[0], prob_extents[1]),
+                       extent=((tdata[-2] + tdata[-1])/2., xmax, prob_extents[0], prob_extents[1]),
                        aspect='auto')
 
-        ax1.set_xlim(0, max_time)
-        if max_value:
-            ax.set_ylim(0, max_value)
+        if xmax:
+            ax.set_xlim(0, xmax)
+        if ymax:
+            ax.set_ylim(0, ymax)
 
-        if tick_color:
+        if y_tick_color:
             for tl in ax.get_yticklabels():
-                tl.set_color(tick_color)
-            for tl in ax1.get_xticklabels():
-                tl.set_color(tick_color)
+                tl.set_color(y_tick_color)
 
-        if c % width == 0:
+        if (side == 'left' and c % width == 0) or (side == 'right' and (c+1) % width == 0):
             if ylabel:
-                ax1.set_ylabel(ylabel)
+                ax.set_ylabel(ylabel)
         else:
-            ax1.set_yticklabels([])
+            ax.set_yticklabels([])
+
         if c / width == height-1:
-            ax1.set_xlabel(xlabel)
+            if xlabel:
+                ax1.set_xlabel(xlabel)
         else:
             ax1.set_xticklabels([])
+
+        if aspect:
+            ax.set_aspect(aspect)
 
         plt.title(str(c))
 

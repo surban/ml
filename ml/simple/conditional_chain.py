@@ -114,7 +114,7 @@ def iterate_over_samples(func, valid, *inps, **kwargs):
         if show_progress:
             status(smpl, n_samples)
 
-        n_valid = np.where(valid[:, smpl])[0][-1]
+        n_valid = np.where(valid[:, smpl])[0][-1] + 1
 
         smpl_inps = []
         for inp in inps:
@@ -305,9 +305,21 @@ class VarGP(object):
         return tar, std, var_gp, var_data
 
     def pdf_for_all_inputs(self, n_inp_values, n_tar_values):
-        assert self.n_features == 1, "pdf_for_all_inputs() requires one-dimensional input space"
-        inp = np.arange(n_inp_values)[np.newaxis, :]
-        return self.pdf(inp, n_tar_values)
+        if self.n_features == 1:
+            if isinstance(n_inp_values, tuple) or isinstance(n_inp_values, list):
+                n_inp_values = n_inp_values[0]
+            inp = np.arange(n_inp_values)[np.newaxis, :]
+            return self.pdf(inp, n_tar_values)
+        else:
+            assert len(n_inp_values) == self.n_features
+            inp_dims = [np.arange(n) for n in n_inp_values]
+            inps = np.meshgrid(*inp_dims, indexing='ij')
+            flat_inps = [inp.flatten() for inp in inps]
+            inp_vec = np.vstack(tuple(flat_inps))
+            flat_pdf = self.pdf(inp_vec, n_tar_values)
+            pdf_shape = (flat_pdf.shape[0],) + inps[0].shape
+            pdf = np.reshape(flat_pdf, pdf_shape)
+            return pdf
 
     def pdf(self, inp, n_tar_values):
         # inp[feature, smpl]
@@ -735,7 +747,11 @@ class ControlObservationChain(object):
         self.gp_states_given_observations = None
         """:type : VarGP"""
 
-        # GPs that model p(s_t | s_(t-1), f_t)
+        # GP that models p(s_t | s_(t-1), f_t)
+        self.gp_all_transitions = None
+        """:type : VarGP"""
+
+        # GPs that model p(s_t | f_t) for each s_(t-1)
         self.gp_transitions = []
 
         # uniform prior over inputs
@@ -755,6 +771,12 @@ class ControlObservationChain(object):
     def get_transitions(self, states, inputs, valid, pstate):
         mask = np.roll((states == pstate) & valid, 1, axis=0) & valid
         return states[mask], inputs[mask]
+
+    def get_all_transitions(self, states, inputs, valid):
+        pstates = np.roll(states, 1, axis=0)
+        pvalid = np.roll(valid, 1, axis=0)
+        mask = valid & pvalid
+        return states[mask], pstates[mask], inputs[mask]
 
     def get_valid_observations(self, states, observations, valid):
         # states[step, sample]
@@ -830,6 +852,38 @@ class ControlObservationChain(object):
                 return
         done()
 
+        self.log_p_next_state = np.log(self.log_p_next_state)
+
+    def train_all_transitions(self, states, inputs, valid, mngful_dist=None, **kwargs):
+        # states[step, sample]
+        # inputs[step, sample]
+        # valid[step, sample]
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert np.all(0 <= inputs) and np.all(inputs < self.n_input_values)
+        assert states.dtype == 'int' and inputs.dtype == 'int'
+
+        # initial state probabilities
+        mu, sigma = normal_fit(states[0, :][np.newaxis, :])
+        s = np.arange(self.n_system_states)
+        self.log_p_initial_state[:] = normal_pdf(s[np.newaxis, :], mu, sigma)
+        self.log_p_initial_state /= np.sum(self.log_p_initial_state)
+        self.log_p_initial_state = np.log(self.log_p_initial_state)
+
+        # get all transitions and build training matrix
+        sta, psta, inp = self.get_all_transitions(states, inputs, valid)
+        psta_inp = np.vstack((psta, inp))
+
+        # train GP model
+        self.gp_all_transitions = VarGP(psta_inp, sta, **kwargs)
+        if mngful_dist is not None:
+            self.gp_all_transitions.limit_meaningful_predictions(mngful_dist, psta_inp, self.n_input_values)
+
+        # calculate resulting PDF
+        self.log_p_next_state = \
+            self.gp_all_transitions.pdf_for_all_inputs((self.n_system_states, self.n_input_values),
+                                                       self.n_system_states)
         self.log_p_next_state = np.log(self.log_p_next_state)
 
     def train_observations(self, states, observations, valid, finetune=False, finetune_optimize=False, **kwargs):
