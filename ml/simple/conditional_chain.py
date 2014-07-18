@@ -751,6 +751,10 @@ class ControlObservationChain(object):
         self.gp_all_transitions = None
         """:type : VarGP"""
 
+        # GP that models p(f_t | x_t)
+        self.gp_inputs_given_observations = None
+        """:type : VarGP"""
+
         # GPs that model p(s_t | f_t) for each s_(t-1)
         self.gp_transitions = []
 
@@ -928,6 +932,73 @@ class ControlObservationChain(object):
             print "Next state normalization failures: "
         for pstate, inp in np.transpose(err_pos):
             print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
+
+    def build_direct_factorgraph(self, observation_values):
+        # self.log_p_input[f_t] = p(f_t)
+        # self.log_p_state[s_t] = p(s_t)
+        # self.log_p_initial_state[s_-1] = p(s_-1)
+        # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
+        # log_p_input_given_obs
+        # observation_values[feature, step]
+        # log_p_state_given_obs[state, step]
+        # log_p_obs[state, step]
+        # log_p_next_input[f_(t+1), f_t]
+
+        n_steps = observation_values.shape[1]
+
+        # p(s_t | x_t)
+        log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values, self.n_system_states))
+
+        # p(f_t | x_t)
+        log_p_input_given_obs = np.log(self.gp_inputs_given_observations.pdf(observation_values, self.n_input_values))
+
+        # p(x_t) (dummy prior)
+        log_p_obs = np.zeros(1)
+
+        fg = FactorGraph()
+        inputs = []
+        input_factors = []
+        states = []
+        observations = []
+
+        # initial state
+        state_initial = Variable("s_initial", self.n_system_states)
+        fg.add_node(state_initial)
+        fg.add_node(Factor("S_INITIAL", self.log_p_initial_state, (state_initial,)))
+        previous_state = state_initial
+
+        # build graph parts for each timestep
+        for step in range(n_steps):
+            # observation (fixed)
+            obs = Variable("x_%d" % step, 1)
+            fg.add_node(obs)
+            fg.add_node(Factor("X_%d" % step, log_p_obs, (obs,)))
+
+            # input
+            inp = Variable("f_%d" % step, self.n_input_values)
+            fg.add_node(inp)
+            input_factor = Factor("F_%d" % step, log_p_input_given_obs[np.newaxis, :, step], (obs, inp))
+            fg.add_node(input_factor)
+
+            # p(s_t | s_(t-1), x_t, f_t)
+            # log_p_state_given_all[s_t, s_(t-1), f_t, x_t]
+            log_p_state_given_all = (log_p_state_given_obs[:, step, np.newaxis, np.newaxis, np.newaxis] +
+                                     self.log_p_next_state[:, :, :, np.newaxis])
+            log_p_state_given_all -= logsumexp(log_p_state_given_all, axis=0)
+
+            # state
+            state = Variable("s_%d" % step, self.n_system_states)
+            fg.add_node(state)
+            fg.add_node(Factor("S_%d" % step, log_p_state_given_all,
+                               (state, previous_state, inp, obs)))
+
+            inputs.append(inp)
+            input_factors.append(input_factor)
+            states.append(state)
+            observations.append(obs)
+            previous_state = state
+
+        return fg, inputs, input_factors, states, observations
 
     def build_factorgraph(self, n_steps=None, observation_values=None, smooth_input_sigma=None):
         # self.log_p_input[f_t] = p(f_t)
