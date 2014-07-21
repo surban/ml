@@ -4,13 +4,12 @@ import numpy as np
 from scipy.misc import logsumexp
 import scipy.stats
 import matplotlib.pyplot as plt
-import GPy as gpy
-
-from GPy.util import Tango
-from sklearn.mixture import GMM, VBGMM
+from sklearn.mixture import GMM
 from sklearn.neighbors.kde import KernelDensity
+
 from ml.common.progress import status, done
 from ml.simple.factorgraph import FactorGraph, Variable, Factor
+from ml.simple.vargp import VarGP, normal_pdf
 
 
 def find_evidence(state, state_next, train_states, input=None, train_inputs=None):
@@ -54,21 +53,6 @@ def normal_fit(x):
             sigma = 0.01
         sigma = np.asarray([[sigma]])
     return mu, sigma
-
-
-def normal_pdf(x, mu, sigma):
-    assert x.ndim == 2
-    assert mu.ndim == 1 and sigma.ndim == 2
-    k = x.shape[0]
-    assert k == mu.shape[0]
-    assert k == sigma.shape[0] == sigma.shape[1]
-
-    nf = (2.0*np.pi)**(-k/2.0) * np.linalg.det(sigma)**(-0.5)
-    prec = np.linalg.inv(sigma)
-    e = -0.5 * np.sum((x - mu[:, np.newaxis]) * np.dot(prec, (x - mu[:, np.newaxis])), axis=0)
-    pdf = nf * np.exp(e)
-
-    return pdf
 
 
 def merge_duplicates(x, y):
@@ -149,255 +133,6 @@ def iterate_over_samples(func, valid, *inps, **kwargs):
         return outs[0]
     else:
         return tuple(outs)
-
-
-class VarGP(object):
-
-    def __init__(self, inp, tar,
-                 use_data_variance=True,
-                 kernel=gpy.kern.rbf, normalize_x=True, normalize_y=True,
-                 optimize=True, optimize_restarts=1,
-                 gp_parameters={},
-                 cutoff_stds=None, std_adjust=1.0, std_power=1.0, min_std=0.01):
-
-        # inp[feature, smpl]
-        # tar[smpl]
-
-        assert inp.ndim == 2
-        assert tar.ndim == 1
-
-        self.mngful = None
-        self.cutoff_stds = cutoff_stds
-        self.std_adjust = std_adjust
-        self.std_power = std_power
-        self.use_data_variance = use_data_variance
-        self.min_std = min_std
-        self.kernel = kernel
-        self.normalize_x = normalize_x
-        self.normalize_y = normalize_y
-        self.gp_parameters = gp_parameters
-        self.n_features = None
-
-        self.gp = None
-        self.gp_var = None
-
-        self.train(inp, tar, optimize, optimize_restarts)
-
-    def copy_gp_parameters(self, src, dest):
-        for par in src._get_param_names():
-            dest[par] = src[par]
-
-    def train(self, inp, tar, optimize=False, optimize_restarts=1):
-        # merge duplicates
-        inp_mrgd, sta_mrgd, sta_var = self._merge_duplicates(inp, tar)
-
-        # handle singleton data (workaround for non-positive definite matrices in GPy)
-        if inp_mrgd.shape[1] == 1:
-            inp_mrgd = np.resize(inp_mrgd, (inp_mrgd.shape[0], 2))
-            sta_mrgd = np.resize(sta_mrgd, (2,))
-            inp_mrgd[:, 1] = inp_mrgd[:, 0] + 1
-            sta_mrgd[1] = sta_mrgd[0]
-            singleton_fix = True
-        else:
-            singleton_fix = False
-
-        n_samples = inp_mrgd.shape[1]
-        self.n_features = inp_mrgd.shape[0]
-
-        old_gp = self.gp
-        old_gp_var = self.gp_var
-
-        # fit GP on data
-        self.gp = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd[:, np.newaxis], self.kernel(),
-                                          normalize_X=self.normalize_x, normalize_Y=self.normalize_y)
-        self.gp.unconstrain('')
-        for k, v in self.gp_parameters.iteritems():
-            if v is not None:
-                self.gp.constrain_fixed(k, v)
-        self.gp.ensure_default_constraints()
-        if old_gp is not None:
-            self.copy_gp_parameters(old_gp, self.gp)
-        if optimize:
-            if optimize_restarts == 1:
-                self.gp.optimize()
-            else:
-                self.gp.optimize_restarts(num_restarts=optimize_restarts)
-
-        # estimate variance from predictions of first GP
-        sta_mu, _, _, _ = self.gp.predict(inp_mrgd.T, full_cov=False)
-        sta_mrgd_var = np.zeros(n_samples)
-        for n in range(n_samples):
-            smpl_inp = np.all(np.isclose(inp, inp_mrgd[:, n:n+1]), axis=0)
-            sta_mrgd_var[n] = np.mean((tar[smpl_inp] - sta_mu[n])**2)
-        if singleton_fix:
-            sta_mrgd_var = np.zeros(shape=sta_mrgd.shape)
-
-        # fit GP on variance
-        self.gp_var = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd_var[:, np.newaxis], self.kernel(),
-                                              normalize_Y=True)
-        self.gp_var.unconstrain('')
-        self.gp_var.ensure_default_constraints()
-        if old_gp_var is not None:
-            self.copy_gp_parameters(old_gp_var, self.gp_var)
-        if optimize:
-            self.gp_var.optimize()
-
-    def __str__(self):
-        return str(self.gp)
-
-    def _merge_duplicates(self, inp, tar):
-        # inp[feature, smpl]
-        # tar[smpl]
-
-        assert tar.ndim == 1
-        n_features = inp.shape[0]
-        n_samples = inp.shape[1]
-
-        xn = {}
-        for smpl in range(n_samples):
-            k = tuple(inp[:, smpl])
-            if k in xn:
-                xn[k].append(tar[smpl])
-            else:
-                xn[k] = [tar[smpl]]
-
-        merged_inp = np.zeros((n_features, len(xn.keys())), dtype=inp.dtype)
-        merged_tar = np.zeros(len(xn.keys()))
-        merged_tar_var = np.zeros(len(xn.keys()))
-        for smpl, (k, v) in enumerate(xn.iteritems()):
-            merged_inp[:, smpl] = np.asarray(k)
-            merged_tar[smpl] = np.mean(v)
-            merged_tar_var[smpl] = np.var(v, ddof=1)
-
-        return merged_inp, merged_tar, merged_tar_var
-
-    def limit_meaningful_predictions(self, mngful_dist, inp, n_inp_values):
-        # inp[feature, smpl]
-
-        assert inp.ndim == 2
-        assert inp.shape[0] == self.n_features
-        assert self.n_features == 1, "limit_meaningful_predictions() requires one-dimensional input space"
-
-        # determine meaningful predictions
-        self.mngful = np.zeros(n_inp_values, dtype='bool')
-        for i in range(mngful_dist):
-            self.mngful[np.minimum(inp[0, :] + i, n_inp_values - 1)] = True
-            self.mngful[np.maximum(inp[0, :] - i, 0)] = True
-
-    def predict(self, inp):
-        assert inp.ndim == 2
-        assert inp.shape[0] == self.n_features
-
-        tar, var_gp, _, _ = self.gp.predict(inp.T, full_cov=False)
-        tar = tar[:, 0]
-        var_gp = var_gp[:, 0]
-
-        var_data, _, _, _ = self.gp_var.predict(inp.T, full_cov=False)
-        var_data = var_data[:, 0]
-        var_data[var_data < 0] = 0
-
-        if self.use_data_variance:
-            std = np.sqrt(var_gp) + np.sqrt(var_data)
-        else:
-            std = np.sqrt(var_gp)
-        std = self.std_adjust * np.power(std, self.std_power)
-
-        return tar, std, var_gp, var_data
-
-    def pdf_for_all_inputs(self, n_inp_values, n_tar_values):
-        if self.n_features == 1:
-            if isinstance(n_inp_values, tuple) or isinstance(n_inp_values, list):
-                n_inp_values = n_inp_values[0]
-            inp = np.arange(n_inp_values)[np.newaxis, :]
-            return self.pdf(inp, n_tar_values)
-        else:
-            assert len(n_inp_values) == self.n_features
-            inp_dims = [np.arange(n) for n in n_inp_values]
-            inps = np.meshgrid(*inp_dims, indexing='ij')
-            flat_inps = [inp.flatten() for inp in inps]
-            inp_vec = np.vstack(tuple(flat_inps))
-            flat_pdf = self.pdf(inp_vec, n_tar_values)
-            pdf_shape = (flat_pdf.shape[0],) + inps[0].shape
-            pdf = np.reshape(flat_pdf, pdf_shape)
-            return pdf
-
-    def pdf(self, inp, n_tar_values):
-        # inp[feature, smpl]
-        # pdf[tar, smpl]
-        # tar[smpl]
-        # std[smpl]
-
-        assert inp.ndim == 2
-        assert inp.shape[0] == self.n_features
-
-        n_samples = inp.shape[1]
-
-        # calculate predictions and associated variances
-        tar, std, _, _ = self.predict(inp)
-        std[std < self.min_std] = self.min_std
-
-        # discretize output distribution
-        pdf = np.zeros((n_tar_values, n_samples))
-        tar_values = np.arange(n_tar_values)
-        for smpl in range(n_samples):
-            if self.mngful is not None:
-                inp_val = inp[0, smpl]
-                if not self.mngful[inp_val]:
-                    continue
-
-            ipdf = normal_pdf(tar_values[np.newaxis, :], np.atleast_1d(tar[smpl]), np.atleast_2d(std[smpl])**2)
-            if self.cutoff_stds is not None:
-                ipdf[np.abs(tar_values - tar[smpl]) > self.cutoff_stds * std[smpl]] = 0
-            nfac = np.sum(ipdf)
-            if nfac == 0:
-                nfac = 1
-            ipdf /= nfac
-            pdf[:, smpl] = ipdf
-
-        return pdf
-
-    def plot(self, trn_inp, trn_tar, n_inp_values, n_tar_values, rng=None, hmarker=None):
-        assert self.n_features == 1, "plot() requires one-dimensional input space"
-
-        if rng is None:
-            rng = [0, n_inp_values]
-
-        inp = np.arange(n_inp_values)[np.newaxis, :]
-        tar, std, var_gp, var_data = self.predict(inp)
-        pdf = self.pdf_for_all_inputs(n_inp_values, n_tar_values)
-
-        # plot base GP
-        plt.subplot(2, 2, 1)
-        plt.hold(True)
-        self.gp.plot(plot_limits=rng, which_data_rows=[], ax=plt.gca())
-        plt.ylim(0, n_tar_values)
-        plt.plot((n_tar_values - 5) * self.mngful, 'g')
-        plt.plot(trn_inp[0, :], trn_tar, 'r.')
-        if hmarker is not None:
-            plt.axhline(hmarker, color='r')
-
-        # plot GP with data variance
-        plt.subplot(2, 2, 2)
-        plt.hold(True)
-        plt.ylim(0, n_tar_values)
-        conf_gp = 2 * np.sqrt(var_gp)
-        conf_total = 2 * std
-        # cutoff = cutoff_stds * pred_std
-        # plt.fill_between(pred_inp, pred_tar + cutoff, pred_tar - cutoff,
-        #                  edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
-        plt.fill_between(inp[0, :], tar + conf_total, tar - conf_total,
-                         edgecolor=Tango.colorsHex['darkBlue'], facecolor=Tango.colorsHex['lightBlue'], alpha=0.4)
-        plt.fill_between(inp[0, :], tar + conf_gp, tar - conf_gp,
-                         edgecolor=Tango.colorsHex['darkPurple'], facecolor=Tango.colorsHex['lightPurple'], alpha=0.4)
-        plt.plot(inp[0, :], tar, 'k')
-        #plt.errorbar(pred_inp, pred_tar, 2*np.sqrt(sta_mrgd_var), fmt=None)
-        if hmarker is not None:
-            plt.axhline(hmarker, color='r')
-
-        # plot output distribution
-        plt.subplot(2, 2, 3)
-        plt.imshow(pdf, origin='lower', aspect=1, interpolation='none')
-        plt.colorbar()
 
 
 ########################################################################################################################
@@ -904,12 +639,35 @@ class ControlObservationChain(object):
         else:
             self.gp_states_given_observations = VarGP(v_observations, v_states, use_data_variance=False, **kwargs)
 
+    def train_inputs_given_observations(self, states, observations, valid,
+                                        finetune=False, finetune_optimize=False, **kwargs):
+        # states[step, sample]
+        # observations[feature, step, sample]
+        # valid[step, sample]
+
+        assert np.all(0 <= states) and np.all(states < self.n_system_states)
+        assert states.dtype == 'int'
+
+        v_states, v_observations = self.get_valid_observations(states, observations, valid)
+        if finetune:
+            self.gp_inputs_given_observations.train(v_observations, v_states, optimize=finetune_optimize)
+        else:
+            self.gp_inputs_given_observations = VarGP(v_observations, v_states, use_data_variance=False, **kwargs)
+
     def infer_states(self, observations):
         # observations[feature, step]
         # states[step]
         # states_std[step]
 
         states, states_std, _, _ = self.gp_states_given_observations.predict(observations)
+        return states, states_std
+
+    def infer_inputs(self, observations):
+        # observations[feature, step]
+        # states[step]
+        # states_std[step]
+
+        states, states_std, _, _ = self.gp_inputs_given_observations.predict(observations)
         return states, states_std
 
     def check_normalization(self):
@@ -933,7 +691,7 @@ class ControlObservationChain(object):
         for pstate, inp in np.transpose(err_pos):
             print "pstate=%d inp=%d:   %f" % (pstate, inp, ns_sum[pstate, inp])
 
-    def build_direct_factorgraph(self, observation_values):
+    def build_direct_factorgraph(self, observation_values, observation_to_input):
         # self.log_p_input[f_t] = p(f_t)
         # self.log_p_state[s_t] = p(s_t)
         # self.log_p_initial_state[s_-1] = p(s_-1)
@@ -960,6 +718,7 @@ class ControlObservationChain(object):
         input_factors = []
         states = []
         observations = []
+        observations2 = []
 
         # initial state
         state_initial = Variable("s_initial", self.n_system_states)
@@ -969,57 +728,97 @@ class ControlObservationChain(object):
 
         # build graph parts for each timestep
         for step in range(n_steps):
-            # observation (fixed)
-            obs = Variable("x_%d" % step, 1)
-            fg.add_node(obs)
-            fg.add_node(Factor("X_%d" % step, log_p_obs, (obs,)))
+            if observation_to_input:
+                # observation (fixed)
+                obs = Variable("x_%d" % step, 1)
+                fg.add_node(obs)
+                fg.add_node(Factor("X_%d" % step, log_p_obs, (obs,)))
+
+            # observation 2 (fixed)
+            obs2 = Variable("x'_%d" % step, 1)
+            fg.add_node(obs2)
+            fg.add_node(Factor("X'_%d" % step, log_p_obs, (obs2,)))
 
             # input
             inp = Variable("f_%d" % step, self.n_input_values)
             fg.add_node(inp)
-            input_factor = Factor("F_%d" % step, log_p_input_given_obs[np.newaxis, :, step], (obs, inp))
+            if observation_to_input:
+                input_factor = Factor("F_%d" % step, log_p_input_given_obs[np.newaxis, :, step], (obs, inp))
+            else:
+                input_factor = Factor("F_%d" % step, self.log_p_input, (inp,))
             fg.add_node(input_factor)
 
-            # p(s_t | s_(t-1), x_t, f_t)
+            # state: p(s_t | s_(t-1), x_t, f_t)
             # log_p_state_given_all[s_t, s_(t-1), f_t, x_t]
             log_p_state_given_all = (log_p_state_given_obs[:, step, np.newaxis, np.newaxis, np.newaxis] +
                                      self.log_p_next_state[:, :, :, np.newaxis])
             log_p_state_given_all -= logsumexp(log_p_state_given_all, axis=0)
+            log_p_state_given_all[np.isnan(log_p_state_given_all)] = -np.inf
+            assert not np.any(np.isnan(log_p_state_given_all))
 
-            # state
             state = Variable("s_%d" % step, self.n_system_states)
             fg.add_node(state)
             fg.add_node(Factor("S_%d" % step, log_p_state_given_all,
-                               (state, previous_state, inp, obs)))
+                               (state, previous_state, inp, obs2)))
 
             inputs.append(inp)
             input_factors.append(input_factor)
             states.append(state)
-            observations.append(obs)
+            if observation_to_input:
+                observations.append(obs)
+            observations2.append(obs2)
             previous_state = state
 
-        return fg, inputs, input_factors, states, observations
+        return fg, inputs, input_factors, states, observations, observations2
 
-    def build_factorgraph(self, n_steps=None, observation_values=None, smooth_input_sigma=None):
+    def direct_fg_most_probable_states_and_inputs_given_observations(self, observation_values, observation_to_input):
+        fg, inputs, input_factors, states, observations, observations2 = \
+            self.build_direct_factorgraph(observation_values, observation_to_input=observation_to_input)
+
+        fg.prepare()
+        fg.do_message_passing()
+
+        best_log_p = fg.backtrack_best_state()
+        best_state = np.asarray([s.best_state for s in states])
+        best_input = np.asarray([i.best_state for i in inputs])
+
+        return best_state, best_input, best_log_p
+
+    def build_factorgraph(self, n_steps=None, observation_values=None, observation_for_inputs_values=None,
+                          smooth_input_sigma=None):
         # self.log_p_input[f_t] = p(f_t)
         # self.log_p_state[s_t] = p(s_t)
         # self.log_p_initial_state[s_-1] = p(s_-1)
         # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
         # observation_values[feature, step]
+        # observation_for_input_values[feature, step]
         # log_p_state_given_obs[state, step]
-        # log_p_obs[state, step]
+        # log_p_obs_given_state[state, step]
         # log_p_next_input[f_(t+1), f_t]
+        # log_p_input_given_obs[state, step]
+        # log_p_obs_given_input[state, step]
 
         if observation_values is not None:
             n_steps = observation_values.shape[1]
+        if observation_for_inputs_values is not None:
+            assert n_steps == observation_for_inputs_values.shape[1]
         assert n_steps is not None
 
         if observation_values is not None:
             # p(s_t | x_t)
-            log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values, self.n_system_states))
+            log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values,
+                                                                                 self.n_system_states))
 
             # p(x_t | s_t) + const.
-            log_p_obs = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
+            log_p_obs_given_state = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
+
+        if observation_for_inputs_values is not None:
+            # p(f_t | x_t)
+            log_p_input_given_obs = np.log(self.gp_inputs_given_observations.pdf(observation_for_inputs_values,
+                                                                                 self.n_input_values))
+
+            # p(x'_t | f_t) + const.
+            log_p_obs_given_input = log_p_input_given_obs - self.log_p_input[:, np.newaxis]
 
         # p(f_(t+1) | f_t)
         if smooth_input_sigma is not None:
@@ -1035,6 +834,7 @@ class ControlObservationChain(object):
         input_factors = []
         states = []
         observations = []
+        observations_for_inputs = []
 
         # initial state
         state_initial = Variable("s_initial", self.n_system_states)
@@ -1070,25 +870,37 @@ class ControlObservationChain(object):
                 # observation (fixed)
                 obs = Variable("x_%d" % step, 1)
                 fg.add_node(obs)
-                fg.add_node(Factor("X_%d" % step, log_p_obs[np.newaxis, :, step], (obs, state)))
+                fg.add_node(Factor("X_%d" % step, log_p_obs_given_state[np.newaxis, :, step], (obs, state)))
+
+            if observation_for_inputs_values is not None:
+                # observation for input (fixed)
+                obs_for_inp = Variable("x'_%d" % step, 1)
+                fg.add_node(obs_for_inp)
+                fg.add_node(Factor("X'_%d" % step, log_p_obs_given_input[np.newaxis, :, step], (obs_for_inp, inp)))
 
             inputs.append(inp)
             input_factors.append(input_factor)
             states.append(state)
             if observation_values is not None:
                 observations.append(obs)
+            if observation_for_inputs_values is not None:
+                observations_for_inputs.append(obs_for_inp)
             previous_state = state
             if smooth_input_sigma is not None:
                 previous_inp = inp
 
-        return fg, inputs, input_factors, states, observations
+        return fg, inputs, input_factors, states, observations, observations_for_inputs
 
-    def fg_most_probable_states_and_inputs_given_observations(self, observation_values, smooth_input=None, loopy_iters=None,
+    def fg_most_probable_states_and_inputs_given_observations(self, observation_values,
+                                                              observation_for_inputs_values=None,
+                                                              smooth_input=None, loopy_iters=None,
                                                               prepass_non_loopy=True):
         n_steps = observation_values.shape[1]
 
-        fg, inputs, input_factors, states, observations = self.build_factorgraph(observation_values=observation_values,
-                                                                                 smooth_input_sigma=smooth_input)
+        fg, inputs, input_factors, states, observations, observations_for_inputs = \
+            self.build_factorgraph(observation_values=observation_values,
+                                   observation_for_inputs_values=observation_for_inputs_values,
+                                   smooth_input_sigma=smooth_input)
 
         if loopy_iters is not None:
             if prepass_non_loopy:
@@ -1124,7 +936,8 @@ class ControlObservationChain(object):
 
     def fg_most_probable_states_given_inputs(self, input_values):
         n_steps = input_values.shape[0]
-        fg, inputs, input_factors, states, observations = self.build_factorgraph(n_steps=n_steps)
+        fg, inputs, input_factors, states, observations, observations_for_inputs = \
+            self.build_factorgraph(n_steps=n_steps)
 
         # clamp inputs
         for step in range(n_steps):
