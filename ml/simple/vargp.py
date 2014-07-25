@@ -8,7 +8,7 @@ class VarGP(object):
 
     def __init__(self, inp, tar,
                  use_data_variance=True,
-                 kernel=gpy.kern.rbf, normalize_x=True, normalize_y=True,
+                 kernel=None, var_kernel=None, normalize_x=True, normalize_y=True,
                  optimize=True, optimize_restarts=1,
                  gp_parameters={},
                  cutoff_stds=None, std_adjust=1.0, std_power=1.0, min_std=0.01):
@@ -19,6 +19,11 @@ class VarGP(object):
         assert inp.ndim == 2
         assert tar.ndim == 1
 
+        if kernel is None:
+            kernel = lambda: gpy.kern.rbf(inp.shape[0])
+        if var_kernel is None:
+            var_kernel = kernel
+
         self.mngful = None
         self.cutoff_stds = cutoff_stds
         self.std_adjust = std_adjust
@@ -26,6 +31,7 @@ class VarGP(object):
         self.use_data_variance = use_data_variance
         self.min_std = min_std
         self.kernel = kernel
+        self.var_kernel = var_kernel
         self.normalize_x = normalize_x
         self.normalize_y = normalize_y
         self.gp_parameters = gp_parameters
@@ -86,7 +92,7 @@ class VarGP(object):
             sta_mrgd_var = np.zeros(shape=sta_mrgd.shape)
 
         # fit GP on variance
-        self.gp_var = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd_var[:, np.newaxis], self.kernel(),
+        self.gp_var = gpy.models.GPRegression(inp_mrgd.T, sta_mrgd_var[:, np.newaxis], self.var_kernel(),
                                               normalize_Y=True)
         self.gp_var.unconstrain('')
         self.gp_var.ensure_default_constraints()
@@ -209,30 +215,42 @@ class VarGP(object):
 
         return pdf
 
-    def plot(self, trn_inp, trn_tar, n_inp_values, n_tar_values, rng=None, hmarker=None):
+    def plot(self, trn_inp, trn_tar, inp=None, n_inp_values=None, n_tar_values=None, rng=None, hmarker=None):
         assert self.n_features == 1, "plot() requires one-dimensional input space"
 
-        if rng is None:
-            rng = [0, n_inp_values]
+        if inp is None:
+            assert n_inp_values, "plot() requires either inp or n_inp_values"
+            inp = np.arange(n_inp_values)[np.newaxis, :]
 
-        inp = np.arange(n_inp_values)[np.newaxis, :]
+        assert inp.ndim == 2 and inp.shape[0] == 1, "plot() requires one-dimensional input space"
+
+        if rng is None:
+            rng = [np.min(inp), np.max(inp)]
+
         tar, std, var_gp, var_data = self.predict(inp)
-        pdf = self.pdf_for_all_inputs(n_inp_values, n_tar_values)
+
+
+        if n_inp_values and n_tar_values:
+            n_rows = 2
+        else:
+            n_rows = 1
 
         # plot base GP
-        plt.subplot(2, 2, 1)
+        plt.subplot(n_rows, 2, 1)
         plt.hold(True)
         self.gp.plot(plot_limits=rng, which_data_rows=[], ax=plt.gca())
-        plt.ylim(0, n_tar_values)
-        plt.plot((n_tar_values - 5) * self.mngful, 'g')
+        if n_tar_values:
+            plt.ylim(0, n_tar_values)
+            plt.plot((n_tar_values - 5) * self.mngful, 'g')
         plt.plot(trn_inp[0, :], trn_tar, 'r.')
         if hmarker is not None:
             plt.axhline(hmarker, color='r')
 
         # plot GP with data variance
-        plt.subplot(2, 2, 2)
+        plt.subplot(n_rows, 2, 2)
         plt.hold(True)
-        plt.ylim(0, n_tar_values)
+        if n_tar_values:
+            plt.ylim(0, n_tar_values)
         conf_gp = 2 * np.sqrt(var_gp)
         conf_total = 2 * std
         # cutoff = cutoff_stds * pred_std
@@ -243,14 +261,17 @@ class VarGP(object):
         plt.fill_between(inp[0, :], tar + conf_gp, tar - conf_gp,
                          edgecolor=Tango.colorsHex['darkPurple'], facecolor=Tango.colorsHex['lightPurple'], alpha=0.4)
         plt.plot(inp[0, :], tar, 'k')
+        plt.plot(trn_inp[0, :], trn_tar, 'r.')
         #plt.errorbar(pred_inp, pred_tar, 2*np.sqrt(sta_mrgd_var), fmt=None)
         if hmarker is not None:
             plt.axhline(hmarker, color='r')
 
-        # plot output distribution
-        plt.subplot(2, 2, 3)
-        plt.imshow(pdf, origin='lower', aspect=1, interpolation='none')
-        plt.colorbar()
+        if n_inp_values and n_tar_values:
+            # plot output distribution
+            pdf = self.pdf_for_all_inputs(n_inp_values, n_tar_values)
+            plt.subplot(n_rows, 2, 3)
+            plt.imshow(pdf, origin='lower', aspect=1, interpolation='none')
+            plt.colorbar()
 
 
 def normal_pdf(x, mu, sigma):

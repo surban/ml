@@ -637,7 +637,7 @@ class ControlObservationChain(object):
         if finetune:
             self.gp_states_given_observations.train(v_observations, v_states, optimize=finetune_optimize)
         else:
-            self.gp_states_given_observations = VarGP(v_observations, v_states, use_data_variance=False, **kwargs)
+            self.gp_states_given_observations = VarGP(v_observations, v_states, use_data_variance=True, **kwargs)
 
     def train_inputs_given_observations(self, states, observations, valid,
                                         finetune=False, finetune_optimize=False, **kwargs):
@@ -652,7 +652,7 @@ class ControlObservationChain(object):
         if finetune:
             self.gp_inputs_given_observations.train(v_observations, v_states, optimize=finetune_optimize)
         else:
-            self.gp_inputs_given_observations = VarGP(v_observations, v_states, use_data_variance=False, **kwargs)
+            self.gp_inputs_given_observations = VarGP(v_observations, v_states, use_data_variance=True, **kwargs)
 
     def infer_states(self, observations):
         # observations[feature, step]
