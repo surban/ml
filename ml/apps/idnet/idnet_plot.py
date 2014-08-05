@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 import ml.nn.id
 from ml.common.complex import *
+from ml.common.gpu import gather
 
 np.set_printoptions(precision=3, suppress=True)
 
@@ -18,6 +19,7 @@ def plot_complex_weights(re, im):
     #plt.ylabel('Im')
     plt.axis('equal')
     #plt.gca().set_aspect('equal')
+
 
 def plot_all_weights(ps):
     plt.subplot(3,1,1)

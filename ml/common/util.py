@@ -780,9 +780,10 @@ class CheckpointHandler(object):
 
     @staticmethod
     def _replace_file(src, dest):
-        if sys.platform == 'nt':
+        if sys.platform == 'win32':
             if os.path.exists(dest):
                 os.remove(dest)
+            assert not os.path.exists(dest), "%s still exists after deleting it" % dest
         os.rename(src, dest)
 
     @property

@@ -18,7 +18,6 @@ from ml.datasets.shift import generate_id_data
 import climin
 
 
-
 # hyperparameters
 check_nans = False
 show_gradient = False
@@ -61,15 +60,15 @@ if 'tight_weights' in dir(cfg) and cfg.tight_weights:
     loss += T.sum((ps.x_to_xhat_re.T - ps.yhat_to_y_re)**2 + (ps.x_to_xhat_im.T + ps.yhat_to_y_im)**2)
 
 f_output = function(inputs=[ps.flat, x], outputs=out_re)
-f_loss = function(inputs=[ps.flat,x,t], outputs=loss)
-f_pure_loss = function(inputs=[ps.flat,x,t], outputs=pure_loss)
-f_dloss = function(inputs=[ps.flat,x,t], outputs=T.grad(loss, ps.flat))
+f_loss = function(inputs=[ps.flat, x, t], outputs=loss)
+f_pure_loss = function(inputs=[ps.flat, x, t], outputs=pure_loss)
+f_dloss = function(inputs=[ps.flat, x, t], outputs=T.grad(loss, ps.flat))
 
 # separate gradients wrt layer weights
 if show_gradient:
     f_grads = {}
     for wname, wvar in ps.vars.iteritems():
-        f_grads[wname] = function(inputs=[ps.flat,x,t], outputs=T.grad(loss, wvar))
+        f_grads[wname] = function(inputs=[ps.flat, x, t], outputs=T.grad(loss, wvar))
 
 if do_weight_plots:
     plt.figure()
@@ -155,9 +154,9 @@ generate_new_data()
 
 # optimize
 his = ml.common.util.ParameterHistory(max_missed_val_improvements=1000,
-                                   desired_loss=0.0001,
-                                   max_iters=cfg.max_iters,
-                                   min_iters=cfg.min_iters)
+                                      desired_loss=0.0001,
+                                      max_iters=cfg.max_iters,
+                                      min_iters=cfg.min_iters)
 for iter, sts in enumerate(opt):
     if check_nans:
         assert np.all(np.isfinite(gather(sts['step']))), 'NaN in step'
