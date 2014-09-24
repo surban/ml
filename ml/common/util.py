@@ -625,10 +625,18 @@ class ParameterHistory(object):
         self.min_iters = min_iters
 
         self.best_val_loss = float('inf')
-        self.history = np.zeros((4,0))
+        self.history = np.zeros((4, 0))
         self.last_val_improvement = 0
         self.should_terminate = False
         self.start_time = time.time()
+        self.best_iter = None
+
+        self.reset_best()
+
+    def reset_best(self):
+        self.best_val_loss = float('inf')
+        self.last_val_improvement = 0
+        self.should_terminate = False
         self.best_iter = None
 
     def add(self, iter, pars, trn_loss, val_loss, tst_loss):

@@ -238,10 +238,13 @@ def generate_data(x_len, s_len, n_samples, binary=False):
             gpuarray_to_garray(shifted))
 
 
-def generate_data_2d(width, height, n_samples, binary=False, with_hot=False):
+def generate_data_2d(width, height, n_samples, binary=False, with_hot=False, force_id=True):
     data = generate_random_data(width * height, n_samples, binary=binary)
     x_shifts, y_shifts, shifts = generate_shifts_2d(width, height, n_samples, with_hot=with_hot)
-    shifted = generate_shifted_2d(data, x_shifts, y_shifts, width, height)
+    if force_id:
+        shifted = data
+    else:
+        shifted = generate_shifted_2d(data, x_shifts, y_shifts, width, height)
     return (gpuarray_to_garray(data),
             gpuarray_to_garray(shifts),
             gpuarray_to_garray(shifted))

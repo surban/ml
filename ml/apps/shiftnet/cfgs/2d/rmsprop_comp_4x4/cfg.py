@@ -8,7 +8,7 @@ n_batch = 1000
 optimizer = 'rmsprop'
 init = 0.1
 momentum = 0.8
-new_data_iters = 1000
+new_data_iters = 100
 max_iters = None
 min_iters = 20000
 

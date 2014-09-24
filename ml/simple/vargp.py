@@ -264,7 +264,7 @@ class VarGP(object):
         conf_total = 2 * std
         # cutoff = cutoff_stds * pred_std
         # plt.fill_between(pred_inp, pred_tar + cutoff, pred_tar - cutoff,
-        #                  edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.colorsHex['lightRed'], alpha=0.4)
+        #                  edgecolor=Tango.colorsHex['darkRed'], facecolor=Tango.csHex['lightRed'], alpha=0.4)
         plt.fill_between(inp[0, :], tar + conf_total, tar - conf_total,
                          edgecolor=Tango.colorsHex['darkBlue'], facecolor=Tango.colorsHex['lightBlue'], alpha=0.4)
         # plt.fill_between(inp[0, :], tar + conf_gp, tar - conf_gp,

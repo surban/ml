@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from glob import glob
 
 import ml.common.plot
 import ml.common.gpu
@@ -18,6 +19,7 @@ from ml.apps.shiftnet.shiftnet_plot import plot_all_weights
 from ml.datasets.shift import generate_data, format_sample
 import climin
 from ml.nn.shift2d import FourierShiftNet2D
+from theano import shared
 
 
 # hyperparameters
@@ -26,15 +28,19 @@ show_gradient = False
 cfg, plot_dir, cp_handler, checkpoint = ml.common.util.standard_cfg(prepend_scriptname=False, with_checkpoint=True)
 cfg.steprate = ml.common.util.ValueIter(cfg.steprate_itr, cfg.steprate_val,
                                         transition='linear', transition_length=1000)
-if 'use_id_data' in dir(cfg):
-    use_id_data = cfg.use_id_data
-else:
-    use_id_data = False
 if 'do_weight_plots' in dir(cfg):
     do_weight_plots = cfg.do_weight_plots
 else:
     do_weight_plots = True
 with_hot = (cfg.arch == 'conv')
+if 'id_max_iter' in dir(cfg):
+    id_max_iter = cfg.id_max_iter
+else:
+    id_max_iter = 0
+if 'id_target_loss' in dir(cfg):
+    id_target_loss = cfg.id_target_loss
+else:
+    id_target_loss = 0
 
 # parameters
 ps = breze.util.ParameterSet(**FourierShiftNet2D.parameter_shapes(cfg.width, cfg.height, cfg.arch))
@@ -43,10 +49,18 @@ ps = breze.util.ParameterSet(**FourierShiftNet2D.parameter_shapes(cfg.width, cfg
 x = T.matrix('x')
 s = T.matrix('s')
 t = T.matrix('t')
+s_weight = shared(np.float32(1.0), name='s_weight')
+
+if id_max_iter > 0:
+    print "Training using id data until iteration %d or loss %g" % (id_max_iter, id_target_loss)
+    s_weight.set_value(np.float32(0.0))
+    use_id_data = True
+else:
+    use_id_data = False
 
 # Theano expressions
 fsn = FourierShiftNet2D(cfg.width, cfg.height, cfg.arch, **ps.vars)
-out_re, out_im = fsn.output(x, s)
+out_re, out_im = fsn.output(x, s, s_weight)
 
 # pure loss
 pure_loss = T.mean((out_re - t)**2)
@@ -94,7 +108,7 @@ def generate_new_data():
     global trn_inputs, trn_shifts, trn_targets
     #print "Generating new data..."
     trn_inputs, trn_shifts, trn_targets = \
-        generate_data_2d(cfg.width, cfg.height, cfg.n_batch, with_hot=with_hot)
+        generate_data_2d(cfg.width, cfg.height, cfg.n_batch, with_hot=with_hot, force_id=use_id_data)
     if use_id_data:
         trn_targets = trn_inputs.copy()
 
@@ -127,6 +141,18 @@ def shift_doubling_matrix(n):
     d = [[1, 0]]
     nd = [d for _ in range(n)]
     return np.block_diag(*nd)
+
+def generate_validation_data():
+    global val_inputs, val_shifts, val_targets
+    global tst_inputs, tst_shifts, tst_targets
+
+    print "Generating validation data..."
+    val_inputs, val_shifts, val_targets = generate_data_2d(cfg.width, cfg.height, cfg.n_val_samples, with_hot=with_hot,
+                                                           force_id=use_id_data)
+    tst_inputs, tst_shifts, tst_targets = generate_data_2d(cfg.width, cfg.height, cfg.n_val_samples, binary=True,
+                                                           with_hot=with_hot, force_id=use_id_data)
+    print "Done."
+
 
 # select optimizer
 if cfg.optimizer == 'rprop':
@@ -210,14 +236,8 @@ else:
             print "Zeroing %s" % wname
             ps[wname] = 0
 
-    print "Generating validation data..."
-    val_inputs, val_shifts, val_targets = generate_data_2d(cfg.width, cfg.height, cfg.n_val_samples, with_hot=with_hot)
-    tst_inputs, tst_shifts, tst_targets = generate_data_2d(cfg.width, cfg.height, cfg.n_val_samples, binary=True,
-                                                           with_hot=with_hot)
-    if use_id_data:
-        val_targets = val_inputs.copy()
-        tst_targets = tst_inputs.copy()
-    print "Done."
+    # generate validation data
+    generate_validation_data()
 
     # initialize iteration counter
     iteration = 0
@@ -230,6 +250,10 @@ else:
                                           desired_loss=0.0001,
                                           max_iters=cfg.max_iters,
                                           min_iters=cfg.min_iters)
+
+    # cleanup plots
+    for filename in glob(plot_dir + "/weights_*.pdf"):
+        os.remove(filename)
 
 print "initial validation loss: ", f_loss(ps.data, val_inputs, val_shifts, val_targets)
 
@@ -254,9 +278,6 @@ for sts in opt:
 
     if iteration % cfg.new_data_iters == 0:
         generate_new_data()
-
-    #if iter % 1000 == 0:
-    #    opt.reset()
 
     if iteration % 10 == 0:
         opt.steprate = cfg.steprate[iteration]
@@ -307,6 +328,13 @@ for sts in opt:
         if his.should_terminate:
             break
 
+        if use_id_data and (iteration > id_max_iter or val_loss < id_target_loss):
+            print "Switching to shift data..."
+            s_weight.set_value(np.float32(1.0))
+            use_id_data = False
+            generate_validation_data()
+            his.reset_best()
+
     iteration += 1
 
 if opt != []:
@@ -326,7 +354,8 @@ his.plot()
 plt.savefig(plot_dir + "/loss.pdf")
 
 # check with simple patterns
-sim_inputs, sim_shifts, sim_targets = generate_data_2d(cfg.width, cfg.height, 3, binary=True, with_hot=with_hot)
+sim_inputs, sim_shifts, sim_targets = generate_data_2d(cfg.width, cfg.height, 3, binary=True, with_hot=with_hot,
+                                                       force_id=use_id_data)
 if use_id_data:
     sim_targets = sim_inputs.copy()
 sim_results = gather(f_output(ps.data, post(sim_inputs), post(sim_shifts)))

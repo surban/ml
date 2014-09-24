@@ -57,7 +57,7 @@ class FourierShiftNet2D(object):
                 'yhat_to_y_re': (x_len, x_len),
                 'yhat_to_y_im': (x_len, x_len)}
 
-    def output(self, x, s):
+    def output(self, x, s, s_weight):
         # DFT layer of x: xhat
         xhat_re, xhat_im = cdot(self.x_to_xhat_re, self.x_to_xhat_im,
                                 x, T.zeros_like(x))
@@ -83,10 +83,8 @@ class FourierShiftNet2D(object):
                                   Xhat_re, Xhat_im)
         Yhat2_re, Yhat2_im = cdot(self.Shat_to_Yhat_re, self.Shat_to_Yhat_im,
                                   Shat_re, Shat_im)
-        Yhat_re = Yhat1_re + Yhat2_re
-        Yhat_im = Yhat1_im + Yhat2_im
-        # Yhat_re = Yhat1_re
-        # Yhat_im = Yhat1_im
+        Yhat_re = Yhat1_re + s_weight * Yhat2_re
+        Yhat_im = Yhat1_im + s_weight * Yhat2_im
 
         # exp layer of Yhat: yhat
         yhat_re, yhat_im = cexp(Yhat_re, Yhat_im)
