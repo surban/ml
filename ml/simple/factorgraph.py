@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+from scipy.misc.common import logsumexp
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +62,11 @@ class FactorGraph(object):
             if v.is_leaf:
                 return v.initiate_backtrack()
         assert False, "no leaf variable available"
+
+    def calculate_marginals(self):
+        log.debug("calculating marginals")
+        for v in self.variables:
+            v.calculate_marginal()
 
 
 class _Node(object):
@@ -135,9 +141,12 @@ class _Node(object):
                 if self.factorgraph.loopy_propagation or nb not in self.transmitted:
                     self.transmit_msg(nb)
 
-    def backtrack_maximum(self, source, value):
+    def backtrack_maximum(self, source, value, nodes=None):
         assert source is None or source in self.neighbours, "unknown source"
         assert isinstance(value, int), "value must be integer"
+
+        if nodes is not None and self not in nodes:
+            return False
 
         if self.factorgraph.loopy_propagation:
             bt = self.backtracked
@@ -215,7 +224,7 @@ class Factor(_Node):
         # transform indices
         x_argmax = np.unravel_index(xflat_argmax, x.shape[1:])
 
-        # reintroduce dimension over which iteration takes place, if requested
+        # reintroduce dimension in argmax over which iteration takes place, if requested
         if keep_dim_in_argmax:
             x_argmax_new = list(x_argmax[0:dim])
             x_argmax_new.append(np.arange(x.shape[0]))
@@ -226,6 +235,25 @@ class Factor(_Node):
         x_argmax = [np.asarray(p, dtype='int') for p in x_argmax]
 
         return x_max, x_argmax
+
+    def _logsum(self, x, dim):
+        """Calculates the sum of x[:^(dim-1), i, ...] for each value of i.
+        Returns a vector of size x.shape[dim]."""
+
+        # handle case when there is no summation to be done
+        if x.ndim == 1 and dim == 0:
+            return x
+
+        # make stationary axis the first one
+        x = np.rollaxis(x, dim)
+
+        # flatten other axes
+        xflat = np.reshape(x, (x.shape[0], -1))
+
+        # calculate sum
+        x_sum = logsumexp(xflat, axis=1)
+
+        return x_sum
 
     def calculate_msg(self, target):
         # remove dimensions corresponding to clamped variables from factor
@@ -239,30 +267,38 @@ class Factor(_Node):
         # log.debug("%s: factor slice selector: %s", self.name, str(sl))
 
         # get factor
-        m = np.copy(self.factor[sl])
+        m_sp = np.copy(self.factor[sl])
+        m_ms = np.copy(self.factor[sl])
 
         # sum all received messages except from target
         for dim, var in enumerate(self.variables):
             if var is target:
                 continue
 
+            var_msg_sp, var_msg_ms = self.received_msgs[var]
+
             # broadcast received messages
             nshape = [1 for _ in range(dim)]
             nshape.append(-1)
             nshape.extend([1 for _ in range(self.n_variables - dim - 1)])
-            var_msg = self.received_msgs[var].reshape(tuple(nshape))
+            var_msg_sp = var_msg_sp.reshape(tuple(nshape))
+            var_msg_ms = var_msg_ms.reshape(tuple(nshape))
 
-            m += var_msg
+            m_sp += var_msg_sp
+            m_ms += var_msg_ms
+
+        target_dim = self.variables.index(target)
+
+        # sum over all non-target dimensions
+        msg_sp = self._logsum(m_sp, target_dim)
 
         # maximize over all non-target dimensions
-        target_dim = self.variables.index(target)
-        msg, mt = self._nanmax(m, target_dim, keep_dim_in_argmax=True)
-        self.max_track[target] = mt
+        msg_ms, self.max_track[target] = self._nanmax(m_ms, target_dim, keep_dim_in_argmax=True)
 
-        return msg
+        return msg_ms, msg_sp
 
-    def backtrack_maximum(self, source, value):
-        if not super(Factor, self).backtrack_maximum(source, value):
+    def backtrack_maximum(self, source, value, nodes=None):
+        if not super(Factor, self).backtrack_maximum(source, value, nodes):
             return
         assert 0 <= value < source.n_states, "value out of source range"
 
@@ -283,6 +319,9 @@ class Variable(_Node):
         """:type: list of [Factor]"""
         self.best_state = None
         self.clamped_value = None
+        self.marginal = None
+        self.marginal_mean = None
+        self.marginal_variance = None
 
         log.debug("Created variable %s", name)
 
@@ -318,38 +357,47 @@ class Variable(_Node):
         """Assume unity message from specified factor before real message arrives."""
         assert fac in self.factors, "specified factor not connected to this variable"
         log.debug("%s: assuming unity message from factor %s", self.name, fac.name)
-        self.received_msgs[fac] = np.zeros(self.n_states)
+        self.received_msgs[fac] = (np.zeros(self.n_states), np.zeros(self.n_states))
 
     def calculate_msg(self, target):
         # sum over all received msgs except from target
         if self.clamped_value is not None:
-            msg = np.zeros(1)
+            msg_sp = np.zeros(1)
+            msg_ms = np.zeros(1)
         else:
-            msg = np.zeros(self.n_states)
+            msg_sp = np.zeros(self.n_states)
+            msg_ms = np.zeros(self.n_states)
         for fac in self.factors:
             if fac is target:
                 continue
-            msg += self.received_msgs[fac]
-        return msg
+            fac_msg_sp, fac_msg_ms = self.received_msgs[fac]
+            msg_sp += fac_msg_sp
+            msg_ms += fac_msg_ms
+        return msg_sp, msg_ms
 
-    def initiate_backtrack(self):
+    def find_best_state_for_node(self):
         if self.clamped_value is not None:
             m = np.zeros(1)
         else:
             m = np.zeros(self.n_states)
         for fac in self.factors:
             assert fac in self.received_msgs, "no message received from %s" % fac.name
-            m += self.received_msgs[fac]
+            _, fac_msg_ms = self.received_msgs[fac]
+            m += fac_msg_ms
 
         p_max = np.nanmax(m)
         best_state = int(np.nanargmax(m))
         log.debug("%s: best state from p_max is %d with log p=%g", self.name, best_state, p_max)
-        self.backtrack_maximum(None, best_state)
 
+        return p_max, best_state
+
+    def initiate_backtrack(self):
+        p_max, best_state = self.find_best_state_for_node()
+        self.backtrack_maximum(None, best_state)
         return p_max
 
-    def backtrack_maximum(self, source, value):
-        if not super(Variable, self).backtrack_maximum(source, value):
+    def backtrack_maximum(self, source, value, nodes=None):
+        if not super(Variable, self).backtrack_maximum(source, value, nodes):
             return
         assert 0 <= value < self.n_states, "value out of variable range"
 
@@ -368,4 +416,23 @@ class Variable(_Node):
                 continue
 
             factor.backtrack_maximum(self, value)
+
+    def calculate_marginal(self):
+        assert len(self.received_msgs) == len(self.neighbours), "message from at least one factor is missing"
+        if self.clamped_value is not None:
+            marginal = np.zeros(1)
+        else:
+            marginal = np.zeros(self.n_states)
+        for fac in self.factors:
+            fac_msg_sp, _ = self.received_msgs[fac]
+            marginal += fac_msg_sp
+
+        # renormalize
+        fac = logsumexp(marginal)
+        self.marginal = marginal - fac
+
+        # calculate mean and variance
+        vals = np.arange(self.n_states)
+        self.marginal_mean = np.sum(np.exp(self.marginal) * vals)
+        self.marginal_variance = np.sum(np.exp(self.marginal) * vals**2) - self.marginal_mean**2
 

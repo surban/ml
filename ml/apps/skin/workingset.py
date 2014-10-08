@@ -27,10 +27,14 @@ class SkinWorkingset(object):
         self.specified_force_max = force_max
         self.specified_skin_min = skin_min
         self.specified_skin_max = skin_max
-
-        self.ds = SkinDataset(ds_name)
-        self.ds.print_statistics()
         self.curve_limit = curve_limit
+
+        if isinstance(ds_name, basestring):
+            ds_name = [ds_name]
+        self.ds = map(lambda n: SkinDataset(n), ds_name)
+        for ds in self.ds:
+            ds.print_statistics()
+            assert np.all(self.ds[0].frequencies == ds.frequencies)
 
         self._taxel = None
         self.taxel = taxel
@@ -62,12 +66,20 @@ class SkinWorkingset(object):
             return
 
         for prt in self.all_prts:
-            if self.ds.frequencies is None:
-                self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self._taxel,
-                                                                         n_curves=self.curve_limit)
-                print "%s: next step:          %d steps" % (prt, self.ns_in[prt].shape[1])
+            if self.ds[0].frequencies is None:
+                assert False, "currently not implemented"
+                # self.ns_in[prt], self.ns_skin[prt] = build_nextstep_data(self.ds, prt, self._taxel,
+                #                                                          n_curves=self.curve_limit)
+                # print "%s: next step:          %d steps" % (prt, self.ns_in[prt].shape[1])
 
-            self.curves[prt] = self.ds.record(prt, self._taxel)
+            self.curves[prt] = []
+            for ds in self.ds:
+                self.curves[prt] += ds.record(prt, self._taxel)
+
+            # randomly permute
+            random.seed(1)
+            random.shuffle(self.curves[prt])
+
             if self.curve_limit is not None:
                 self.curves[prt] = self.curves[prt][0:self.curve_limit]
 
@@ -94,6 +106,9 @@ class SkinWorkingset(object):
             self.skin_max = self.specified_skin_max
 
         print
+        print "total # of curves:  %d / %d / %d" % (len(self.curves['trn']),
+                                                    len(self.curves['val']),
+                                                    len(self.curves['tst']))
         print "minimum force:   %f" % self.force_min
         print "maximum force:   %f" % self.force_max
         print "minimum skin:    %f" % self.skin_min
@@ -135,7 +150,7 @@ class SkinWorkingset(object):
         return len(self.curves[prt])
 
     def select_frequencies(self, freqs, skin):
-        idx = [2*np.where(np.abs(self.ds.frequencies - f) < 1)[0][0] for f in freqs]
+        idx = [2*np.where(np.abs(self.ds[0].frequencies - f) < 1)[0][0] for f in freqs]
         return skin[idx, ...]
 
     @property

@@ -84,7 +84,8 @@ def plot_mc(valid, ydata=None, conf=None, xdata=None,
             prob=None, prob_extents=None, prob_max=None,
             ylabel=None, xlabel=None, ymax=None, xmax=None, label=None,
             side='left', timestep=None, conf_args={}, aspect=None,
-            y_tick_color=None, n_plot_samples=None, title=None, **data_args):
+            y_tick_color=None, n_plot_samples=None, title=None, conf_pointwise=False,
+            **data_args):
     assert valid.ndim == 2
     n_samples = valid.shape[1]
     n_max_steps = valid.shape[0]
@@ -151,8 +152,13 @@ def plot_mc(valid, ydata=None, conf=None, xdata=None,
             ax = ax1
 
         if conf is not None:
-            plt.fill_between(tdata, ydata[0:valid_to, c] + conf[0:valid_to, c], ydata[0:valid_to, c] - conf[0:valid_to, c],
-                             **conf_args)
+            if conf_pointwise:
+                for i in range(valid_to - 2):
+                    plt.fill_between(tdata[i:i+2], ydata[i:i+2, c] + conf[i:i+2, c], ydata[i:i+2, c] - conf[i:i+2, c],
+                                     **conf_args)
+            else:
+                plt.fill_between(tdata, ydata[0:valid_to, c] + conf[0:valid_to, c], ydata[0:valid_to, c] - conf[0:valid_to, c],
+                                 **conf_args)
 
         if ydata is not None:
             ax.plot(tdata, ydata[0:valid_to, c], label=label, **data_args)
@@ -454,6 +460,18 @@ def multistep_error(prediction, truth, valid, mean_err=False):
         return 0.5 * np.sum(diff)
     else:
         return 0.5 * np.sum(diff) / np.sum(valid)
+
+
+def multistep_r2(prediction, truth, valid):
+    """Calculates the R^2 value of the data set"""
+    t = truth[valid]
+    p = prediction[valid]
+
+    tmean = np.mean(t)
+    sstot = np.sum((t - tmean)**2)
+    ssres = np.sum((t - p)**2)
+    r2 = 1. - ssres / float(sstot)
+    return r2
 
 
 def multistep_error_per_sample(prediction, truth, valid):

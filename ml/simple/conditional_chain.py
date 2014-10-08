@@ -468,7 +468,6 @@ class ConditionalChain(object):
 ########################################################################################################################
 ########################################################################################################################
 
-
 class ControlObservationChain(object):
 
     def __init__(self, n_system_states, n_input_values):
@@ -634,6 +633,7 @@ class ControlObservationChain(object):
         assert states.dtype == 'int'
 
         v_states, v_observations = self.get_valid_observations(states, observations, valid)
+        print "Training on %d points with %d input dimensions..." % (v_states.size, v_observations.shape[0])
         if finetune:
             self.gp_states_given_observations.train(v_observations, v_states, optimize=finetune_optimize)
         else:
@@ -784,170 +784,258 @@ class ControlObservationChain(object):
 
         return best_state, best_input, best_log_p
 
-    def build_factorgraph(self, n_steps=None, observation_values=None, observation_for_inputs_values=None,
-                          smooth_input_sigma=None):
+    class CCFactorGraph(object):
         # self.log_p_input[f_t] = p(f_t)
         # self.log_p_state[s_t] = p(s_t)
         # self.log_p_initial_state[s_-1] = p(s_-1)
         # self.log_p_next_state[s_t, s_(t-1), f_t] = p(s_t | s_(t-1), f_t)
-        # observation_values[feature, step]
-        # observation_for_input_values[feature, step]
-        # log_p_state_given_obs[state, step]
-        # log_p_obs_given_state[state, step]
-        # log_p_next_input[f_(t+1), f_t]
-        # log_p_input_given_obs[state, step]
-        # log_p_obs_given_input[state, step]
 
-        if observation_values is not None:
-            n_steps = observation_values.shape[1]
-        if observation_for_inputs_values is not None:
-            assert n_steps == observation_for_inputs_values.shape[1]
-        assert n_steps is not None
+        def __init__(self, log_p_input, log_p_state, log_p_initial_sate, log_p_next_state,
+                     gp_states_given_observations, gp_inputs_given_observations=None,
+                     smooth_input_sigma=None):
 
-        if observation_values is not None:
-            # p(s_t | x_t)
-            log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values,
-                                                                                 self.n_system_states))
+            self.log_p_input = log_p_input
+            self.log_p_state = log_p_state
+            self.log_p_initial_state = log_p_initial_sate
+            self.log_p_next_state = log_p_next_state
+            self.gp_states_given_observations = gp_states_given_observations
+            self.gp_inputs_given_observations = gp_inputs_given_observations
+            self.smooth_input_sigma = smooth_input_sigma
 
-            # p(x_t | s_t) + const.
-            log_p_obs_given_state = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
+            self.n_system_states = self.log_p_initial_state.shape[0]
+            self.n_input_values = self.log_p_input.shape[0]
 
-        if observation_for_inputs_values is not None:
-            # p(f_t | x_t)
-            log_p_input_given_obs = np.log(self.gp_inputs_given_observations.pdf(observation_for_inputs_values,
-                                                                                 self.n_input_values))
+            self.fg = FactorGraph()
+            self.inputs = []
+            self.input_factors = []
+            self.states = []
+            self.state_factors = []
+            self.observations = []
+            self.observations_for_inputs = []
+            self.previous_state = None
+            self.previous_inp = None
 
-            # p(x'_t | f_t) + const.
-            log_p_obs_given_input = log_p_input_given_obs - self.log_p_input[:, np.newaxis]
+            # initial state
+            self.state_initial = Variable("s_initial", self.n_system_states)
+            self.fg.add_node(self.state_initial)
+            self.fg.add_node(Factor("S_INITIAL", self.log_p_initial_state, (self.state_initial,)))
+            self.previous_state = self.state_initial
 
-        # p(f_(t+1) | f_t)
-        if smooth_input_sigma is not None:
-            all_inputs = np.arange(0, self.n_input_values)
-            p_next_input = np.zeros((self.n_input_values, self.n_input_values))
-            for pinp in range(self.n_input_values):
-                p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=smooth_input_sigma)
-                p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
-            log_p_next_input = np.log(p_next_input)
+            # initial inputs
+            if self.smooth_input_sigma is not None:
+                self.input_initial = Variable("f_initial", self.n_input_values)
+                self.fg.add_node(self.input_initial)
+                self.input_initial_factor = Factor("F_INITIAL", self.log_p_input, (self.input_initial,))
+                self.fg.add_node(self.input_initial_factor)
+                self.previous_inp = self.input_initial
 
-        fg = FactorGraph()
-        inputs = []
-        input_factors = []
-        states = []
-        observations = []
-        observations_for_inputs = []
-
-        # initial state
-        state_initial = Variable("s_initial", self.n_system_states)
-        fg.add_node(state_initial)
-        fg.add_node(Factor("S_INITIAL", self.log_p_initial_state, (state_initial,)))
-        previous_state = state_initial
-
-        # initial inputs
-        if smooth_input_sigma is not None:
-            input_initial = Variable("f_initial", self.n_input_values)
-            fg.add_node(input_initial)
-            fg.add_node(Factor("F_INITIAL", self.log_p_input, (input_initial,)))
-            previous_inp = input_initial
-
-        # build graph parts for each timestep
-        for step in range(n_steps):
-            # input
-            inp = Variable("f_%d" % step, self.n_input_values)
-            fg.add_node(inp)
-            if smooth_input_sigma is not None:
-                input_factor = Factor("F_%d" % step, log_p_next_input, (inp, previous_inp))
-            else:
-                input_factor = Factor("F_%d" % step, self.log_p_input, (inp,))
-            fg.add_node(input_factor)
-
-            # state
-            state = Variable("s_%d" % step, self.n_system_states)
-            fg.add_node(state)
-            fg.add_node(Factor("S_%d" % step, self.log_p_next_state,
-                               (state, previous_state, inp)))
+        def extend(self, n_steps=None, observation_values=None, observation_for_inputs_values=None):
+            # observation_values[feature, step]
+            # observation_for_input_values[feature, step]
+            # log_p_state_given_obs[state, step]
+            # log_p_obs_given_state[state, step]
+            # log_p_next_input[f_(t+1), f_t]
+            # log_p_input_given_obs[state, step]
+            # log_p_obs_given_input[state, step]
 
             if observation_values is not None:
-                # observation (fixed)
-                obs = Variable("x_%d" % step, 1)
-                fg.add_node(obs)
-                fg.add_node(Factor("X_%d" % step, log_p_obs_given_state[np.newaxis, :, step], (obs, state)))
-
+                n_steps = observation_values.shape[1]
             if observation_for_inputs_values is not None:
-                # observation for input (fixed)
-                obs_for_inp = Variable("x'_%d" % step, 1)
-                fg.add_node(obs_for_inp)
-                fg.add_node(Factor("X'_%d" % step, log_p_obs_given_input[np.newaxis, :, step], (obs_for_inp, inp)))
+                assert n_steps == observation_for_inputs_values.shape[1]
+            assert n_steps is not None
 
-            inputs.append(inp)
-            input_factors.append(input_factor)
-            states.append(state)
             if observation_values is not None:
-                observations.append(obs)
-            if observation_for_inputs_values is not None:
-                observations_for_inputs.append(obs_for_inp)
-            previous_state = state
-            if smooth_input_sigma is not None:
-                previous_inp = inp
+                # p(s_t | x_t)
+                log_p_state_given_obs = np.log(self.gp_states_given_observations.pdf(observation_values,
+                                                                                     self.n_system_states))
 
-        return fg, inputs, input_factors, states, observations, observations_for_inputs
+                # p(x_t | s_t) + const.
+                log_p_obs_given_state = log_p_state_given_obs - self.log_p_state[:, np.newaxis]
+
+            if observation_for_inputs_values is not None:
+                # p(f_t | x_t)
+                log_p_input_given_obs = np.log(self.gp_inputs_given_observations.pdf(observation_for_inputs_values,
+                                                                                     self.n_input_values))
+
+                # p(x'_t | f_t) + const.
+                log_p_obs_given_input = log_p_input_given_obs - self.log_p_input[:, np.newaxis]
+
+            # p(f_(t+1) | f_t)
+            if self.smooth_input_sigma is not None:
+                all_inputs = np.arange(0, self.n_input_values)
+                p_next_input = np.zeros((self.n_input_values, self.n_input_values))
+                for pinp in range(self.n_input_values):
+                    p_next_input[:, pinp] = scipy.stats.norm.pdf(all_inputs, loc=pinp, scale=self.smooth_input_sigma)
+                    p_next_input[:, pinp] /= np.sum(p_next_input[:, pinp])
+                log_p_next_input = np.log(p_next_input)
+
+            # build graph parts for each timestep
+            for step in range(n_steps):
+                # input
+                inp = Variable("f_%d" % step, self.n_input_values)
+                self.fg.add_node(inp)
+                if self.smooth_input_sigma is not None:
+                    input_factor = Factor("F_%d" % step, log_p_next_input, (inp, self.previous_inp))
+                else:
+                    input_factor = Factor("F_%d" % step, self.log_p_input, (inp,))
+                self.fg.add_node(input_factor)
+
+                # state
+                state = Variable("s_%d" % step, self.n_system_states)
+                self.fg.add_node(state)
+                state_factor = Factor("S_%d" % step, self.log_p_next_state,
+                                      (state, self.previous_state, inp))
+                self.fg.add_node(state_factor)
+
+                if observation_values is not None:
+                    # observation (fixed)
+                    obs = Variable("x_%d" % step, 1)
+                    self.fg.add_node(obs)
+                    self.fg.add_node(Factor("X_%d" % step, log_p_obs_given_state[np.newaxis, :, step], (obs, state)))
+
+                if observation_for_inputs_values is not None:
+                    # observation for input (fixed)
+                    obs_for_inp = Variable("x'_%d" % step, 1)
+                    self.fg.add_node(obs_for_inp)
+                    self.fg.add_node(Factor("X'_%d" % step, log_p_obs_given_input[np.newaxis, :, step],
+                                            (obs_for_inp, inp)))
+
+                self.inputs.append(inp)
+                self.input_factors.append(input_factor)
+                self.states.append(state)
+                self.state_factors.append(state_factor)
+                if observation_values is not None:
+                    self.observations.append(obs)
+                if observation_for_inputs_values is not None:
+                    self.observations_for_inputs.append(obs_for_inp)
+                self.previous_state = state
+                if self.smooth_input_sigma is not None:
+                    self.previous_inp = inp
+
+            return self
+
+    def new_fg(self, smooth_input_sigma=None):
+        return self.CCFactorGraph(self.log_p_input, self.log_p_state, self.log_p_initial_state, self.log_p_next_state,
+                                  self.gp_states_given_observations, self.gp_inputs_given_observations,
+                                  smooth_input_sigma)
 
     def fg_most_probable_states_and_inputs_given_observations(self, observation_values,
                                                               observation_for_inputs_values=None,
                                                               smooth_input=None, loopy_iters=None,
-                                                              prepass_non_loopy=True):
+                                                              prepass_non_loopy=True, with_marginals=False):
         n_steps = observation_values.shape[1]
-
-        fg, inputs, input_factors, states, observations, observations_for_inputs = \
-            self.build_factorgraph(observation_values=observation_values,
-                                   observation_for_inputs_values=observation_for_inputs_values,
-                                   smooth_input_sigma=smooth_input)
+        ccfg = self.new_fg(smooth_input).extend(observation_values=observation_values,
+                                                observation_for_inputs_values=observation_for_inputs_values)
 
         if loopy_iters is not None:
             if prepass_non_loopy:
-                fg.loopy_propagation = False
-                fg.prepare()
+                ccfg.fg.loopy_propagation = False
+                ccfg.fg.prepare()
 
                 if smooth_input is not None:
                     # inject uniform messages to break initial loops
                     for step in range(n_steps):
-                        inputs[step].assume_uniform_msg(input_factors[step])
+                        ccfg.inputs[step].assume_uniform_msg(ccfg.input_factors[step])
                         if step != n_steps - 1:
-                            inputs[step].assume_uniform_msg(input_factors[step + 1])
+                            ccfg.inputs[step].assume_uniform_msg(ccfg.input_factors[step + 1])
 
                 # do non-loopy propagation to precalculate probability estimates  
-                fg.do_message_passing(only_leafs=False)
+                ccfg.fg.do_message_passing(only_leafs=False)
 
                 # switch to loopy propagation to get smooth force estimates
-                fg.loopy_propagation = True
-                fg.do_message_passing(loopy_iters)
+                ccfg.fg.loopy_propagation = True
+                ccfg.fg.do_message_passing(loopy_iters)
             else:
-                fg.loopy_propagation = True
-                fg.prepare()
-                fg.do_message_passing(loopy_iters)
+                ccfg.fg.loopy_propagation = True
+                ccfg.fg.prepare()
+                ccfg.fg.do_message_passing(loopy_iters)
         else:
-            fg.prepare()
-            fg.do_message_passing()
+            ccfg.fg.prepare()
+            ccfg.fg.do_message_passing()
 
-        best_log_p = fg.backtrack_best_state()
-        best_state = np.asarray([s.best_state for s in states])
-        best_input = np.asarray([i.best_state for i in inputs])
+        best_log_p = ccfg.fg.backtrack_best_state()
+        best_state = np.asarray([s.best_state for s in ccfg.states])
+        best_input = np.asarray([i.best_state for i in ccfg.inputs])
 
-        return best_state, best_input, best_log_p
+        if with_marginals:
+            ccfg.fg.calculate_marginals()
+            state_mean = np.asarray([s.marginal_mean for s in ccfg.states])
+            state_variance = np.asarray([s.marginal_variance for s in ccfg.states])
+            return best_state, best_input, best_log_p, state_mean, state_variance
+        else:
+            return best_state, best_input, best_log_p
 
-    def fg_most_probable_states_given_inputs(self, input_values):
+    def fg_most_probable_states_and_inputs_given_observations_online(self, ccfg, observation_value,
+                                                                     smooth_input=None):
+        assert observation_value.ndim == 1
+
+        if ccfg is None:
+            ccfg = self.new_fg(smooth_input)
+            ccfg.fg.prepare()
+
+        ccfg.extend(observation_values=observation_value[:, np.newaxis])
+
+        # pass necessary messages
+
+        # input
+        if smooth_input is not None:
+            if len(ccfg.states) == 1:
+                ccfg.input_initial_factor.transmit_all_possible_msgs()
+            else:
+                ccfg.inputs[-2].transmit_all_possible_msgs()
+        else:
+            ccfg.input_factors[-1].transmit_all_possible_msgs()
+
+        # observations
+        ccfg.observations[-1].transmit_all_possible_msgs()
+
+        # states
+        if len(ccfg.states) == 1:
+            ccfg.state_initial.transmit_all_possible_msgs()
+        else:
+            ccfg.states[-2].transmit_all_possible_msgs()
+
+        # get best state for last element of chain (no update of other elements)
+        log_p, best_state = ccfg.states[-1].find_best_state_for_node()
+        ccfg.state_factors[-1].backtrack_maximum(ccfg.states[-1], best_state,
+                                                 nodes=[ccfg.state_factors[-1], ccfg.inputs[-1]])
+        best_input = ccfg.inputs[-1].best_state
+
+        return ccfg, best_state, best_input
+
+    def fg_most_probable_states_and_inputs_given_observations_simulate_online(self, observations_values,
+                                                                              smooth_input=None):
+        n_steps = observations_values.shape[1]
+        best_inputs = np.zeros((n_steps,))
+        best_states = np.zeros((n_steps,))
+        ccfg = None
+
+        for step in range(n_steps):
+            ccfg, best_states[step], best_inputs[step] = \
+                self.fg_most_probable_states_and_inputs_given_observations_online(ccfg, observations_values[:, step],
+                                                                                  smooth_input)
+
+        return best_states, best_inputs
+
+    def fg_most_probable_states_given_inputs(self, input_values, with_marginals=False):
         n_steps = input_values.shape[0]
-        fg, inputs, input_factors, states, observations, observations_for_inputs = \
-            self.build_factorgraph(n_steps=n_steps)
+        ccfg = self.new_fg().extend(n_steps=n_steps)
 
         # clamp inputs
         for step in range(n_steps):
-            inputs[step].clamp(input_values[step])
+            ccfg.inputs[step].clamp(input_values[step])
 
-        fg.prepare()
-        fg.do_message_passing()
-        best_log_p = fg.backtrack_best_state()
-        best_state = np.asarray([s.best_state for s in states])
-        return best_state, best_log_p
+        ccfg.fg.prepare()
+        ccfg.fg.do_message_passing()
+        best_log_p = ccfg.fg.backtrack_best_state()
+        best_state = np.asarray([s.best_state for s in ccfg.states])
+        if with_marginals:
+            ccfg.fg.calculate_marginals()
+            state_mean = np.asarray([s.marginal_mean for s in ccfg.states])
+            state_variance = np.asarray([s.marginal_variance for s in ccfg.states])
+            return best_state, best_log_p, state_mean, state_variance
+        else:
+            return best_state, best_log_p
 
     def _nanmax(self, x):
         xflat = np.reshape(x, (x.shape[0], -1))
@@ -1071,7 +1159,6 @@ class ControlObservationChain(object):
 ########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################
-
 
 class ConditionalFilteredChain(object):
 
