@@ -307,7 +307,7 @@ class Factor(_Node):
             if var is source:
                 continue
 
-            var.backtrack_maximum(self, self.max_track[source][dim][value])
+            var.backtrack_maximum(self, self.max_track[source][dim][value], nodes)
 
 
 class Variable(_Node):
@@ -415,7 +415,7 @@ class Variable(_Node):
             if factor is source:
                 continue
 
-            factor.backtrack_maximum(self, value)
+            factor.backtrack_maximum(self, value, nodes)
 
     def calculate_marginal(self):
         assert len(self.received_msgs) == len(self.neighbours), "message from at least one factor is missing"
