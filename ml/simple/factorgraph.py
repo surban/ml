@@ -56,12 +56,17 @@ class FactorGraph(object):
                     n.transmit_all_possible_msgs()
             log.debug("initial message passing is done")
 
-    def backtrack_best_state(self):
+    def backtrack_best_state(self, start_var=None, check_leaf=True):
         log.debug("backtracking best state")
-        for v in self.variables:
-            if v.is_leaf:
-                return v.initiate_backtrack()
-        assert False, "no leaf variable available"
+        if start_var is None:
+            for v in self.variables:
+                if v.is_leaf:
+                    start_var = v
+                    break
+        assert start_var is not None, "no leaf variable for backtrack start available"
+        if check_leaf:
+            assert start_var.is_leaf, "start variable for backtrack is not a leaf"
+        return start_var.initiate_backtrack()
 
     def calculate_marginals(self):
         log.debug("calculating marginals")

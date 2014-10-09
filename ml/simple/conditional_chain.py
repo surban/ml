@@ -77,6 +77,17 @@ def merge_duplicates(x, y):
     return xout, yout, yvar
 
 
+def pick_sample(valid, smpl, *inps):
+    n_valid = np.where(valid[:, smpl])[0][-1] + 1
+    smpl_inps = []
+    for inp in inps:
+        if inp.ndim == 1:
+            smpl_inps.append(inp[smpl])
+        else:
+            smpl_inps.append(inp[..., 0:n_valid, smpl])
+    return tuple(smpl_inps)
+
+
 def iterate_over_samples(func, valid, *inps, **kwargs):
     show_progress = True
     if 'show_progress' in kwargs:
@@ -811,6 +822,7 @@ class ControlObservationChain(object):
             self.states = []
             self.state_factors = []
             self.observations = []
+            self.observation_factors = []
             self.observations_for_inputs = []
             self.previous_state = None
             self.previous_inp = None
@@ -891,7 +903,8 @@ class ControlObservationChain(object):
                     # observation (fixed)
                     obs = Variable("x_%d" % step, 1)
                     self.fg.add_node(obs)
-                    self.fg.add_node(Factor("X_%d" % step, log_p_obs_given_state[np.newaxis, :, step], (obs, state)))
+                    obs_factor = Factor("X_%d" % step, log_p_obs_given_state[np.newaxis, :, step], (obs, state))
+                    self.fg.add_node(obs_factor)
 
                 if observation_for_inputs_values is not None:
                     # observation for input (fixed)
@@ -906,6 +919,7 @@ class ControlObservationChain(object):
                 self.state_factors.append(state_factor)
                 if observation_values is not None:
                     self.observations.append(obs)
+                    self.observation_factors.append(obs_factor)
                 if observation_for_inputs_values is not None:
                     self.observations_for_inputs.append(obs_for_inp)
                 self.previous_state = state
@@ -964,6 +978,53 @@ class ControlObservationChain(object):
             return best_state, best_input, best_log_p, state_mean, state_variance
         else:
             return best_state, best_input, best_log_p
+
+    def fg_most_probable_states_and_inputs_given_observations_alternatives(self, observation_values, pos, rng, step=1):
+        # construct factor graph and find best curve
+        n_steps = observation_values.shape[1]
+        ccfg = self.new_fg().extend(observation_values=observation_values)
+        ccfg.fg.prepare()
+        ccfg.fg.do_message_passing()
+        ccfg.fg.backtrack_best_state(start_var=ccfg.states[-1], check_leaf=False)
+        best_state = np.asarray([s.best_state for s in ccfg.states])
+        best_input = np.asarray([i.best_state for i in ccfg.inputs])
+
+        # calculate log p for all endings
+        n = ccfg.inputs[pos]
+        log_p = np.zeros(n.n_states)
+        for fac in n.factors:
+            _, fac_msg_ms = n.received_msgs[fac]
+            log_p += fac_msg_ms
+
+        # normalize
+        prob = np.exp(log_p)
+        prob /= np.sum(prob)
+
+        # _, fac_msg_ms = ccfg.states[pos].received_msgs[ccfg.state_factors[pos]]
+        # _, log_p = ccfg.inputs[pos].received_msgs[ccfg.state_factors[pos]]
+
+        # find best input
+        # best_log_p, best_final = ccfg.states[pos].find_best_state_for_node()
+        best_log_p, best_final = ccfg.inputs[pos].find_best_state_for_node()
+
+        # calculate alternative curves starting from pos and going backwards
+        final_alts = [best_final + i for i in range(-rng, rng+1, step)]
+        state_alts = np.zeros((n_steps, len(final_alts)))
+        input_alts = np.zeros((n_steps, len(final_alts)))
+        log_p_alts = np.zeros((len(final_alts),))
+        p_alts = np.zeros((len(final_alts),))
+        for i, final in enumerate(final_alts):
+            #final = best_state[pos]
+            log_p_alts[i] = log_p[final]
+            p_alts[i] = prob[final]
+            # ccfg.state_factors[pos].backtrack_maximum(ccfg.states[pos], final)
+            ccfg.state_factors[pos].backtrack_maximum(ccfg.inputs[pos], final)
+            # state_alts[pos, i] = final
+            state_alts[:, i] = np.asarray([s.best_state for s in ccfg.states])
+            input_alts[:, i] = np.asarray([q.best_state for q in ccfg.inputs])
+            input_alts[pos, i] = final
+
+        return best_state, best_input, best_log_p, state_alts, input_alts, log_p_alts, p_alts
 
     def fg_most_probable_states_and_inputs_given_observations_online(self, ccfg, observation_value,
                                                                      smooth_input=None):

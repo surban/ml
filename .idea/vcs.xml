@@ -2,9 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="Y:/dev/submit" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../indentor" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../python-ivi" vcs="Git" />
-    <mapping directory="Y:/dev/submit" vcs="Git" />
   </component>
 </project>
 
