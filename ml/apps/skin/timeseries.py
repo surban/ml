@@ -82,6 +82,7 @@ def get_sample(smpl, valid, *datas):
 
 def plot_mc(valid, ydata=None, conf=None, xdata=None,
             prob=None, prob_extents=None, prob_max=None,
+            conf_upper=None, conf_lower=None,
             ylabel=None, xlabel=None, ymax=None, xmax=None, label=None,
             side='left', timestep=None, conf_args={}, aspect=None,
             y_tick_color=None, n_plot_samples=None, title=None, conf_pointwise=False,
@@ -91,12 +92,11 @@ def plot_mc(valid, ydata=None, conf=None, xdata=None,
     n_max_steps = valid.shape[0]
 
     assert side in ['left', 'right']
-    if ydata is not None:
-        assert ydata.shape[1] == n_samples and ydata.shape[0] == n_max_steps
-    if xdata is not None:
-        assert xdata.shape[1] == n_samples and xdata.shape[0] == n_max_steps
-    if conf is not None:
-        assert conf.shape[1] == n_samples and conf.shape[0] == n_max_steps
+    if ydata is not None: assert ydata.shape[1] == n_samples and ydata.shape[0] == n_max_steps
+    if xdata is not None: assert xdata.shape[1] == n_samples and xdata.shape[0] == n_max_steps
+    if conf is not None: assert conf.shape[1] == n_samples and conf.shape[0] == n_max_steps
+    if conf_upper is not None: assert conf_upper.shape[1] == n_samples and conf_upper.shape[0] == n_max_steps
+    if conf_lower is not None: assert conf_lower.shape[1] == n_samples and conf_lower.shape[0] == n_max_steps
     if prob is not None:
         assert prob_extents is not None and prob_max is not None
         assert prob.ndim == 3 and prob.shape[3] == n_samples and prob.shape[2] == n_max_steps
@@ -109,14 +109,18 @@ def plot_mc(valid, ydata=None, conf=None, xdata=None,
         n_samples = n_plot_samples
 
         valid = valid[..., 0:n_plot_samples]
-        if ydata is not None:
-            ydata = ydata[..., 0:n_plot_samples]
-        if xdata is not None:
-            xdata = xdata[..., 0:n_plot_samples]
-        if conf is not None:
-            conf = conf[..., 0:n_plot_samples]
-        if prob is not None:
-            prob = prob[..., 0:n_plot_samples]
+        if ydata is not None: ydata = ydata[..., 0:n_plot_samples]
+        if xdata is not None: xdata = xdata[..., 0:n_plot_samples]
+        if conf is not None: conf = conf[..., 0:n_plot_samples]
+        if conf_upper is not None: conf_upper = conf_upper[..., 0:n_plot_samples]
+        if conf_lower is not None: conf_lower = conf_upper[..., 0:n_plot_samples]
+        if prob is not None: prob = prob[..., 0:n_plot_samples]
+
+    if conf_upper is None or conf_lower is None:
+        conf_upper = conf
+        conf_lower = conf
+    else:
+        assert conf is None, "both conf_upper/conf_lower and conf specified"
 
     height = int(math.sqrt(n_samples))
     width = int(math.ceil(n_samples / float(height)))
@@ -151,13 +155,17 @@ def plot_mc(valid, ydata=None, conf=None, xdata=None,
         else:
             ax = ax1
 
-        if conf is not None:
+        if conf_lower is not None:
             if conf_pointwise:
                 for i in range(valid_to - 2):
-                    plt.fill_between(tdata[i:i+2], ydata[i:i+2, c] + conf[i:i+2, c], ydata[i:i+2, c] - conf[i:i+2, c],
+                    plt.fill_between(tdata[i:i+2],
+                                     ydata[i:i+2, c] + conf_upper[i:i+2, c],
+                                     ydata[i:i+2, c] - conf_lower[i:i+2, c],
                                      **conf_args)
             else:
-                plt.fill_between(tdata, ydata[0:valid_to, c] + conf[0:valid_to, c], ydata[0:valid_to, c] - conf[0:valid_to, c],
+                plt.fill_between(tdata,
+                                 ydata[0:valid_to, c] + conf_upper[0:valid_to, c],
+                                 ydata[0:valid_to, c] - conf_lower[0:valid_to, c],
                                  **conf_args)
 
         if ydata is not None:

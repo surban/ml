@@ -936,7 +936,9 @@ class ControlObservationChain(object):
     def fg_most_probable_states_and_inputs_given_observations(self, observation_values,
                                                               observation_for_inputs_values=None,
                                                               smooth_input=None, loopy_iters=None,
-                                                              prepass_non_loopy=True, with_marginals=False):
+                                                              prepass_non_loopy=True,
+                                                              with_marginals_and_conditionals=False,
+                                                              confidence_mass=0.9973):
         n_steps = observation_values.shape[1]
         ccfg = self.new_fg(smooth_input).extend(observation_values=observation_values,
                                                 observation_for_inputs_values=observation_for_inputs_values)
@@ -971,15 +973,23 @@ class ControlObservationChain(object):
         best_state = np.asarray([s.best_state for s in ccfg.states])
         best_input = np.asarray([i.best_state for i in ccfg.inputs])
 
-        if with_marginals:
-            ccfg.fg.calculate_marginals()
-            state_mean = np.asarray([s.marginal_mean for s in ccfg.states])
-            state_variance = np.asarray([s.marginal_variance for s in ccfg.states])
-            return best_state, best_input, best_log_p, state_mean, state_variance
+        if with_marginals_and_conditionals:
+            ccfg.fg.calculate_marginals_and_conditionals(confidence_mass=confidence_mass)
+            input_marginal_mean = np.asarray([i.marginal_mean for i in ccfg.inputs])
+            input_marginal_variance = np.asarray([i.marginal_variance for i in ccfg.inputs])
+            input_conditional_mean = np.asarray([i.conditional_mean for i in ccfg.inputs])
+            input_conditional_variance = np.asarray([i.conditional_variance for i in ccfg.inputs])
+            input_conf_lower = np.asarray([i.conditional_conf_lower for i in ccfg.inputs])
+            input_conf_upper = np.asarray([i.conditional_conf_upper for i in ccfg.inputs])
+            return (best_state, best_input, best_log_p,
+                    input_marginal_mean, input_marginal_variance,
+                    input_conditional_mean, input_conditional_variance,
+                    input_conf_lower, input_conf_upper)
         else:
             return best_state, best_input, best_log_p
 
-    def fg_most_probable_states_and_inputs_given_observations_alternatives(self, observation_values, pos, rng, step=1):
+    def fg_most_probable_states_and_inputs_given_observations_alternatives(self, observation_values, pos,
+                                                                           rng=None, step=1):
         # construct factor graph and find best curve
         n_steps = observation_values.shape[1]
         ccfg = self.new_fg().extend(observation_values=observation_values)
@@ -1008,7 +1018,11 @@ class ControlObservationChain(object):
         best_log_p, best_final = ccfg.inputs[pos].find_best_state_for_node()
 
         # calculate alternative curves starting from pos and going backwards
-        final_alts = [best_final + i for i in range(-rng, rng+1, step)]
+        # final_alts = [best_final + i for i in range(-rng, rng+1, step)]
+        if rng is None:
+            final_alts = range(0, self.n_input_values, step)
+        else:
+            final_alts = range(max(0, best_final - rng), min(self.n_input_values, best_final + rng + 1))
         state_alts = np.zeros((n_steps, len(final_alts)))
         input_alts = np.zeros((n_steps, len(final_alts)))
         log_p_alts = np.zeros((len(final_alts),))

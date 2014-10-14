@@ -68,10 +68,10 @@ class FactorGraph(object):
             assert start_var.is_leaf, "start variable for backtrack is not a leaf"
         return start_var.initiate_backtrack()
 
-    def calculate_marginals(self):
-        log.debug("calculating marginals")
+    def calculate_marginals_and_conditionals(self, confidence_mass=0.6827):
+        log.debug("calculating marginals and conditionals")
         for v in self.variables:
-            v.calculate_marginal()
+            v.calculate_marginal_and_conditional(confidence_mass)
 
 
 class _Node(object):
@@ -324,9 +324,16 @@ class Variable(_Node):
         """:type: list of [Factor]"""
         self.best_state = None
         self.clamped_value = None
+        self.log_marginal = None
         self.marginal = None
         self.marginal_mean = None
         self.marginal_variance = None
+        self.log_conditional = None
+        self.conditional = None
+        self.conditional_mean = None
+        self.conditional_variance = None
+        self.conditional_conf_upper = None
+        self.conditional_conf_lower = None
 
         log.debug("Created variable %s", name)
 
@@ -422,22 +429,62 @@ class Variable(_Node):
 
             factor.backtrack_maximum(self, value, nodes)
 
-    def calculate_marginal(self):
+    def cumulate_mass_around(self, cdf, mass, root):
+        def find_right(left):
+            return root + np.searchsorted(cdf[root:], cdf[left] + mass, side='left')
+        lefts = range(root + 1)
+        pairs = map(lambda l: (l, find_right(l)), lefts)
+        pairs_with_mass = filter(lambda p: p[1] < len(cdf) and cdf[p[1]] - cdf[p[0]] >= mass, pairs)
+        if len(pairs_with_mass) == 0:
+            return (0, len(cdf) - 1)
+        else:
+            return min(pairs_with_mass, key=lambda p: p[1] - p[0])
+
+    def calculate_marginal_and_conditional(self, confidence_mass):
         assert len(self.received_msgs) == len(self.neighbours), "message from at least one factor is missing"
         if self.clamped_value is not None:
             marginal = np.zeros(1)
+            conditional = np.zeros(1)
         else:
             marginal = np.zeros(self.n_states)
+            conditional = np.zeros(self.n_states)
         for fac in self.factors:
-            fac_msg_sp, _ = self.received_msgs[fac]
+            fac_msg_sp, fac_msg_ms = self.received_msgs[fac]
             marginal += fac_msg_sp
+            conditional += fac_msg_ms
 
         # renormalize
-        fac = logsumexp(marginal)
-        self.marginal = marginal - fac
+        self.log_marginal = marginal - logsumexp(marginal)
+        self.log_conditional = conditional - logsumexp(conditional)
 
-        # calculate mean and variance
+        self.marginal = np.exp(self.log_marginal)
+        self.conditional = np.exp(self.log_conditional)
+
+        # calculate means and variances
         vals = np.arange(self.n_states)
-        self.marginal_mean = np.sum(np.exp(self.marginal) * vals)
-        self.marginal_variance = np.sum(np.exp(self.marginal) * vals**2) - self.marginal_mean**2
+        self.marginal_mean = np.sum(self.marginal * vals)
+        self.marginal_variance = np.sum(self.marginal * vals**2) - self.marginal_mean**2
+        self.conditional_mean = np.sum(self.conditional * vals)
+        self.conditional_variance = np.sum(self.conditional * vals**2) - self.conditional_mean**2
+
+        # calculate confidence interval
+        if not np.all(np.isnan(self.conditional)):
+            center = np.nanargmax(self.conditional)
+            conditional_cdf = np.cumsum(self.conditional)
+
+            # debug
+            # if self.name == "f_40":
+            #     import matplotlib.pyplot as plt
+            #     plt.plot(self.conditional)
+            #     plt.figure()
+            #     plt.plot(conditional_cdf)
+            #     plt.figure()
+
+            left, right = self.cumulate_mass_around(conditional_cdf, confidence_mass, center)
+            self.conditional_conf_lower = center - left
+            self.conditional_conf_upper = right - center
+        else:
+            self.conditional_conf_upper = 0
+            self.conditional_conf_lower = 0
+
 
