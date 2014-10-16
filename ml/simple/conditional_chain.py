@@ -1092,7 +1092,8 @@ class ControlObservationChain(object):
 
         return best_states, best_inputs
 
-    def fg_most_probable_states_given_inputs(self, input_values, with_marginals=False):
+    def fg_most_probable_states_given_inputs(self, input_values,
+                                             with_marginals_and_conditionals=False, confidence_mass=0.9973):
         n_steps = input_values.shape[0]
         ccfg = self.new_fg().extend(n_steps=n_steps)
 
@@ -1104,11 +1105,13 @@ class ControlObservationChain(object):
         ccfg.fg.do_message_passing()
         best_log_p = ccfg.fg.backtrack_best_state()
         best_state = np.asarray([s.best_state for s in ccfg.states])
-        if with_marginals:
-            ccfg.fg.calculate_marginals()
+        if with_marginals_and_conditionals:
+            ccfg.fg.calculate_marginals_and_conditionals(confidence_mass=confidence_mass)
             state_mean = np.asarray([s.marginal_mean for s in ccfg.states])
             state_variance = np.asarray([s.marginal_variance for s in ccfg.states])
-            return best_state, best_log_p, state_mean, state_variance
+            state_conf_lower = np.asarray([s.conditional_conf_lower for s in ccfg.states])
+            state_conf_upper = np.asarray([s.conditional_conf_upper for s in ccfg.states])
+            return best_state, best_log_p, state_mean, state_variance, state_conf_lower, state_conf_upper
         else:
             return best_state, best_log_p
 
