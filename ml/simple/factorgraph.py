@@ -1,6 +1,8 @@
+from macpath import norm_error
 import numpy as np
 import logging
 from scipy.misc.common import logsumexp
+from scipy.stats import norm
 
 log = logging.getLogger(__name__)
 
@@ -14,6 +16,7 @@ class FactorGraph(object):
         """type: list of [_Node]"""
         self.loopy_propagation = loopy_propagation
         self.prepared = False
+        self.gaussian_approx = False
 
     def add_node(self, node):
         assert node not in self.nodes, "node already part of factor graph"
@@ -385,7 +388,31 @@ class Variable(_Node):
             fac_msg_sp, fac_msg_ms = self.received_msgs[fac]
             msg_sp += fac_msg_sp
             msg_ms += fac_msg_ms
+
+        # approximate by Gaussian if desired
+        if self.factorgraph.gaussian_approx:
+            msg_sp = np.log(self.approx_with_gaussian(np.exp(msg_sp)))
+            msg_ms = np.log(self.approx_with_gaussian(np.exp(msg_ms)))
+
         return msg_sp, msg_ms
+
+    def approx_with_gaussian(self, pdf):
+        if pdf.size <= 1:
+            return pdf
+
+        # normalize
+        pdf /= np.nansum(pdf)
+
+        # compute first two moments
+        vals = np.arange(self.n_states)
+        m = np.nansum(pdf * vals)
+        v = np.nansum(pdf * vals**2) - m**2
+        # print "mean: %g  variance: %g" % (m, v)
+
+        # compute pdf of normal distribution with same moments
+        apdf = norm.pdf(vals, loc=m, scale=np.sqrt(v))
+        apdf /= np.sum(apdf)
+        return apdf
 
     def find_best_state_for_node(self):
         if self.clamped_value is not None:

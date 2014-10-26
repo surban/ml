@@ -938,10 +938,11 @@ class ControlObservationChain(object):
                                                               smooth_input=None, loopy_iters=None,
                                                               prepass_non_loopy=True,
                                                               with_marginals_and_conditionals=False,
-                                                              confidence_mass=0.9973):
+                                                              confidence_mass=0.9973, gaussian_approx=False):
         n_steps = observation_values.shape[1]
         ccfg = self.new_fg(smooth_input).extend(observation_values=observation_values,
                                                 observation_for_inputs_values=observation_for_inputs_values)
+        ccfg.fg.gaussian_approx = gaussian_approx
 
         if loopy_iters is not None:
             if prepass_non_loopy:
@@ -1041,7 +1042,7 @@ class ControlObservationChain(object):
         return best_state, best_input, best_log_p, state_alts, input_alts, log_p_alts, p_alts
 
     def fg_most_probable_states_and_inputs_given_observations_online(self, ccfg, observation_value,
-                                                                     smooth_input=None):
+                                                                     smooth_input=None, gaussian_approx=False):
         assert observation_value.ndim == 1
 
         if ccfg is None:
@@ -1049,6 +1050,7 @@ class ControlObservationChain(object):
             ccfg.fg.prepare()
 
         ccfg.extend(observation_values=observation_value[:, np.newaxis])
+        ccfg.fg.gaussian_approx = gaussian_approx
 
         # pass necessary messages
 
@@ -1079,7 +1081,7 @@ class ControlObservationChain(object):
         return ccfg, best_state, best_input
 
     def fg_most_probable_states_and_inputs_given_observations_simulate_online(self, observations_values,
-                                                                              smooth_input=None):
+                                                                              smooth_input=None, gaussian_approx=False):
         n_steps = observations_values.shape[1]
         best_inputs = np.zeros((n_steps,))
         best_states = np.zeros((n_steps,))
@@ -1088,7 +1090,8 @@ class ControlObservationChain(object):
         for step in range(n_steps):
             ccfg, best_states[step], best_inputs[step] = \
                 self.fg_most_probable_states_and_inputs_given_observations_online(ccfg, observations_values[:, step],
-                                                                                  smooth_input)
+                                                                                  smooth_input,
+                                                                                  gaussian_approx=gaussian_approx)
 
         return best_states, best_inputs
 
