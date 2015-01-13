@@ -13,6 +13,7 @@
     <module name="ml" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/misc/kde_test.py" />
     <option name="PARAMETERS" value="" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
     <RunnerSettings RunnerId="PyDebugRunner" />
     <RunnerSettings RunnerId="PythonRunner" />
     <ConfigurationWrapper RunnerId="PyDebugRunner" />

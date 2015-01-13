@@ -1,0 +1,335 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 10.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[     11226,        325]
+NotebookOptionsPosition[     10603,        298]
+NotebookOutlinePosition[     10951,        313]
+CellTagsIndexPosition[     10908,        310]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Function iteration", "Section",
+ CellChangeTimes->{{3.627133811998884*^9, 3.627133873229884*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"RepFunc", "[", 
+    RowBox[{"f_", ",", "reps_"}], "]"}], ":=", 
+   RowBox[{"If", "[", 
+    RowBox[{
+     RowBox[{"reps", "\[Equal]", "0"}], ",", 
+     RowBox[{"#", "&"}], ",", 
+     RowBox[{
+      RowBox[{"f", "[", 
+       RowBox[{
+        RowBox[{"RepFunc", "[", 
+         RowBox[{"f", ",", 
+          RowBox[{"reps", "-", "1"}]}], "]"}], "[", "#", "]"}], "]"}], 
+      "&"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"ToPlane", "[", "cpnts_", "]"}], ":=", 
+   RowBox[{"cpnts", "/.", 
+    RowBox[{
+     RowBox[{"(", 
+      RowBox[{"c_", "/;", 
+       RowBox[{"NumberQ", "[", "c", "]"}]}], ")"}], ":>", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"Re", "[", "c", "]"}], ",", 
+       RowBox[{"Im", "[", "c", "]"}]}], "}"}]}]}]}], ";"}]}], "Input",
+ InitializationCell->True,
+ CellChangeTimes->{{3.627134028598884*^9, 3.627134029618884*^9}}]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Complex plotting", "Section",
+ CellChangeTimes->{{3.6271339080258837`*^9, 3.627133926432884*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"PlotComplexAbsArg", "[", 
+     RowBox[{"f_", ",", "rng_"}], "]"}], ":=", 
+    RowBox[{"Module", "[", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], "}"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], "}"}], "=", 
+        RowBox[{"rng", "/.", 
+         RowBox[{
+          RowBox[{"{", 
+           RowBox[{
+            RowBox[{"Complex", "[", 
+             RowBox[{"rmin_", ",", "imin_"}], "]"}], ",", 
+            RowBox[{"Complex", "[", 
+             RowBox[{"rmax_", ",", "imax_"}], "]"}]}], "}"}], "\[Rule]", 
+          RowBox[{"{", 
+           RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], 
+           "}"}]}]}]}], ";", "\[IndentingNewLine]", 
+       RowBox[{"GraphicsRow", "[", 
+        RowBox[{"{", "\[IndentingNewLine]", 
+         RowBox[{
+          RowBox[{"DensityPlot", "[", 
+           RowBox[{
+            RowBox[{"Abs", "[", 
+             RowBox[{"f", "[", 
+              RowBox[{"x", "+", 
+               RowBox[{"y", " ", "I"}]}], "]"}], "]"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"x", ",", "rmin", ",", "rmax"}], "}"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"y", ",", "imin", ",", "imax"}], "}"}], ",", 
+            RowBox[{"PlotLabel", "\[Rule]", "\"\<Abs\>\""}], ",", 
+            RowBox[{"ColorFunction", "\[Rule]", "\"\<TemperatureMap\>\""}]}], 
+           "]"}], ",", "\[IndentingNewLine]", 
+          RowBox[{"DensityPlot", "[", 
+           RowBox[{
+            RowBox[{"Arg", "[", 
+             RowBox[{"f", "[", 
+              RowBox[{"x", "+", 
+               RowBox[{"y", " ", "I"}]}], "]"}], "]"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"x", ",", "rmin", ",", "rmax"}], "}"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"y", ",", "imin", ",", "imax"}], "}"}], ",", 
+            RowBox[{"PlotLabel", "\[Rule]", "\"\<Arg\>\""}], ",", 
+            RowBox[{"ColorFunction", "\[Rule]", "\"\<TemperatureMap\>\""}]}], 
+           "]"}]}], "\[IndentingNewLine]", "}"}], "]"}]}]}], 
+     "\[IndentingNewLine]", "]"}]}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"PlotComplexReIm", "[", 
+     RowBox[{"f_", ",", "rng_", ",", "args___"}], "]"}], ":=", 
+    RowBox[{"Module", "[", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], "}"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], "}"}], "=", 
+        RowBox[{"rng", "/.", 
+         RowBox[{
+          RowBox[{"{", 
+           RowBox[{
+            RowBox[{"Complex", "[", 
+             RowBox[{"rmin_", ",", "imin_"}], "]"}], ",", 
+            RowBox[{"Complex", "[", 
+             RowBox[{"rmax_", ",", "imax_"}], "]"}]}], "}"}], "\[Rule]", 
+          RowBox[{"{", 
+           RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], 
+           "}"}]}]}]}], ";", "\[IndentingNewLine]", 
+       RowBox[{"GraphicsRow", "[", 
+        RowBox[{"{", "\[IndentingNewLine]", 
+         RowBox[{
+          RowBox[{"DensityPlot", "[", 
+           RowBox[{
+            RowBox[{"Re", "[", 
+             RowBox[{"f", "[", 
+              RowBox[{"x", "+", 
+               RowBox[{"y", " ", "I"}]}], "]"}], "]"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"x", ",", "rmin", ",", "rmax"}], "}"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"y", ",", "imin", ",", "imax"}], "}"}], ",", 
+            RowBox[{"PlotLabel", "\[Rule]", "\"\<Re\>\""}], ",", 
+            RowBox[{"ColorFunction", "\[Rule]", "\"\<TemperatureMap\>\""}], 
+            ",", "args"}], "]"}], ",", "\[IndentingNewLine]", 
+          RowBox[{"DensityPlot", "[", 
+           RowBox[{
+            RowBox[{"Im", "[", 
+             RowBox[{"f", "[", 
+              RowBox[{"x", "+", 
+               RowBox[{"y", " ", "I"}]}], "]"}], "]"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"x", ",", "rmin", ",", "rmax"}], "}"}], ",", 
+            RowBox[{"{", 
+             RowBox[{"y", ",", "imin", ",", "imax"}], "}"}], ",", 
+            RowBox[{"PlotLabel", "\[Rule]", "\"\<Im\>\""}], ",", 
+            RowBox[{"ColorFunction", "\[Rule]", "\"\<TemperatureMap\>\""}], 
+            ",", "args"}], "]"}]}], "\[IndentingNewLine]", "}"}], "]"}]}]}], 
+     "\[IndentingNewLine]", "]"}]}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"PlotComplexRe", "[", 
+     RowBox[{"f_", ",", "rng_"}], "]"}], ":=", 
+    RowBox[{"Module", "[", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], "}"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], "}"}], "=", 
+        RowBox[{"rng", "/.", 
+         RowBox[{
+          RowBox[{"{", 
+           RowBox[{
+            RowBox[{"Complex", "[", 
+             RowBox[{"rmin_", ",", "imin_"}], "]"}], ",", 
+            RowBox[{"Complex", "[", 
+             RowBox[{"rmax_", ",", "imax_"}], "]"}]}], "}"}], "\[Rule]", 
+          RowBox[{"{", 
+           RowBox[{"rmin", ",", "imin", ",", "rmax", ",", "imax"}], 
+           "}"}]}]}]}], ";", "\[IndentingNewLine]", 
+       RowBox[{"DensityPlot", "[", 
+        RowBox[{
+         RowBox[{"Re", "[", 
+          RowBox[{"f", "[", 
+           RowBox[{"x", "+", 
+            RowBox[{"y", " ", "I"}]}], "]"}], "]"}], ",", 
+         RowBox[{"{", 
+          RowBox[{"x", ",", "rmin", ",", "rmax"}], "}"}], ",", 
+         RowBox[{"{", 
+          RowBox[{"y", ",", "imin", ",", "imax"}], "}"}], ",", 
+         RowBox[{"PlotLabel", "\[Rule]", "\"\<Re\>\""}], ",", 
+         RowBox[{"ColorFunction", "\[Rule]", "\"\<TemperatureMap\>\""}]}], 
+        "]"}]}]}], "\[IndentingNewLine]", "]"}]}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"ListPlotComplex", "[", 
+    RowBox[{"pnts_", ",", "args___"}], "]"}], ":=", 
+   RowBox[{"ListPlot", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"Re", "[", "#", "]"}], ",", 
+         RowBox[{"Im", "[", "#", "]"}]}], "}"}], "&"}], "/@", "pnts"}], ",", 
+     " ", "args"}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"CPnts", "[", "pnts_", "]"}], ":=", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"Re", "[", "#", "]"}], ",", 
+       RowBox[{"Im", "[", "#", "]"}]}], "}"}], "&"}], "/@", "pnts"}]}], 
+  ";"}]}], "Input",
+ InitializationCell->True,
+ CellChangeTimes->{{3.6249225920454993`*^9, 3.6249225930045543`*^9}, {
+   3.6249228309241624`*^9, 3.6249228355234256`*^9}, {3.6249228738526177`*^9, 
+   3.6249228788439035`*^9}, 3.6249229673879676`*^9, {3.6249993605837183`*^9, 
+   3.6249993879917183`*^9}, {3.6250110098962145`*^9, 3.625011049403231*^9}, {
+   3.6252474648702135`*^9, 3.6252474808702135`*^9}, {3.6255170865973463`*^9, 
+   3.625517093251691*^9}, {3.6255172610770025`*^9, 3.6255173307473497`*^9}, {
+   3.6255183034833713`*^9, 3.6255183358599825`*^9}}]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Fixpoint of exp and associated stuff", "Section",
+ CellChangeTimes->{{3.6271339901958838`*^9, 3.6271340060698843`*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ExpFixPoint", "=", 
+   RowBox[{
+    RowBox[{"RepFunc", "[", 
+     RowBox[{"Log", ",", "200"}], "]"}], "[", "1.1", "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"ExpFixPointNeg", " ", "=", " ", 
+    RowBox[{"Conjugate", "[", "ExpFixPoint", "]"}]}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"CCirc", "[", 
+    RowBox[{"r_", ",", "n_"}], "]"}], ":=", 
+   RowBox[{"Array", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"r", " ", 
+       RowBox[{"Exp", "[", 
+        RowBox[{"I", " ", "#"}], "]"}]}], "&"}], ",", "n", ",", 
+     RowBox[{"{", 
+      RowBox[{"0", ",", 
+       RowBox[{"2", "\[Pi]"}]}], "}"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"CP", "=", "ExpFixPoint"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"IC", "=", 
+   RowBox[{"CCirc", "[", 
+    RowBox[{"0.1", ",", "50"}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"IC2", "=", 
+   RowBox[{"CCirc", "[", 
+    RowBox[{"0.2", ",", "50"}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"CIC", "=", 
+   RowBox[{"CP", "+", "IC"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"CIC2", "=", 
+   RowBox[{"CP", "+", "IC2"}]}], ";"}]}], "Input",
+ InitializationCell->True,
+ CellChangeTimes->{{3.627134032449884*^9, 3.627134033449884*^9}}]
+}, Open  ]]
+},
+WindowSize->{983, 1352},
+WindowMargins->{{Automatic, 479}, {Automatic, 32}},
+FrontEndVersion->"10.0 for Microsoft Windows (64-bit) (September 9, 2014)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 103, 1, 70, "Section"],
+Cell[686, 25, 926, 29, 52, "Input",
+ InitializationCell->True]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[1649, 59, 103, 1, 70, "Section"],
+Cell[1755, 62, 7290, 182, 572, "Input",
+ InitializationCell->True]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[9082, 249, 125, 1, 70, "Section"],
+Cell[9210, 252, 1377, 43, 192, "Input",
+ InitializationCell->True]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+
