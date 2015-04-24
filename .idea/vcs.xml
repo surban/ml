@@ -3,6 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="Y:/dev/submit" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../GPy" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../indentor" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../ml_support/Theano" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../python-ivi" vcs="Git" />

@@ -8,6 +8,7 @@
     <orderEntry type="module" module-name="indentor" />
     <orderEntry type="module" module-name="submit" />
     <orderEntry type="module" module-name="Theano" />
+    <orderEntry type="module" module-name="GPy" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="myDocStringFormat" value="Plain" />
