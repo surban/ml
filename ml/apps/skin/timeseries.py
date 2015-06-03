@@ -86,7 +86,7 @@ def plot_mc(valid, ydata=None, conf=None, xdata=None,
             ylabel=None, xlabel=None, ymax=None, xmax=None, label=None,
             side='left', timestep=None, conf_args={}, aspect=None,
             y_tick_color=None, n_plot_samples=None, title=None, conf_pointwise=False,
-            **data_args):
+            plot_numbering=True, **data_args):
     assert valid.ndim == 2
     n_samples = valid.shape[1]
     n_max_steps = valid.shape[0]
@@ -209,7 +209,8 @@ def plot_mc(valid, ydata=None, conf=None, xdata=None,
         if aspect:
             ax.set_aspect(aspect)
 
-        plt.title(str(c))
+        if plot_numbering:
+            plt.title(str(c))
 
     if title:
         plt.suptitle(title)
