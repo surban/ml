@@ -203,7 +203,7 @@ class SkinDataset(object):
         print
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':w
     if len(sys.argv) != 2:
         print "Builds a skin dataset from a curve output directory."
         print "Usage: %s <curve output directory>" % sys.argv[0]
